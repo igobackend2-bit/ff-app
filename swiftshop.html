@@ -1,0 +1,1396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>SwiftShop — 24-Hour Delivery</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+/* ─────────────────────────────────────────────────────────
+   RESET & TOKENS
+───────────────────────────────────────────────────────── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#06091a;--bg2:#0b1020;--bg3:#121829;
+  --card:#141e33;--card2:#1c2845;--border:#243254;
+  --acc:#6c63ff;--acc-l:#a695ff;--acc-d:#4e47cc;
+  --acc-g:rgba(108,99,255,.25);
+  --txt:#e8edf8;--txt2:#8fa0c0;--txt3:#4d5f7c;
+  --ok:#22c55e;--err:#ef4444;--warn:#f59e0b;
+  --r:14px;--rs:8px;
+  --sh:0 4px 30px rgba(0,0,0,.55);
+  --sha:0 0 30px var(--acc-g);
+}
+html{scroll-behavior:smooth}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--txt);min-height:100vh;overflow-x:hidden}
+h1,h2,h3,h4,h5{font-family:'Syne',sans-serif}
+button,input,select,textarea{font-family:'DM Sans',sans-serif}
+::-webkit-scrollbar{width:4px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+
+/* ─────────────────────────────────────────────────────────
+   LAYOUT HELPERS
+───────────────────────────────────────────────────────── */
+.page{padding:16px;padding-bottom:56px;max-width:540px;margin:0 auto}
+.pb50{padding-bottom:50px}
+
+/* ─────────────────────────────────────────────────────────
+   SCREEN ANIMATION
+───────────────────────────────────────────────────────── */
+.fade{animation:fade .28s ease forwards}
+@keyframes fade{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+
+/* ─────────────────────────────────────────────────────────
+   NAV
+───────────────────────────────────────────────────────── */
+.nav{
+  position:sticky;top:0;z-index:600;
+  background:rgba(6,9,26,.93);backdrop-filter:blur(16px);
+  border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;
+  padding:11px 16px;gap:8px;
+}
+.nav-logo{
+  font-family:'Syne',sans-serif;font-size:1.25rem;font-weight:800;
+  background:linear-gradient(135deg,#6c63ff,#b39dff);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  background-clip:text;cursor:pointer;white-space:nowrap;flex-shrink:0;
+}
+.nav-logo em{-webkit-text-fill-color:var(--txt);font-weight:300;font-style:normal}
+.nav-right{display:flex;align-items:center;gap:7px;flex-shrink:0}
+.nbtn{
+  padding:7px 14px;border-radius:20px;border:1.5px solid var(--acc);
+  background:transparent;color:var(--acc);font-size:.8rem;font-weight:600;
+  cursor:pointer;transition:all .2s;white-space:nowrap;
+}
+.nbtn:hover{background:var(--acc);color:#fff}
+.nbtn.ghost{border-color:var(--border);color:var(--txt2);font-size:.76rem}
+.nbtn.ghost:hover{border-color:var(--acc);color:var(--acc);background:transparent}
+.nbtn.red{border-color:var(--err);color:var(--err)}
+.nbtn.red:hover{background:var(--err);color:#fff}
+.nu{
+  display:flex;align-items:center;gap:7px;cursor:pointer;
+  background:var(--card2);border:1px solid var(--border);
+  border-radius:22px;padding:4px 12px 4px 4px;transition:border-color .2s;
+}
+.nu:hover{border-color:var(--acc)}
+.nu-name{font-size:.82rem;font-weight:600;max-width:88px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.back-btn{
+  display:flex;align-items:center;gap:5px;
+  background:var(--card2);border:1px solid var(--border);
+  color:var(--txt2);padding:7px 13px;border-radius:20px;
+  font-size:.82rem;cursor:pointer;transition:all .2s;white-space:nowrap;
+}
+.back-btn:hover{border-color:var(--acc);color:var(--acc)}
+
+/* ─────────────────────────────────────────────────────────
+   AVATAR
+───────────────────────────────────────────────────────── */
+.av{
+  width:30px;height:30px;border-radius:50%;flex-shrink:0;
+  background:linear-gradient(135deg,var(--acc),#b39dff);
+  display:flex;align-items:center;justify-content:center;
+  font-size:.72rem;font-weight:800;color:#fff;font-family:'Syne',sans-serif;
+}
+.av-lg{
+  width:76px;height:76px;border-radius:50%;
+  background:linear-gradient(135deg,var(--acc),#b39dff);
+  display:flex;align-items:center;justify-content:center;
+  font-size:1.65rem;font-weight:800;color:#fff;font-family:'Syne',sans-serif;
+  margin:0 auto 14px;box-shadow:var(--sha);
+}
+
+/* ─────────────────────────────────────────────────────────
+   BANNER
+───────────────────────────────────────────────────────── */
+.banner{
+  background:linear-gradient(135deg,var(--acc-d),var(--acc));
+  color:#fff;text-align:center;padding:9px 16px;
+  font-size:.82rem;font-weight:600;letter-spacing:.3px;
+}
+
+/* ─────────────────────────────────────────────────────────
+   CARD
+───────────────────────────────────────────────────────── */
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:18px}
+.card+.card,.card+.mt{margin-top:12px}
+
+/* ─────────────────────────────────────────────────────────
+   PRODUCT GRID
+───────────────────────────────────────────────────────── */
+.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;padding:14px 16px 54px}
+@media(min-width:480px){.grid{grid-template-columns:repeat(3,1fr)}}
+.pcard{
+  background:var(--card);border:1px solid var(--border);border-radius:var(--r);
+  overflow:hidden;cursor:pointer;position:relative;
+  transition:transform .18s,box-shadow .18s,border-color .18s;
+}
+.pcard:not(.oos):hover{transform:translateY(-4px);box-shadow:var(--sha);border-color:var(--acc)}
+.pcard.oos{cursor:not-allowed;opacity:.64}
+.pcard-img{
+  font-size:3.2rem;background:var(--card2);
+  display:flex;align-items:center;justify-content:center;
+  min-height:90px;padding:18px 8px 10px;
+}
+.pcard-body{padding:10px 12px 13px}
+.pcard-name{font-size:.87rem;font-weight:600;line-height:1.3;margin-bottom:4px;font-family:'Syne',sans-serif}
+.pcard-price{font-size:.96rem;font-weight:800;color:var(--acc-l);font-family:'Syne',sans-serif}
+.oos-pill{
+  position:absolute;top:8px;right:8px;
+  background:var(--err);color:#fff;
+  font-size:.62rem;font-weight:700;padding:3px 8px;border-radius:20px;
+}
+
+/* ─────────────────────────────────────────────────────────
+   BUTTONS
+───────────────────────────────────────────────────────── */
+.btn{
+  width:100%;padding:14px 20px;border-radius:var(--r);border:none;
+  font-size:.96rem;font-weight:700;cursor:pointer;transition:all .2s;
+  display:flex;align-items:center;justify-content:center;gap:8px;
+}
+.btn:disabled{opacity:.45;cursor:not-allowed;transform:none!important}
+.btn:not(:disabled):active{transform:scale(.98)}
+.btn-pri{background:linear-gradient(135deg,var(--acc),var(--acc-l));color:#fff;box-shadow:0 4px 18px var(--acc-g)}
+.btn-pri:not(:disabled):hover{transform:translateY(-1px);box-shadow:0 6px 24px var(--acc-g)}
+.btn-out{background:transparent;border:1.5px solid var(--acc);color:var(--acc)}
+.btn-out:not(:disabled):hover{background:var(--acc);color:#fff}
+.btn-sm{padding:8px 15px;font-size:.8rem;width:auto;border-radius:var(--rs)}
+.spin{width:17px;height:17px;border:2.5px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:sp .7s linear infinite;flex-shrink:0}
+@keyframes sp{to{transform:rotate(360deg)}}
+
+/* ─────────────────────────────────────────────────────────
+   FORM
+───────────────────────────────────────────────────────── */
+.fg{margin-bottom:15px}
+.fg:last-child{margin-bottom:0}
+.lbl{display:block;font-size:.73rem;font-weight:600;color:var(--txt2);margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px}
+.inp{
+  width:100%;padding:12px 13px;background:var(--bg3);
+  border:1.5px solid var(--border);border-radius:var(--rs);
+  color:var(--txt);font-size:.93rem;outline:none;
+  transition:border-color .2s,box-shadow .2s;
+}
+.inp:focus{border-color:var(--acc);box-shadow:0 0 0 3px rgba(108,99,255,.14)}
+.inp.err-inp{border-color:var(--err)}
+.inp[readonly]{opacity:.58;cursor:not-allowed}
+.ph-wrap{display:flex}
+.ph-pre{
+  padding:12px 11px;background:var(--card2);
+  border:1.5px solid var(--border);border-right:none;
+  border-radius:var(--rs) 0 0 var(--rs);
+  color:var(--acc-l);font-weight:600;font-size:.93rem;
+  display:flex;align-items:center;white-space:nowrap;flex-shrink:0;
+}
+.ph-wrap .inp{border-radius:0 var(--rs) var(--rs) 0}
+.ferr{color:var(--err);font-size:.77rem;margin-top:4px;display:none}
+.ferr.show{display:block}
+
+/* ─────────────────────────────────────────────────────────
+   OTP BOXES
+───────────────────────────────────────────────────────── */
+.otp-row{display:flex;gap:9px;justify-content:center;margin:18px 0}
+.otp-inp{
+  width:44px;height:52px;text-align:center;
+  font-size:1.35rem;font-weight:800;font-family:'Syne',sans-serif;
+  background:var(--bg3);border:2px solid var(--border);border-radius:10px;
+  color:var(--txt);outline:none;transition:border-color .2s,box-shadow .2s;caret-color:var(--acc);
+}
+.otp-inp:focus{border-color:var(--acc);box-shadow:0 0 0 3px rgba(108,99,255,.17)}
+.otp-inp.filled{border-color:var(--acc);background:rgba(108,99,255,.1)}
+.otp-inp.shake{border-color:var(--err);animation:shk .35s ease}
+@keyframes shk{0%,100%{transform:translateX(0)}25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
+
+/* ─────────────────────────────────────────────────────────
+   TABS
+───────────────────────────────────────────────────────── */
+.tabs{display:flex;background:var(--bg3);border-radius:var(--rs);padding:3px;margin-bottom:14px}
+.tab{
+  flex:1;padding:8px;background:transparent;border:none;
+  color:var(--txt3);font-size:.84rem;font-weight:600;
+  border-radius:6px;cursor:pointer;transition:all .2s;
+}
+.tab.on{background:var(--acc);color:#fff;box-shadow:0 2px 10px var(--acc-g)}
+
+/* ─────────────────────────────────────────────────────────
+   TOASTS
+───────────────────────────────────────────────────────── */
+#toasts{
+  position:fixed;bottom:20px;left:50%;transform:translateX(-50%);
+  z-index:9000;display:flex;flex-direction:column;gap:8px;
+  width:92%;max-width:380px;pointer-events:none;
+}
+.toast{
+  padding:12px 17px;border-radius:var(--rs);font-size:.87rem;font-weight:600;
+  text-align:center;pointer-events:all;box-shadow:0 4px 20px rgba(0,0,0,.45);
+  animation:tin .28s ease;
+}
+.toast.s{background:var(--ok);color:#fff}
+.toast.e{background:var(--err);color:#fff}
+.toast.i{background:var(--acc);color:#fff}
+.toast.w{background:var(--warn);color:#111}
+@keyframes tin{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+
+/* ─────────────────────────────────────────────────────────
+   STATUS PILLS
+───────────────────────────────────────────────────────── */
+.pill{display:inline-flex;align-items:center;gap:4px;padding:4px 11px;border-radius:20px;font-size:.73rem;font-weight:700}
+.pill-blue{background:rgba(59,130,246,.12);color:#60a5fa;border:1px solid rgba(59,130,246,.25)}
+.pill-yel {background:rgba(245,158,11,.12);color:#fbbf24;border:1px solid rgba(245,158,11,.25)}
+.pill-pur {background:rgba(139,92,246,.12);color:#a78bfa;border:1px solid rgba(139,92,246,.25)}
+.pill-grn {background:rgba(34,197,94,.12);color:#4ade80;border:1px solid rgba(34,197,94,.25)}
+
+/* ─────────────────────────────────────────────────────────
+   DELIVERY INFO STRIP
+───────────────────────────────────────────────────────── */
+.dstrip{
+  display:flex;align-items:center;gap:9px;padding:11px 13px;
+  background:rgba(34,197,94,.07);border:1px solid rgba(34,197,94,.18);
+  border-radius:var(--rs);margin:12px 0;font-size:.85rem;
+  color:#4ade80;font-weight:500;
+}
+
+/* ─────────────────────────────────────────────────────────
+   ORDER SUMMARY ROWS
+───────────────────────────────────────────────────────── */
+.srow{display:flex;justify-content:space-between;align-items:center;padding:7px 0;font-size:.9rem}
+.srow.total{font-size:.97rem;font-weight:700;border-top:1px solid var(--border);margin-top:4px;padding-top:11px}
+.free-tag{color:var(--ok);font-weight:600;font-size:.83rem}
+.div{height:1px;background:var(--border);margin:13px 0}
+
+/* ─────────────────────────────────────────────────────────
+   SMS BUBBLE
+───────────────────────────────────────────────────────── */
+.sms{
+  background:var(--card2);border:1px solid var(--border);
+  border-radius:12px 12px 12px 3px;padding:12px 15px;margin:12px 0;
+}
+.sms-from{font-size:.67rem;color:var(--acc-l);font-weight:700;margin-bottom:5px;text-transform:uppercase;letter-spacing:.6px}
+.sms-body{font-size:.88rem;color:var(--txt2);line-height:1.55}
+.sms-code{display:block;font-size:1.4rem;font-weight:800;color:var(--acc-l);letter-spacing:6px;font-family:'Syne',sans-serif;margin:6px 0 4px}
+
+/* ─────────────────────────────────────────────────────────
+   TIMER & RESEND
+───────────────────────────────────────────────────────── */
+.timer-row{text-align:center;font-size:.84rem;color:var(--txt2);margin-top:10px}
+.timer-v{color:var(--acc-l);font-weight:700}
+.resend-row{text-align:center;margin-top:10px}
+.resend-btn{background:none;border:none;color:var(--acc-l);font-size:.84rem;font-weight:600;cursor:pointer;text-decoration:underline;font-family:'DM Sans',sans-serif}
+
+/* ─────────────────────────────────────────────────────────
+   PRODUCT DETAIL
+───────────────────────────────────────────────────────── */
+.big-emoji{
+  background:var(--card2);border:1px solid var(--border);border-radius:var(--r);
+  display:flex;align-items:center;justify-content:center;
+  font-size:7.5rem;height:200px;margin-bottom:15px;
+}
+.tag{display:inline-block;padding:3px 10px;border-radius:20px;font-size:.72rem;font-weight:600;background:rgba(108,99,255,.14);color:var(--acc-l)}
+
+/* ─────────────────────────────────────────────────────────
+   ORDER CONFIRMED
+───────────────────────────────────────────────────────── */
+.success-ring{
+  width:82px;height:82px;border-radius:50%;
+  background:linear-gradient(135deg,var(--ok),#16a34a);
+  display:flex;align-items:center;justify-content:center;font-size:2.3rem;
+  margin:0 auto 16px;animation:pop .5s cubic-bezier(.175,.885,.32,1.275);
+  box-shadow:0 0 44px rgba(34,197,94,.38);
+}
+@keyframes pop{from{transform:scale(0);opacity:0}to{transform:scale(1);opacity:1}}
+
+/* ─────────────────────────────────────────────────────────
+   ETA CARD
+───────────────────────────────────────────────────────── */
+.eta{
+  background:linear-gradient(135deg,rgba(108,99,255,.14),rgba(108,99,255,.04));
+  border:1px solid var(--acc);border-radius:var(--r);
+  padding:16px;text-align:center;margin-bottom:14px;
+}
+.eta-val{font-family:'Syne',sans-serif;font-size:1.9rem;font-weight:800;color:var(--acc-l)}
+.eta-lbl{font-size:.82rem;color:var(--txt2);margin-top:3px}
+
+/* ─────────────────────────────────────────────────────────
+   MAP
+───────────────────────────────────────────────────────── */
+.map-box{border-radius:var(--r);overflow:hidden;border:1px solid var(--border);background:#06101e;margin-bottom:14px}
+.map-box svg{display:block;width:100%;height:auto}
+
+/* ─────────────────────────────────────────────────────────
+   PROGRESS STEPS
+───────────────────────────────────────────────────────── */
+.steps{}
+.step-row{display:flex;align-items:flex-start;gap:11px;padding:8px 0;position:relative}
+.step-row:not(:last-child)::after{content:'';position:absolute;left:12px;top:30px;width:2px;height:calc(100% + 2px);background:var(--border)}
+.step-row.s-done:not(:last-child)::after{background:var(--ok)}
+.step-dot{
+  width:26px;height:26px;border-radius:50%;flex-shrink:0;z-index:1;
+  background:var(--bg3);border:2px solid var(--border);
+  display:flex;align-items:center;justify-content:center;font-size:.7rem;
+}
+.step-dot.done{background:var(--ok);border-color:var(--ok);color:#fff}
+.step-dot.active{background:var(--acc);border-color:var(--acc);color:#fff;animation:pulse 1.6s infinite}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(108,99,255,.5)}50%{box-shadow:0 0 0 9px rgba(108,99,255,0)}}
+.step-info{flex:1;padding-top:2px}
+.step-title{font-size:.88rem;font-weight:600}
+.step-title.dim{color:var(--txt3)}
+.step-time{font-size:.74rem;color:var(--txt3);margin-top:1px}
+
+/* ─────────────────────────────────────────────────────────
+   LIVE DOT
+───────────────────────────────────────────────────────── */
+.live-dot{width:8px;height:8px;background:var(--ok);border-radius:50%;display:inline-block;margin-right:5px;animation:blink 1.2s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
+
+/* ─────────────────────────────────────────────────────────
+   ADMIN STATS
+───────────────────────────────────────────────────────── */
+.stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:14px}
+.stat{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:14px 15px}
+.stat-val{font-family:'Syne',sans-serif;font-size:1.65rem;font-weight:800;color:var(--acc-l)}
+.stat-lbl{font-size:.73rem;color:var(--txt3);margin-top:2px}
+
+/* ─────────────────────────────────────────────────────────
+   ADMIN EMOJI PICKER
+───────────────────────────────────────────────────────── */
+.emoji-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:5px;margin-top:8px}
+.emo{
+  font-size:1.35rem;text-align:center;padding:7px;
+  border-radius:7px;background:var(--bg3);border:2px solid transparent;
+  cursor:pointer;transition:all .15s;
+}
+.emo:hover{border-color:var(--acc);background:rgba(108,99,255,.1)}
+.emo.sel{border-color:var(--acc);background:rgba(108,99,255,.2)}
+
+/* ─────────────────────────────────────────────────────────
+   ADMIN PRODUCT & ORDER ROWS
+───────────────────────────────────────────────────────── */
+.adm-prod-row{display:flex;align-items:center;gap:9px;padding:9px 0;border-bottom:1px solid var(--border)}
+.adm-prod-row:last-child{border-bottom:none}
+.adm-order{background:var(--bg3);border:1px solid var(--border);border-radius:var(--rs);padding:13px;margin-bottom:9px}
+.status-sel{
+  width:100%;background:var(--bg3);border:1.5px solid var(--border);
+  border-radius:var(--rs);color:var(--txt);padding:7px 10px;
+  cursor:pointer;outline:none;margin-top:8px;font-size:.83rem;
+  -webkit-appearance:none;appearance:none;
+}
+.status-sel:focus{border-color:var(--acc)}
+
+/* ─────────────────────────────────────────────────────────
+   ORDER CARDS (ACCOUNT)
+───────────────────────────────────────────────────────── */
+.order-card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:15px;margin-bottom:9px;transition:border-color .2s}
+.order-card:hover{border-color:var(--acc)}
+.empty{text-align:center;padding:38px 20px}
+.empty-icon{font-size:2.8rem;margin-bottom:10px}
+</style>
+</head>
+<body>
+<div id="APP"></div>
+<div id="toasts"></div>
+
+<script>
+"use strict";
+
+/* ═══════════════════════════════════════════════════════════
+   CENTRAL STATE
+═══════════════════════════════════════════════════════════ */
+const ST = {
+  screen : "home",
+  prev   : "home",
+  loginReturn : "home",
+
+  user : null,   /* { name, phone } */
+
+  products : [
+    {id:"p1", e:"🥛", name:"Organic Full Cream Milk",      price:66,  cat:"Dairy",      desc:"Farm-fresh full cream milk from certified organic farms. Rich in calcium, protein and essential vitamins. Sourced directly without additives.", stock:true},
+    {id:"p2", e:"🍞", name:"Whole Wheat Brown Bread",      price:45,  cat:"Bakery",     desc:"Freshly baked whole-wheat bread with high dietary fibre. Great for healthy sandwiches, toast and light breakfasts.", stock:true},
+    {id:"p3", e:"🥚", name:"Farm Fresh Eggs — 6 pcs",      price:68,  cat:"Eggs",       desc:"Country fresh eggs from free-range hens. Packed with protein, iron and essential amino acids for a nutritious daily start.", stock:true},
+    {id:"p4", e:"🧀", name:"Processed Cheese Slices",      price:120, cat:"Dairy",      desc:"Smooth, creamy cheese slices that melt perfectly for burgers, sandwiches and grilled cheese. Each pack contains 10 slices.", stock:true},
+    {id:"p5", e:"🍌", name:"Sweet Bananas — 1 kg",         price:40,  cat:"Fruits",     desc:"Perfectly ripe sweet bananas from Tamil Nadu farms. Great for smoothies, desserts, porridge and daily healthy snacking.", stock:true},
+    {id:"p6", e:"🍎", name:"Kashmir Red Apples — 4 pcs",   price:120, cat:"Fruits",     desc:"Crisp, fresh red apples from the orchards of Kashmir. Rich in antioxidants, dietary fibre and natural sweetness.", stock:false},
+    {id:"p7", e:"🥦", name:"Garden Fresh Broccoli",        price:80,  cat:"Vegetables", desc:"Tender garden-fresh broccoli florets rich in vitamins K and C. Ideal for stir-fries, soups, steamed meals and salads.", stock:true},
+    {id:"p8", e:"🍅", name:"Country Tomatoes — 500 g",     price:35,  cat:"Vegetables", desc:"Juicy vine-ripened tomatoes direct from local farms. Perfect for gravies, chutneys, salads and every homemade Indian dish.", stock:true},
+    {id:"p9", e:"🥤", name:"Cold-Pressed Orange Juice 1 L",price:95,  cat:"Drinks",     desc:"100% natural cold-pressed orange juice — zero preservatives, zero added sugar. Packed with vitamin C for daily immunity.", stock:true},
+    {id:"p10",e:"☕", name:"Premium Arabica Coffee",       price:350, cat:"Beverages",  desc:"Freeze-dried premium Arabica coffee beans. Bold, smooth and wonderfully aromatic — the perfect cup to start your morning.", stock:true},
+    {id:"p11",e:"🍫", name:"Dark Chocolate 70% Cocoa",     price:180, cat:"Snacks",     desc:"Rich, velvety dark chocolate with 70% cocoa. Antioxidant-packed, vegan-friendly indulgence for mindful snacking.", stock:true},
+    {id:"p12",e:"🧴", name:"Aloe Vera Antibacterial Wash", price:85,  cat:"Hygiene",    desc:"Gentle antibacterial handwash enriched with pure aloe vera extract. Kills 99.9% germs while keeping your skin soft and moisturised.", stock:true},
+  ],
+
+  selProduct  : null,
+  orders      : [],
+  curOrder    : null,
+  trackId     : null,
+
+  checkout : { mode:"live", liveAddr:"", manual:{} },
+  otpData  : { code:"", name:"", phone:"", exp:0, tid:null, cd:120 },
+
+  adminTab   : "products",
+  adminEmoji : "🛍️",
+  raf  : null,
+  poll : null,
+  mapSI: -1,
+};
+
+/* ═══════════════════════════════════════════════════════════
+   UTILITIES
+═══════════════════════════════════════════════════════════ */
+const $ = id => document.getElementById(id);
+
+function uid(){ return "ORD" + Date.now().toString().slice(-8) }
+
+function toast(msg, type="i"){
+  const c=$("toasts"); if(!c) return;
+  const d=document.createElement("div");
+  d.className=`toast ${type}`; d.textContent=msg; c.appendChild(d);
+  setTimeout(()=>{ d.style.opacity="0"; d.style.transition="opacity .4s";
+    setTimeout(()=>d.remove(),420); },3400);
+}
+
+/* navigate */
+function go(scr, fromScr){
+  ST.prev = (fromScr !== undefined) ? fromScr : ST.screen;
+  ST.screen = scr;
+  cancelAnim(); stopPoll();
+  render();
+  window.scrollTo({top:0,behavior:"instant"});
+}
+function back(){ go(ST.prev) }
+
+/* user helpers */
+function firstName(){ return ST.user ? ST.user.name.trim().split(" ")[0] : "" }
+function initials(){
+  if(!ST.user) return "?";
+  const p = ST.user.name.trim().split(" ");
+  return (p.length>=2 ? p[0][0]+p[p.length-1][0] : p[0].slice(0,2)).toUpperCase();
+}
+function logout(){ ST.user=null; toast("Logged out","i"); go("home") }
+
+/* status helpers */
+function statusMeta(st){
+  return { placed:{cls:"pill-blue",lbl:"📋 Order Placed"},
+           packed:{cls:"pill-yel", lbl:"📦 Packed"},
+           delivery:{cls:"pill-pur",lbl:"🛵 Out for Delivery"},
+           delivered:{cls:"pill-grn",lbl:"✅ Delivered"} }[st]
+         || {cls:"pill-blue",lbl:"📋 Order Placed"};
+}
+function statusIndex(st){ return {placed:0,packed:1,delivery:2,delivered:3}[st]??0 }
+
+/* anim helpers */
+function cancelAnim(){ if(ST.raf){cancelAnimationFrame(ST.raf);ST.raf=null} }
+function stopPoll(){ if(ST.poll){clearInterval(ST.poll);ST.poll=null} }
+
+/* ═══════════════════════════════════════════════════════════
+   NAV BUILDER
+═══════════════════════════════════════════════════════════ */
+function buildNav(opts={}){
+  const { showBack=false, backFn="back()", title="" } = opts;
+
+  const right = ST.user
+    ? `<div class="nu" onclick="go('account')">
+         <div class="av">${initials()}</div>
+         <span class="nu-name">${firstName()}</span>
+       </div>
+       <button class="nbtn red" onclick="logout()">Logout</button>`
+    : `<button class="nbtn" onclick="go('login')">Login</button>`;
+
+  return `
+  <nav class="nav">
+    <div style="display:flex;align-items:center;gap:8px;min-width:0">
+      ${showBack?`<button class="back-btn" onclick="${backFn}">← Back</button>`:""}
+      <div class="nav-logo" onclick="go('home')">Swift<em>Shop</em></div>
+      ${title?`<span style="color:var(--txt3);font-size:.78rem;flex-shrink:0">${title}</span>`:""}
+    </div>
+    <div class="nav-right">${right}<button class="nbtn ghost" onclick="go('admin')">🔧 Admin</button></div>
+  </nav>`;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   SCREEN 1 — PRODUCTS (HOME)
+═══════════════════════════════════════════════════════════ */
+function scrHome(){
+  const cards = ST.products.map(p => {
+    const oos = !p.stock;
+    return `
+    <div class="pcard${oos?" oos":""}"
+         ${oos?"":"onclick=\"openProduct('"+p.id+"')\""}
+         role="button" tabindex="${oos?-1:0}">
+      ${oos?'<div class="oos-pill">Out of Stock</div>':""}
+      <div class="pcard-img">${p.e}</div>
+      <div class="pcard-body">
+        <div class="pcard-name">${p.name}</div>
+        <div class="pcard-price">₹${p.price}</div>
+      </div>
+    </div>`;
+  }).join("");
+
+  return `
+  ${buildNav()}
+  <div class="banner">⚡ 24-Hour Delivery Guaranteed — Free Delivery on Every Order!</div>
+  <div class="fade">
+    <div style="padding:14px 16px 6px;display:flex;align-items:baseline;justify-content:space-between">
+      <h2 style="font-size:1.15rem;font-weight:800">Our Products</h2>
+      <span style="font-size:.76rem;color:var(--txt3)">${ST.products.filter(x=>x.stock).length} in stock</span>
+    </div>
+    <div class="grid">${cards}</div>
+  </div>`;
+}
+
+function openProduct(id){
+  ST.selProduct = ST.products.find(p=>p.id===id);
+  if(ST.selProduct) go("detail");
+}
+
+/* ═══════════════════════════════════════════════════════════
+   SCREEN 2 — PRODUCT DETAIL
+═══════════════════════════════════════════════════════════ */
+function scrDetail(){
+  const p = ST.selProduct;
+  if(!p){ go("home"); return "" }
+  return `
+  ${buildNav({showBack:true, backFn:"go('home')", title:p.cat})}
+  <div class="fade page pb50">
+    <div class="big-emoji">${p.e}</div>
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:7px">
+      <h1 style="font-size:1.38rem;font-weight:800;line-height:1.2">${p.name}</h1>
+      <span class="tag">${p.cat}</span>
+    </div>
+    <div style="font-size:1.75rem;font-weight:800;color:var(--acc-l);font-family:'Syne',sans-serif;margin-bottom:12px">₹${p.price}</div>
+    <div class="dstrip">⚡ <span>Free delivery · Arrives within 24 hours</span></div>
+    <div class="card" style="margin-bottom:15px">
+      <div style="font-size:.71rem;text-transform:uppercase;letter-spacing:.5px;color:var(--txt3);font-weight:600;margin-bottom:8px">About This Product</div>
+      <p style="font-size:.92rem;color:var(--txt2);line-height:1.65">${p.desc}</p>
+    </div>
+    <button class="btn btn-pri" onclick="handleCheckout()">🛒 Proceed to Checkout</button>
+  </div>`;
+}
+
+function handleCheckout(){
+  if(!ST.user){ ST.loginReturn="checkout"; toast("Please login to continue","i"); go("login") }
+  else go("checkout");
+}
+
+/* ═══════════════════════════════════════════════════════════
+   SCREEN 3 — LOGIN (OTP FLOW)
+═══════════════════════════════════════════════════════════ */
+function scrLogin(){
+  return `
+  ${buildNav({showBack:true, backFn:"loginBack()"})}
+  <div class="fade page pb50">
+    <div style="margin-bottom:22px">
+      <h1 style="font-size:1.55rem;font-weight:800;margin-bottom:6px">👋 Welcome Back</h1>
+      <p style="color:var(--txt2);font-size:.9rem">Enter your name and phone to receive an OTP.</p>
+    </div>
+
+    <!-- STEP 1 : Details -->
+    <div class="card" id="step1">
+      <div class="fg">
+        <label class="lbl">Full Name</label>
+        <input id="L_name" class="inp" type="text" placeholder="e.g. Naveen Kumar" autocomplete="name"/>
+        <div class="ferr" id="E_name">Name must be at least 2 characters.</div>
+      </div>
+      <div class="fg">
+        <label class="lbl">Phone Number</label>
+        <div class="ph-wrap">
+          <div class="ph-pre">🇮🇳 +91</div>
+          <input id="L_phone" class="inp" type="tel" inputmode="numeric" maxlength="10" placeholder="10-digit mobile number"/>
+        </div>
+        <div class="ferr" id="E_phone">Enter exactly 10 digits (numbers only).</div>
+      </div>
+      <div id="L_msg" style="display:none;margin-bottom:12px"></div>
+      <button class="btn btn-pri" id="B_sendOtp" onclick="sendOTP()">Send OTP</button>
+    </div>
+
+    <!-- STEP 2 : OTP verify (hidden until OTP sent) -->
+    <div class="card" id="step2" style="display:none;margin-top:12px">
+      <div style="margin-bottom:10px">
+        <div style="font-size:.98rem;font-weight:700;margin-bottom:3px">Enter OTP</div>
+        <p id="otp_sub" style="font-size:.85rem;color:var(--txt2)">A 6-digit code has been sent.</p>
+      </div>
+
+      <!-- Simulated SMS bubble -->
+      <div class="sms" id="SMS_box" style="display:none">
+        <div class="sms-from">SwiftShop — Simulated SMS</div>
+        <div class="sms-body">
+          Your OTP for SwiftShop login:<br/>
+          <span class="sms-code" id="SMS_code"></span>
+          <span style="font-size:.72rem;color:var(--txt3)">Valid for 2 minutes. Do not share.</span>
+        </div>
+      </div>
+
+      <div id="OTP_err" style="display:none;color:var(--err);font-size:.86rem;font-weight:600;margin:8px 0"></div>
+
+      <div class="otp-row">
+        <input class="otp-inp" type="text" inputmode="numeric" maxlength="1" data-idx="0"/>
+        <input class="otp-inp" type="text" inputmode="numeric" maxlength="1" data-idx="1"/>
+        <input class="otp-inp" type="text" inputmode="numeric" maxlength="1" data-idx="2"/>
+        <input class="otp-inp" type="text" inputmode="numeric" maxlength="1" data-idx="3"/>
+        <input class="otp-inp" type="text" inputmode="numeric" maxlength="1" data-idx="4"/>
+        <input class="otp-inp" type="text" inputmode="numeric" maxlength="1" data-idx="5"/>
+      </div>
+
+      <div class="timer-row" id="TMR_row">
+        OTP expires in <span class="timer-v" id="TMR_val">2:00</span>
+      </div>
+      <div class="resend-row" id="RSN_row" style="display:none">
+        <button class="resend-btn" onclick="resendOTP()">🔄 Resend OTP</button>
+      </div>
+
+      <button class="btn btn-pri" style="margin-top:14px" id="B_verify" onclick="verifyOTP()" disabled>Verify OTP</button>
+    </div>
+  </div>`;
+}
+
+function loginBack(){ clearOTPTimer(); go(ST.prev||"home") }
+
+/* ── SEND OTP ── */
+function sendOTP(){
+  const name  = ($("L_name")||{}).value?.trim()||"";
+  const phone = ($("L_phone")||{}).value?.trim()||"";
+  let ok = true;
+
+  if(name.length<2){
+    $("E_name").classList.add("show");
+    $("L_name").classList.add("err-inp"); ok=false;
+  } else { $("E_name").classList.remove("show"); $("L_name").classList.remove("err-inp") }
+
+  if(!/^\d{10}$/.test(phone)){
+    $("E_phone").classList.add("show");
+    $("L_phone").classList.add("err-inp"); ok=false;
+  } else { $("E_phone").classList.remove("show"); $("L_phone").classList.remove("err-inp") }
+
+  if(!ok) return;
+
+  const code = String(Math.floor(100000 + Math.random()*900000));
+  ST.otpData = { code, name, phone, exp:Date.now()+120000, tid:null, cd:120 };
+
+  /* show step 2 */
+  $("step2").style.display = "block";
+  $("SMS_box").style.display = "block";
+  $("SMS_code").textContent  = code;
+  $("otp_sub").textContent   = `OTP sent to +91 ${phone.slice(0,5)}XXXXX`;
+  $("B_sendOtp").textContent = "✅ OTP Sent";
+  $("B_sendOtp").disabled    = true;
+
+  wireOTPBoxes();
+  startOTPTimer();
+  toast(`OTP sent! (Demo — see SMS bubble below)`, "s");
+  setTimeout(()=>{ $("step2").scrollIntoView({behavior:"smooth",block:"nearest"}) },220);
+  document.querySelector(".otp-inp[data-idx='0']")?.focus();
+}
+
+/* ── WIRE OTP BOXES ── */
+function wireOTPBoxes(){
+  const boxes = document.querySelectorAll(".otp-inp");
+  boxes.forEach(b => {
+    b.value = ""; b.classList.remove("filled","shake");
+    b.oninput = e => {
+      const v = e.target.value.replace(/\D/g,"");
+      e.target.value = v ? v[0] : "";
+      e.target.classList.toggle("filled", !!v);
+      e.target.classList.remove("shake");
+      if(v){
+        const nx = document.querySelector(`.otp-inp[data-idx="${+e.target.dataset.idx+1}"]`);
+        if(nx) nx.focus();
+      }
+      checkOTPFull();
+    };
+    b.onkeydown = e => {
+      if(e.key==="Backspace" && !b.value){
+        const pr = document.querySelector(`.otp-inp[data-idx="${+b.dataset.idx-1}"]`);
+        if(pr){ pr.value=""; pr.classList.remove("filled"); pr.focus(); checkOTPFull() }
+      }
+    };
+    b.onpaste = e => {
+      e.preventDefault();
+      const txt = (e.clipboardData||window.clipboardData).getData("text").replace(/\D/g,"").slice(0,6);
+      boxes.forEach((bx,i)=>{ if(txt[i]){ bx.value=txt[i]; bx.classList.add("filled") }});
+      checkOTPFull();
+    };
+  });
+}
+
+function getOTPValue(){ return [...document.querySelectorAll(".otp-inp")].map(b=>b.value).join("") }
+
+function checkOTPFull(){
+  const full = [...document.querySelectorAll(".otp-inp")].every(b=>b.value.length===1);
+  const vbtn = $("B_verify"); if(vbtn) vbtn.disabled = !full;
+  if(full) setTimeout(verifyOTP, 80);
+}
+
+/* ── TIMER ── */
+function startOTPTimer(){
+  ST.otpData.cd = 120; clearOTPTimer();
+  ST.otpData.tid = setInterval(()=>{
+    ST.otpData.cd--;
+    const tv=$("TMR_val"); if(!tv){ clearOTPTimer(); return }
+    if(ST.otpData.cd <= 0){
+      clearOTPTimer();
+      const tr=$("TMR_row"); if(tr) tr.style.display="none";
+      const rr=$("RSN_row"); if(rr) rr.style.display="block";
+      return;
+    }
+    tv.textContent = `${Math.floor(ST.otpData.cd/60)}:${String(ST.otpData.cd%60).padStart(2,"0")}`;
+  }, 1000);
+}
+function clearOTPTimer(){ if(ST.otpData.tid){ clearInterval(ST.otpData.tid); ST.otpData.tid=null } }
+
+function resendOTP(){
+  const c = String(Math.floor(100000+Math.random()*900000));
+  ST.otpData.code=c; ST.otpData.exp=Date.now()+120000;
+  $("SMS_code").textContent=c;
+  $("OTP_err").style.display="none";
+  $("RSN_row").style.display="none";
+  $("TMR_row").style.display="block";
+  document.querySelectorAll(".otp-inp").forEach(b=>{ b.value=""; b.classList.remove("filled","shake") });
+  const vb=$("B_verify"); if(vb) vb.disabled=true;
+  startOTPTimer(); toast("New OTP sent!","i");
+}
+
+/* ── VERIFY OTP ── */
+function verifyOTP(){
+  const entered = getOTPValue(); if(entered.length!==6) return;
+  if(Date.now()>ST.otpData.exp){ showOTPErr("⏰ OTP expired. Please resend."); return }
+  if(entered===ST.otpData.code){
+    clearOTPTimer();
+    ST.user = { name:ST.otpData.name, phone:ST.otpData.phone };
+    toast(`Welcome, ${firstName()}! 🎉`, "s");
+    const dest=ST.loginReturn; ST.loginReturn="home";
+    if(dest==="checkout" && ST.selProduct) go("checkout","detail");
+    else go(dest||"home","home");
+  } else {
+    showOTPErr("❌ Incorrect OTP. Try again.");
+    document.querySelectorAll(".otp-inp").forEach(b=>b.classList.add("shake"));
+    setTimeout(()=>{
+      document.querySelectorAll(".otp-inp").forEach(b=>{ b.value=""; b.classList.remove("filled","shake") });
+      const vb=$("B_verify"); if(vb) vb.disabled=true;
+      document.querySelector(".otp-inp[data-idx='0']")?.focus();
+    }, 900);
+  }
+}
+function showOTPErr(m){ const e=$("OTP_err"); if(e){ e.textContent=m; e.style.display="block" } }
+
+/* ═══════════════════════════════════════════════════════════
+   SCREEN 4 — CHECKOUT
+═══════════════════════════════════════════════════════════ */
+function scrCheckout(){
+  if(!ST.user||!ST.selProduct){ go("home"); return "" }
+  const p=ST.selProduct, m=ST.checkout.manual;
+  const liveTab=`
+    <div class="fg">
+      <label class="lbl">Detected Address</label>
+      <button class="btn btn-out" id="B_detect" onclick="detectLocation()" style="margin-bottom:10px">
+        📍 Detect My Location
+      </button>
+      <input class="inp" id="I_liveAddr" type="text" readonly
+             placeholder="Press the button above to detect…"
+             value="${ST.checkout.liveAddr||""}"/>
+    </div>`;
+  const manTab=`
+    <div class="fg">
+      <label class="lbl">Flat / House No., Building Name</label>
+      <input class="inp" id="M_flat"   type="text" placeholder="e.g. 12B, Sunrise Apartments"    value="${m.flat||""}"/>
+      <div class="ferr" id="E_flat">This field is required.</div>
+    </div>
+    <div class="fg">
+      <label class="lbl">Street, Area, Landmark</label>
+      <input class="inp" id="M_street" type="text" placeholder="e.g. Anna Nagar, Near Bus Stand"  value="${m.street||""}"/>
+      <div class="ferr" id="E_street">This field is required.</div>
+    </div>
+    <div class="fg">
+      <label class="lbl">City</label>
+      <input class="inp" id="M_city"   type="text" placeholder="e.g. Chennai"                     value="${m.city||""}"/>
+      <div class="ferr" id="E_city">This field is required.</div>
+    </div>
+    <div class="fg">
+      <label class="lbl">PIN Code</label>
+      <input class="inp" id="M_pin"    type="text" inputmode="numeric" maxlength="6"
+             placeholder="6-digit PIN code" value="${m.pin||""}"/>
+      <div class="ferr" id="E_pin">Enter a valid 6-digit PIN code.</div>
+    </div>`;
+  return `
+  ${buildNav({showBack:true, backFn:"go('detail')"})}
+  <div class="fade page pb50">
+    <h1 style="font-size:1.35rem;font-weight:800;margin-bottom:14px">Checkout</h1>
+
+    <!-- Order summary -->
+    <div class="card" style="margin-bottom:12px">
+      <div style="font-size:.71rem;text-transform:uppercase;letter-spacing:.5px;color:var(--txt3);font-weight:600;margin-bottom:11px">Order Summary</div>
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:11px">
+        <span style="font-size:2rem">${p.e}</span>
+        <div>
+          <div style="font-weight:600;font-size:.94rem">${p.name}</div>
+          <div style="color:var(--txt3);font-size:.8rem">${p.cat}</div>
+        </div>
+      </div>
+      <div class="div"></div>
+      <div class="srow"><span>Product</span><span>₹${p.price}</span></div>
+      <div class="srow"><span>Delivery</span><span class="free-tag">FREE</span></div>
+      <div class="srow total"><span>Total</span><span style="color:var(--acc-l)">₹${p.price}</span></div>
+    </div>
+
+    <!-- User details (read-only) -->
+    <div class="card" style="margin-bottom:12px">
+      <div style="font-size:.71rem;text-transform:uppercase;letter-spacing:.5px;color:var(--txt3);font-weight:600;margin-bottom:11px">Your Details</div>
+      <div class="fg"><label class="lbl">Name</label>
+        <input class="inp" type="text" value="${ST.user.name}" readonly/></div>
+      <div class="fg"><label class="lbl">Phone</label>
+        <input class="inp" type="text" value="+91 ${ST.user.phone}" readonly/></div>
+    </div>
+
+    <!-- Address -->
+    <div class="card" style="margin-bottom:14px">
+      <div style="font-size:.71rem;text-transform:uppercase;letter-spacing:.5px;color:var(--txt3);font-weight:600;margin-bottom:11px">Delivery Address</div>
+      <div class="tabs">
+        <button class="tab${ST.checkout.mode==="live"?" on":""}" onclick="setCheckoutTab('live')">📍 Live Location</button>
+        <button class="tab${ST.checkout.mode==="manual"?" on":""}" onclick="setCheckoutTab('manual')">✍️ Manual</button>
+      </div>
+      <div id="ADDR_tab">${ST.checkout.mode==="live"?liveTab:manTab}</div>
+      <div class="dstrip" style="margin-bottom:0">⚡ <span>24-Hour Delivery Guaranteed</span></div>
+    </div>
+
+    <button class="btn btn-pri" onclick="placeOrder()">Place Order →</button>
+  </div>`;
+}
+
+function setCheckoutTab(mode){
+  ST.checkout.mode=mode;
+  document.querySelectorAll(".tabs .tab").forEach((b,i)=>b.classList.toggle("on",(mode==="live"&&i===0)||(mode==="manual"&&i===1)));
+  const m=ST.checkout.manual;
+  $("ADDR_tab").innerHTML = mode==="live"
+    ?`<div class="fg"><label class="lbl">Detected Address</label>
+       <button class="btn btn-out" id="B_detect" onclick="detectLocation()" style="margin-bottom:10px">📍 Detect My Location</button>
+       <input class="inp" id="I_liveAddr" type="text" readonly placeholder="Press the button above to detect…" value="${ST.checkout.liveAddr||""}"/></div>`
+    :`<div class="fg"><label class="lbl">Flat / House No., Building Name</label>
+       <input class="inp" id="M_flat" type="text" placeholder="e.g. 12B, Sunrise Apartments" value="${m.flat||""}"/>
+       <div class="ferr" id="E_flat">This field is required.</div></div>
+      <div class="fg"><label class="lbl">Street, Area, Landmark</label>
+       <input class="inp" id="M_street" type="text" placeholder="e.g. Anna Nagar, Near Bus Stand" value="${m.street||""}"/>
+       <div class="ferr" id="E_street">This field is required.</div></div>
+      <div class="fg"><label class="lbl">City</label>
+       <input class="inp" id="M_city" type="text" placeholder="e.g. Chennai" value="${m.city||""}"/>
+       <div class="ferr" id="E_city">This field is required.</div></div>
+      <div class="fg"><label class="lbl">PIN Code</label>
+       <input class="inp" id="M_pin" type="text" inputmode="numeric" maxlength="6" placeholder="6-digit PIN code" value="${m.pin||""}"/>
+       <div class="ferr" id="E_pin">Enter a valid 6-digit PIN code.</div></div>`;
+}
+
+function detectLocation(){
+  const btn=$("B_detect"), inp=$("I_liveAddr");
+  if(btn){ btn.innerHTML='<span class="spin"></span> Detecting…'; btn.disabled=true }
+  const done = addr => {
+    ST.checkout.liveAddr=addr;
+    if(inp) inp.value=addr;
+    if(btn){ btn.innerHTML="✅ Location Detected"; btn.disabled=false }
+    toast("Location detected!","s");
+  };
+  const fail = ()=>{
+    done("T. Nagar, Chennai, Tamil Nadu — 600017");
+    toast("Used demo address (geolocation unavailable)","w");
+  };
+  if(navigator.geolocation){
+    navigator.geolocation.getCurrentPosition(
+      ()=>done("Anna Nagar West, Chennai, Tamil Nadu — 600040"),
+      fail, {timeout:7000}
+    );
+  } else fail();
+}
+
+function placeOrder(){
+  let address="";
+  if(ST.checkout.mode==="live"){
+    if(!ST.checkout.liveAddr){ toast("Please detect your location first","e"); return }
+    address=ST.checkout.liveAddr;
+  } else {
+    const flat   = ($("M_flat")  ||{}).value?.trim()||"";
+    const street = ($("M_street")||{}).value?.trim()||"";
+    const city   = ($("M_city")  ||{}).value?.trim()||"";
+    const pin    = ($("M_pin")   ||{}).value?.trim()||"";
+    let ok=true;
+    const chk=(id,eid,test)=>{ const ok2=test; $(`E_${eid}`).classList.toggle("show",!ok2); if(!ok2) ok=false; return ok2 };
+    chk("M_flat",  "flat",  flat.length>0);
+    chk("M_street","street",street.length>0);
+    chk("M_city",  "city",  city.length>0);
+    chk("M_pin",   "pin",   /^\d{6}$/.test(pin));
+    if(!ok){ toast("Please fill all address fields correctly","e"); return }
+    ST.checkout.manual={flat,street,city,pin};
+    address=`${flat}, ${street}, ${city} — ${pin}`;
+  }
+  const order={
+    id: uid(), product:{...ST.selProduct}, customer:{...ST.user},
+    address, status:"placed",
+    date: new Date().toLocaleDateString("en-IN",{day:"numeric",month:"short",year:"numeric"}),
+    time: new Date().toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"}),
+  };
+  ST.orders.push(order); ST.curOrder=order;
+  ST.checkout.liveAddr=""; ST.checkout.manual={};
+  go("confirmed","checkout");
+  toast("Order placed successfully! 🎉","s");
+}
+
+/* ═══════════════════════════════════════════════════════════
+   SCREEN 5 — ORDER CONFIRMED
+═══════════════════════════════════════════════════════════ */
+function scrConfirmed(){
+  const o=ST.curOrder; if(!o){ go("home"); return "" }
+  return `
+  ${buildNav()}
+  <div class="fade page pb50" style="text-align:center;padding-top:28px">
+    <div class="success-ring">✅</div>
+    <h1 style="font-size:1.5rem;font-weight:800;margin-bottom:7px">Order Confirmed!</h1>
+    <p style="color:var(--acc-l);font-size:1rem;font-weight:600;margin-bottom:4px">Order #${o.id}</p>
+    <p style="color:var(--txt2);margin-bottom:18px">Confirmed for <strong>${o.customer.name}</strong></p>
+    <div class="card" style="text-align:left;margin-bottom:13px">
+      <div style="display:flex;align-items:center;gap:11px;margin-bottom:11px">
+        <span style="font-size:2rem">${o.product.e}</span>
+        <div>
+          <div style="font-weight:600;font-size:.94rem">${o.product.name}</div>
+          <div style="color:var(--acc-l);font-weight:700">₹${o.product.price}</div>
+        </div>
+      </div>
+      <div class="div"></div>
+      <div style="font-size:.82rem;color:var(--txt2);display:flex;gap:6px;align-items:flex-start">
+        <span>📍</span><span>${o.address}</span>
+      </div>
+    </div>
+    <div class="dstrip" style="margin-bottom:16px">⚡ <span>Expected delivery within 24 hours</span></div>
+    <button class="btn btn-pri" style="margin-bottom:10px" onclick="openTracking('${o.id}')">🛵 Track Your Order →</button>
+    <button class="btn btn-out" onclick="go('home')">🛍️ Continue Shopping</button>
+  </div>`;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   SCREEN 6 — ACCOUNT DASHBOARD
+═══════════════════════════════════════════════════════════ */
+function scrAccount(){
+  if(!ST.user){ go("login"); return "" }
+  const mine = ST.orders.filter(o=>o.customer.phone===ST.user.phone);
+  const orderCards = mine.length===0
+    ? `<div class="empty"><div class="empty-icon">📦</div><p style="color:var(--txt2)">No orders yet. Start shopping!</p></div>`
+    : mine.slice().reverse().map(o=>{
+        const sm=statusMeta(o.status);
+        return `
+        <div class="order-card">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:8px">
+            <div>
+              <div style="font-size:.67rem;color:var(--txt3);font-weight:600;text-transform:uppercase;letter-spacing:.4px">Order ID</div>
+              <div style="font-weight:700;font-family:'Syne',sans-serif">${o.id}</div>
+            </div>
+            <span class="pill ${sm.cls}">${sm.lbl}</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:9px;margin-bottom:8px">
+            <span style="font-size:1.55rem">${o.product.e}</span>
+            <div>
+              <div style="font-size:.9rem;font-weight:600">${o.product.name}</div>
+              <div style="color:var(--acc-l);font-weight:700">₹${o.product.price}</div>
+            </div>
+          </div>
+          <div style="font-size:.74rem;color:var(--txt3);margin-bottom:10px">${o.date} · ${o.time}</div>
+          <button class="btn btn-out btn-sm" onclick="openTracking('${o.id}')">🗺️ Track →</button>
+        </div>`;
+      }).join("");
+  return `
+  ${buildNav({showBack:true, backFn:"go('home')"})}
+  <div class="fade page pb50">
+    <div class="card" style="text-align:center;margin-bottom:14px">
+      <div class="av-lg">${initials()}</div>
+      <h2 style="font-size:1.2rem;font-weight:800;margin-bottom:4px">${ST.user.name}</h2>
+      <p style="color:var(--txt2)">+91 ${ST.user.phone}</p>
+    </div>
+    <div style="font-family:'Syne',sans-serif;font-size:.96rem;font-weight:700;margin-bottom:11px">
+      📦 My Orders
+      <span style="color:var(--txt3);font-size:.8rem;font-weight:400"> (${mine.length})</span>
+    </div>
+    ${orderCards}
+  </div>`;
+}
+
+function openTracking(id){ ST.trackId=id; go("tracking",ST.screen) }
+
+/* ═══════════════════════════════════════════════════════════
+   SCREEN 7 — LIVE ORDER TRACKING
+═══════════════════════════════════════════════════════════ */
+function scrTracking(){
+  const o=ST.orders.find(x=>x.id===ST.trackId); if(!o){ go("account"); return "" }
+  const si=statusIndex(o.status);
+  const eta=["~24 hours","~2 hours","5 – 15 min","Delivered! ✅"][si]||"~24 hours";
+  const steps=[
+    {icon:"📋",label:"Order Placed",       t:o.date+" · "+o.time},
+    {icon:"📦",label:"Packed",             t:si>=1?"Being carefully packed…":"Pending"},
+    {icon:"🛵",label:"Out for Delivery",   t:si>=2?"On the way to you!":"Pending"},
+    {icon:"✅",label:"Delivered",          t:si>=3?"Successfully delivered!":"Pending"},
+  ];
+  const stepsHtml=steps.map((s,i)=>{
+    const done=i<si, active=i===si;
+    return `
+    <div class="step-row${done?" s-done":""}">
+      <div class="step-dot${done?" done":active?" active":""}">${done?"✓":i+1}</div>
+      <div class="step-info">
+        <div class="step-title${!done&&!active?" dim":""}">${s.icon} ${s.label}</div>
+        <div class="step-time">${s.t}</div>
+      </div>
+    </div>`;
+  }).join("");
+
+  return `
+  ${buildNav({showBack:true, backFn:"go('account')"})}
+  <div class="fade page pb50">
+    <div style="margin-bottom:14px">
+      <div style="font-size:.67rem;color:var(--txt3);font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">
+        <span class="live-dot"></span>Live Tracking
+      </div>
+      <h1 style="font-size:1.18rem;font-weight:800">${o.product.e} ${o.product.name}</h1>
+      <p style="color:var(--txt3);font-size:.82rem">#${o.id}</p>
+    </div>
+
+    <!-- ETA -->
+    <div class="eta">
+      <div class="eta-val">${eta}</div>
+      <div class="eta-lbl">Estimated Arrival</div>
+    </div>
+
+    <!-- ANIMATED SVG MAP -->
+    <div class="map-box">
+      <svg viewBox="0 0 420 228" xmlns="http://www.w3.org/2000/svg" id="TSVG">
+        <!-- Background -->
+        <rect width="420" height="228" fill="#05101e"/>
+        <!-- Grid -->
+        <g stroke="#0b1f3a" stroke-width="1">
+          <line x1="0" y1="46" x2="420" y2="46"/>
+          <line x1="0" y1="92" x2="420" y2="92"/>
+          <line x1="0" y1="138" x2="420" y2="138"/>
+          <line x1="0" y1="184" x2="420" y2="184"/>
+          <line x1="70"  y1="0" x2="70"  y2="228"/>
+          <line x1="140" y1="0" x2="140" y2="228"/>
+          <line x1="210" y1="0" x2="210" y2="228"/>
+          <line x1="280" y1="0" x2="280" y2="228"/>
+          <line x1="350" y1="0" x2="350" y2="228"/>
+        </g>
+        <!-- Road fill -->
+        <g fill="none" stroke="#0f2040" stroke-width="12" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M0,168 L70,168 L70,92 L210,92 L210,46 L350,46 L350,132"/>
+        </g>
+        <!-- Road centre dash -->
+        <g fill="none" stroke="#193060" stroke-width="2" stroke-dasharray="12,9" stroke-linecap="round">
+          <path d="M0,168 L70,168 L70,92 L210,92 L210,46 L350,46 L350,132"/>
+        </g>
+        <!-- Highlighted route -->
+        <path d="M22,164 L70,164 L70,88 L210,88 L210,42 L350,42 L350,124"
+              fill="none" stroke="#6c63ff" stroke-width="3.5"
+              stroke-dasharray="8,5" stroke-linecap="round" opacity=".72"/>
+        <!-- Buildings -->
+        <g fill="#0d1e3a" stroke="#16294e" stroke-width="1">
+          <rect x="78"  y="98"  width="42" height="28" rx="3"/>
+          <rect x="130" y="98"  width="36" height="28" rx="3"/>
+          <rect x="78"  y="50"  width="50" height="26" rx="3"/>
+          <rect x="218" y="50"  width="42" height="26" rx="3"/>
+          <rect x="268" y="50"  width="52" height="26" rx="3"/>
+          <rect x="218" y="98"  width="42" height="28" rx="3"/>
+          <rect x="358" y="50"  width="42" height="26" rx="3"/>
+          <rect x="358" y="138" width="42" height="28" rx="3"/>
+        </g>
+        <!-- Labels -->
+        <text x="5"   y="222" fill="#1a3060" font-size="9" font-family="Arial">📦 SwiftShop Warehouse</text>
+        <text x="330" y="152" fill="#1a3060" font-size="9" font-family="Arial">Your Home</text>
+        <!-- Store icon -->
+        <text x="4" y="160" font-size="16" font-family="serif">🏪</text>
+        <!-- Home pin (fixed) -->
+        <text x="337" y="122" font-size="18" font-family="serif">🏠</text>
+        <!-- Delivery rider (JS-animated) -->
+        <text id="RIDER" x="4" y="160" font-size="17" font-family="serif">🛵</text>
+      </svg>
+    </div>
+
+    <!-- Steps -->
+    <div class="card">
+      <div style="font-size:.71rem;text-transform:uppercase;letter-spacing:.5px;color:var(--txt3);font-weight:600;margin-bottom:11px">Delivery Progress</div>
+      <div class="steps" id="STEPS_wrap">${stepsHtml}</div>
+    </div>
+  </div>`;
+}
+
+/* ── MAP ANIMATION ──
+   Waypoints follow the SVG route:
+   M22,164 L70,164 L70,88 L210,88 L210,42 L350,42 L350,124
+*/
+function startMap(si){
+  const WP=[[22,160],[70,160],[70,84],[210,84],[210,38],[350,38],[350,120]];
+  const maxWP = [0,2,5,6][Math.min(si,3)];
+
+  if(si>=3){
+    const r=$("RIDER"); if(r){r.setAttribute("x",337);r.setAttribute("y",120)} return;
+  }
+  /* total path length up to maxWP */
+  let totalLen=0;
+  for(let i=0;i<maxWP;i++){
+    const dx=WP[i+1][0]-WP[i][0], dy=WP[i+1][1]-WP[i][1];
+    totalLen+=Math.sqrt(dx*dx+dy*dy);
+  }
+  const speed = si>=2 ? 1.1 : 0.55;
+  let t=0; ST.mapSI=si;
+
+  function frame(){
+    const rider=$("RIDER"); if(!rider){ cancelAnim(); return }
+    t=(t+speed)%(totalLen||1);
+    let rem=t, px=WP[0][0], py=WP[0][1];
+    for(let i=0;i<maxWP;i++){
+      const dx=WP[i+1][0]-WP[i][0], dy=WP[i+1][1]-WP[i][1];
+      const sl=Math.sqrt(dx*dx+dy*dy);
+      if(rem<=sl){ const r=rem/sl; px=WP[i][0]+dx*r; py=WP[i][1]+dy*r; break }
+      rem-=sl;
+      if(i===maxWP-1){ px=WP[maxWP][0]; py=WP[maxWP][1] }
+    }
+    rider.setAttribute("x",px-8); rider.setAttribute("y",py+4);
+    ST.raf=requestAnimationFrame(frame);
+  }
+  ST.raf=requestAnimationFrame(frame);
+}
+
+/* ── REAL-TIME POLL (updates steps while tracking screen is open) ── */
+function startPoll(){
+  ST.poll=setInterval(()=>{
+    if(ST.screen!=="tracking") return;
+    const o=ST.orders.find(x=>x.id===ST.trackId); if(!o) return;
+    const newSI=statusIndex(o.status);
+    if(newSI!==ST.mapSI){ render(); return } /* full re-render on status change */
+
+    /* also live-update only the steps html without re-render */
+    const sw=$("STEPS_wrap");
+    if(sw){
+      const si=newSI;
+      const steps=[
+        {icon:"📋",label:"Order Placed",      t:o.date+" · "+o.time},
+        {icon:"📦",label:"Packed",            t:si>=1?"Being carefully packed…":"Pending"},
+        {icon:"🛵",label:"Out for Delivery",  t:si>=2?"On the way to you!":"Pending"},
+        {icon:"✅",label:"Delivered",         t:si>=3?"Successfully delivered!":"Pending"},
+      ];
+      sw.innerHTML=steps.map((s,i)=>{
+        const done=i<si,active=i===si;
+        return `
+        <div class="step-row${done?" s-done":""}">
+          <div class="step-dot${done?" done":active?" active":""}">${done?"✓":i+1}</div>
+          <div class="step-info">
+            <div class="step-title${!done&&!active?" dim":""}">${s.icon} ${s.label}</div>
+            <div class="step-time">${s.t}</div>
+          </div>
+        </div>`;
+      }).join("");
+    }
+  },1400);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   SCREEN 8 — ADMIN PANEL
+═══════════════════════════════════════════════════════════ */
+const EMOJIS=["🍎","🍊","🍋","🍇","🍓","🫐","🥝","🍅","🥦","🥕","🧅","🥔",
+              "🌽","🍞","🧀","🥚","🥛","🍫","☕","🧴","🛍️","🍕","🍜","🥗",
+              "🍰","🍦","🧁","🍩","🥤","🧃","🫙","🧈","🥩","🫑","🍆","🌮",
+              "🍤","🥜","🫒","🧂","🥫","🍵","🧋","🫖","🥐","🧆","🌯","🫔"];
+
+function scrAdmin(){
+  const total=ST.orders.length;
+  const rev=ST.orders.reduce((s,o)=>s+o.product.price,0);
+  const active=ST.orders.filter(o=>o.status!=="delivered").length;
+  const inStock=ST.products.filter(p=>p.stock).length;
+
+  const emojiGrid=EMOJIS.map(e=>
+    `<div class="emo${ST.adminEmoji===e?" sel":""}" onclick="pickEmoji('${e}')">${e}</div>`
+  ).join("");
+
+  const prodRows=ST.products.map(p=>`
+    <div class="adm-prod-row">
+      <span style="font-size:1.45rem">${p.e}</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:.86rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.name}</div>
+        <div style="font-size:.73rem;color:var(--txt3)">${p.cat} · ₹${p.price}</div>
+      </div>
+      <button class="btn btn-sm ${p.stock?"btn-out":"btn-sm"}"
+              style="${p.stock?"":"background:var(--err);color:#fff;border:none"}"
+              onclick="toggleStock('${p.id}')">
+        ${p.stock?"✅ In Stock":"❌ Out of Stock"}
+      </button>
+    </div>`).join("");
+
+  const orderRows=ST.orders.length===0
+    ? `<div class="empty"><div class="empty-icon">📋</div><p style="color:var(--txt2)">No orders yet.</p></div>`
+    : ST.orders.slice().reverse().map(o=>`
+      <div class="adm-order">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
+          <div>
+            <div style="font-size:.66rem;color:var(--txt3);font-weight:600;text-transform:uppercase;letter-spacing:.4px">Order ID</div>
+            <div style="font-weight:700;font-family:'Syne',sans-serif;font-size:.88rem">${o.id}</div>
+          </div>
+          <span class="pill ${statusMeta(o.status).cls}">${statusMeta(o.status).lbl}</span>
+        </div>
+        <div style="font-size:.84rem;margin-bottom:3px">👤 ${o.customer.name} · +91 ${o.customer.phone}</div>
+        <div style="font-size:.84rem;margin-bottom:3px">${o.product.e} ${o.product.name} — ₹${o.product.price}</div>
+        <div style="font-size:.78rem;color:var(--txt3);margin-bottom:6px">📍 ${o.address}</div>
+        <div style="font-size:.72rem;color:var(--txt3);margin-bottom:5px">${o.date} · ${o.time}</div>
+        <select class="status-sel" onchange="updateStatus('${o.id}',this.value)">
+          <option value="placed"    ${o.status==="placed"   ?"selected":""}>📋 Order Placed</option>
+          <option value="packed"    ${o.status==="packed"   ?"selected":""}>📦 Packed</option>
+          <option value="delivery"  ${o.status==="delivery" ?"selected":""}>🛵 Out for Delivery</option>
+          <option value="delivered" ${o.status==="delivered"?"selected":""}>✅ Delivered</option>
+        </select>
+      </div>`).join("");
+
+  return `
+  ${buildNav({showBack:true, backFn:"go('home')"})}
+  <div class="banner" style="background:linear-gradient(135deg,#1b2f5e,#243a7c)">
+    🔧 Admin Panel — SwiftShop Management Console
+  </div>
+  <div class="fade page pb50">
+
+    <!-- Stats -->
+    <div class="stats-grid">
+      <div class="stat"><div class="stat-val">${total}</div><div class="stat-lbl">Total Orders</div></div>
+      <div class="stat"><div class="stat-val">₹${rev}</div><div class="stat-lbl">Total Revenue</div></div>
+      <div class="stat"><div class="stat-val">${active}</div><div class="stat-lbl">Active Orders</div></div>
+      <div class="stat"><div class="stat-val">${inStock}</div><div class="stat-lbl">In Stock</div></div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tabs">
+      <button class="tab${ST.adminTab==="products"?" on":""}" onclick="setAdminTab('products')">🛍️ Products</button>
+      <button class="tab${ST.adminTab==="orders"?" on":""}"   onclick="setAdminTab('orders')">📦 Orders (${total})</button>
+    </div>
+
+    <!-- Products tab -->
+    <div id="A_prod" style="${ST.adminTab!=="products"?"display:none":""}">
+      <div class="card" style="margin-bottom:12px">
+        <div style="font-size:.71rem;text-transform:uppercase;letter-spacing:.5px;color:var(--txt3);font-weight:600;margin-bottom:12px">Add New Product</div>
+        <div class="fg"><label class="lbl">Product Name</label>
+          <input class="inp" id="AP_name" type="text" placeholder="e.g. Fresh Mango"/></div>
+        <div class="fg"><label class="lbl">Price (₹)</label>
+          <input class="inp" id="AP_price" type="number" min="1" placeholder="e.g. 120"/></div>
+        <div class="fg"><label class="lbl">Category</label>
+          <input class="inp" id="AP_cat" type="text" placeholder="e.g. Fruits"/></div>
+        <div class="fg"><label class="lbl">Description</label>
+          <input class="inp" id="AP_desc" type="text" placeholder="Short product description"/></div>
+        <div class="fg">
+          <label class="lbl">Emoji Icon</label>
+          <div style="padding:10px;background:var(--bg3);border-radius:var(--rs);border:1.5px solid var(--border);display:flex;align-items:center;gap:8px;margin-bottom:7px">
+            <span style="font-size:1.5rem" id="EMO_prev">${ST.adminEmoji}</span>
+            <span style="font-size:.82rem;color:var(--txt2)">Selected icon</span>
+          </div>
+          <div class="emoji-grid">${emojiGrid}</div>
+        </div>
+        <button class="btn btn-pri" style="margin-top:11px" onclick="addProduct()">➕ Add Product to Store</button>
+      </div>
+      <div class="card">
+        <div style="font-size:.71rem;text-transform:uppercase;letter-spacing:.5px;color:var(--txt3);font-weight:600;margin-bottom:11px">All Products (${ST.products.length})</div>
+        ${prodRows}
+      </div>
+    </div>
+
+    <!-- Orders tab -->
+    <div id="A_orders" style="${ST.adminTab!=="orders"?"display:none":""}">
+      ${orderRows}
+    </div>
+
+  </div>`;
+}
+
+function setAdminTab(t){
+  ST.adminTab=t;
+  $("A_prod").style.display   = t==="products"?"":"none";
+  $("A_orders").style.display = t==="orders"  ?"":"none";
+  document.querySelectorAll(".tabs .tab").forEach((b,i)=>
+    b.classList.toggle("on",(t==="products"&&i===0)||(t==="orders"&&i===1)));
+}
+
+function pickEmoji(e){
+  ST.adminEmoji=e;
+  document.querySelectorAll(".emo").forEach(el=>el.classList.toggle("sel",el.textContent===e));
+  const p=$("EMO_prev"); if(p) p.textContent=e;
+}
+
+function addProduct(){
+  const name  = ($("AP_name") ||{}).value?.trim()||"";
+  const price = parseInt(($("AP_price")||{}).value||"0");
+  const cat   = ($("AP_cat")  ||{}).value?.trim()||"";
+  const desc  = ($("AP_desc") ||{}).value?.trim()||"";
+  if(!name||!price||!cat||!desc){ toast("Please fill all product fields","e"); return }
+  if(isNaN(price)||price<=0){ toast("Enter a valid price","e"); return }
+  ST.products.push({id:"p"+Date.now(), e:ST.adminEmoji, name, price, cat, desc, stock:true});
+  toast(`"${name}" added to the store! 🛍️`,"s");
+  render();
+}
+
+function toggleStock(id){
+  const p=ST.products.find(x=>x.id===id); if(!p) return;
+  p.stock=!p.stock;
+  toast(`${p.name} → ${p.stock?"In Stock ✅":"Out of Stock ❌"}`, p.stock?"s":"w");
+  render();
+}
+
+function updateStatus(id,st){
+  const o=ST.orders.find(x=>x.id===id); if(!o) return;
+  o.status=st;
+  const names={placed:"Order Placed",packed:"Packed",delivery:"Out for Delivery",delivered:"Delivered"};
+  toast(`#${id} → ${names[st]}`,"s");
+  /* update pill in admin table without full re-render */
+  const pills=document.querySelectorAll(".adm-order .pill");
+  pills.forEach(pill=>{
+    /* crude but reliable: find the order card that contains this pill and matches id */
+  });
+  /* Refresh admin orders tab in-place */
+  const ao=$("A_orders");
+  if(ao&&ST.adminTab==="orders"){
+    const rows=ST.orders.slice().reverse().map(oo=>`
+      <div class="adm-order">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
+          <div>
+            <div style="font-size:.66rem;color:var(--txt3);font-weight:600;text-transform:uppercase;letter-spacing:.4px">Order ID</div>
+            <div style="font-weight:700;font-family:'Syne',sans-serif;font-size:.88rem">${oo.id}</div>
+          </div>
+          <span class="pill ${statusMeta(oo.status).cls}">${statusMeta(oo.status).lbl}</span>
+        </div>
+        <div style="font-size:.84rem;margin-bottom:3px">👤 ${oo.customer.name} · +91 ${oo.customer.phone}</div>
+        <div style="font-size:.84rem;margin-bottom:3px">${oo.product.e} ${oo.product.name} — ₹${oo.product.price}</div>
+        <div style="font-size:.78rem;color:var(--txt3);margin-bottom:6px">📍 ${oo.address}</div>
+        <div style="font-size:.72rem;color:var(--txt3);margin-bottom:5px">${oo.date} · ${oo.time}</div>
+        <select class="status-sel" onchange="updateStatus('${oo.id}',this.value)">
+          <option value="placed"    ${oo.status==="placed"   ?"selected":""}>📋 Order Placed</option>
+          <option value="packed"    ${oo.status==="packed"   ?"selected":""}>📦 Packed</option>
+          <option value="delivery"  ${oo.status==="delivery" ?"selected":""}>🛵 Out for Delivery</option>
+          <option value="delivered" ${oo.status==="delivered"?"selected":""}>✅ Delivered</option>
+        </select>
+      </div>`).join("");
+    ao.innerHTML=rows||`<div class="empty"><div class="empty-icon">📋</div><p style="color:var(--txt2)">No orders yet.</p></div>`;
+  }
+  /* also update account dashboard order pills if visible */
+}
+
+/* ═══════════════════════════════════════════════════════════
+   MASTER RENDER
+═══════════════════════════════════════════════════════════ */
+function render(){
+  cancelAnim(); stopPoll();
+  const screens={
+    home:scrHome, detail:scrDetail, login:scrLogin,
+    checkout:scrCheckout, confirmed:scrConfirmed,
+    account:scrAccount, tracking:scrTracking, admin:scrAdmin,
+  };
+  const fn=screens[ST.screen]||scrHome;
+  $("APP").innerHTML=fn();
+
+  /* post-render hooks */
+  if(ST.screen==="tracking"){
+    const o=ST.orders.find(x=>x.id===ST.trackId);
+    if(o){
+      const si=statusIndex(o.status); ST.mapSI=si;
+      setTimeout(()=>startMap(si),80);
+      startPoll();
+    }
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   BOOT
+═══════════════════════════════════════════════════════════ */
+render();
+</script>
+</body>
+</html>

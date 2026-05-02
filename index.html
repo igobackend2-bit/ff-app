@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <title>Farmers Factory — Farm Fresh Delivery</title>
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+<div class="app-wrap">
+
+  <!-- ── Header ── -->
+  <header class="header">
+    <div class="header-top">
+      <a href="/" class="header-logo">
+        <div class="logo-circle">F</div>
+        <div class="header-name">Farmers Factory<span>Farm Fresh · 24hr Delivery</span></div>
+      </a>
+      <div class="header-actions">
+        <a href="/wishlist.html" class="icon-btn" aria-label="Wishlist">
+          ❤️
+          <span class="badge" data-wish-badge style="display:none">0</span>
+        </a>
+        <a href="/cart.html" class="icon-btn" aria-label="Cart">
+          🛒
+          <span class="badge" data-cart-badge style="display:none">0</span>
+        </a>
+      </div>
+    </div>
+    <!-- Location bar -->
+    <button class="location-bar" id="locationBar" aria-label="Set delivery location">
+      <span class="location-icon">📍</span>
+      <span class="location-text" id="locationText">Select delivery location</span>
+      <span class="location-chevron">▾</span>
+    </button>
+  </header>
+
+  <!-- ── Search ── -->
+  <div class="search-wrap" style="position:relative">
+    <input type="search" class="search-input" id="searchInput" placeholder="Search vegetables, fruits, dairy…" autocomplete="off">
+    <span class="search-icon">🔍</span>
+    <div class="search-results" id="searchResults"></div>
+  </div>
+
+  <!-- ── Delivery strip ── -->
+  <div class="delivery-strip">
+    <div class="delivery-strip-inner">
+      🚚 24hr DELIVERY &nbsp;•&nbsp; 🌱 100% ORGANIC &nbsp;•&nbsp; 🌾 STRAIGHT FROM FARMS &nbsp;•&nbsp; 🥦 FRESH DAILY HARVEST &nbsp;•&nbsp; 🍎 FARM TO DOOR &nbsp;•&nbsp; 🥕 NO PESTICIDES &nbsp;•&nbsp; 🚚 24hr DELIVERY &nbsp;•&nbsp; 🌱 100% ORGANIC &nbsp;•&nbsp; 🌾 STRAIGHT FROM FARMS &nbsp;•&nbsp; 🥦 FRESH DAILY HARVEST &nbsp;•&nbsp; 🍎 FARM TO DOOR &nbsp;•&nbsp; 🥕 NO PESTICIDES &nbsp;&nbsp;
+    </div>
+  </div>
+
+  <!-- ── Category chips ── -->
+  <div class="categories" id="categories">
+    <button class="chip active" data-cat="all">All</button>
+    <button class="chip" data-cat="vegetables">🥬 Veggies</button>
+    <button class="chip" data-cat="fruits">🍎 Fruits</button>
+    <button class="chip" data-cat="dairy">🥛 Dairy</button>
+    <button class="chip" data-cat="grains">🌾 Grains</button>
+    <button class="chip" data-cat="herbs">🌿 Herbs</button>
+  </div>
+
+  <!-- ── Hero banner ── -->
+  <div class="hero" id="heroBanner">
+    <span class="hero-tag">🌾 Farm Fresh Guarantee</span>
+    <h2>Fresh from Farm<br>to Your Door</h2>
+    <p>100% organic produce. Delivered within 24 hours.</p>
+    <button class="hero-btn" onclick="document.getElementById('productGrid').scrollIntoView({behavior:'smooth'})">
+      Shop Now →
+    </button>
+  </div>
+
+  <!-- ── Products section ── -->
+  <div class="section-header">
+    <h3 id="sectionTitle">Fresh Products</h3>
+  </div>
+  <div class="product-grid" id="productGrid"></div>
+
+</div>
+
+<!-- ── Bottom nav ── -->
+<nav class="bottom-nav" aria-label="Main navigation">
+  <a href="/" class="nav-item active">
+    <span class="nav-icon">🏠</span>
+    <span>Home</span>
+  </a>
+  <a href="/wishlist.html" class="nav-item">
+    <span class="nav-icon">❤️</span>
+    <span>Wishlist</span>
+    <span class="nav-badge" data-wish-badge style="display:none">0</span>
+  </a>
+  <a href="/cart.html" class="nav-item">
+    <span class="nav-icon">🛒</span>
+    <span>Cart</span>
+    <span class="nav-badge" data-cart-badge style="display:none">0</span>
+  </a>
+  <a href="/orders.html" class="nav-item">
+    <span class="nav-icon">📋</span>
+    <span>Orders</span>
+  </a>
+  <a href="/account/profile.html" class="nav-item">
+    <span class="nav-icon">👤</span>
+    <span>Profile</span>
+  </a>
+</nav>
+
+<!-- ── Location Modal ── -->
+<div class="modal-overlay" id="locationModal">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <h2 class="modal-title">📍 Delivery Location</h2>
+    <p class="modal-subtitle">Choose your area or use GPS for precise location</p>
+
+    <button class="gps-btn" id="gpsBtn">
+      <div class="gps-icon-wrap"><span id="gpsIcon">📡</span></div>
+      <div class="gps-text">
+        <strong>Detect My Location</strong>
+        <span id="gpsStatus">Using GPS for precise address</span>
+      </div>
+    </button>
+
+    <div class="divider-or">Popular Chennai Areas</div>
+
+    <div class="area-grid" id="areaGrid">
+      <!-- Filled by JS -->
+    </div>
+  </div>
+</div>
+
+<div class="toast-container"></div>
+
+<script type="module">
+import { renderProductGrid, updateWishlistBadges } from '/js/products.js';
+import { initCartBadge } from '/js/cart.js';
+import { showToast, openModal, closeModal, detectLocation, getLocation, setLocation } from '/js/utils.js';
+
+// ── Init ─────────────────────────────────────
+initCartBadge();
+updateWishlistBadges();
+renderProductGrid(document.getElementById('productGrid'));
+renderLocationDisplay();
+
+// ── Category filter ──────────────────────────
+document.getElementById('categories').addEventListener('click', (e) => {
+  const chip = e.target.closest('.chip');
+  if (!chip) return;
+  document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+  chip.classList.add('active');
+  const cat = chip.dataset.cat;
+  const title = cat === 'all' ? 'Fresh Products' : chip.textContent.trim() + ' Products';
+  document.getElementById('sectionTitle').textContent = title;
+  renderProductGrid(document.getElementById('productGrid'), cat === 'all' ? null : cat);
+});
+
+// ── Live search ──────────────────────────────
+let searchTimer;
+const searchInput = document.getElementById('searchInput');
+const searchResults = document.getElementById('searchResults');
+
+searchInput.addEventListener('input', () => {
+  clearTimeout(searchTimer);
+  const q = searchInput.value.trim();
+  if (!q) { searchResults.classList.remove('show'); return; }
+  searchTimer = setTimeout(() => doSearch(q), 280);
+});
+searchInput.addEventListener('blur', () => {
+  setTimeout(() => searchResults.classList.remove('show'), 200);
+});
+
+async function doSearch(q) {
+  const { fetchProducts, getCategoryEmoji } = await import('/js/products.js');
+  const { formatPrice } = await import('/js/utils.js');
+  const results = await fetchProducts(null, q);
+  if (!results.length) { searchResults.innerHTML = '<div class="search-result-item"><span>No results for "' + q + '"</span></div>'; }
+  else {
+    searchResults.innerHTML = results.slice(0, 8).map(p => `
+      <a href="/product-detail.html?id=${p.id}" class="search-result-item">
+        <div class="search-result-emoji">${getCategoryEmoji(p.category)}</div>
+        <div class="search-result-info">
+          <div class="name">${p.name} <small style="color:#999;font-size:11px">${p.unit}</small></div>
+          <div class="price">${formatPrice(p.price)}</div>
+        </div>
+      </a>`).join('');
+  }
+  searchResults.classList.add('show');
+}
+
+// ── Location modal ───────────────────────────
+const AREAS = [
+  { name: 'Anna Nagar', pincode: '600040' },
+  { name: 'T. Nagar',   pincode: '600017' },
+  { name: 'Velachery',  pincode: '600042' },
+  { name: 'Adyar',      pincode: '600020' },
+  { name: 'Porur',      pincode: '600116' },
+  { name: 'Tambaram',   pincode: '600045' },
+  { name: 'Sholinganallur', pincode: '600119' },
+  { name: 'OMR',        pincode: '600097' },
+  { name: 'Perambur',   pincode: '600011' },
+  { name: 'Mylapore',   pincode: '600004' },
+  { name: 'Besant Nagar', pincode: '600090' },
+  { name: 'Nungambakkam', pincode: '600034' },
+  { name: 'Thiruvanmiyur', pincode: '600041' },
+  { name: 'Chromepet',  pincode: '600044' },
+];
+
+const modal   = document.getElementById('locationModal');
+const areaGrid = document.getElementById('areaGrid');
+const currentLoc = getLocation();
+
+areaGrid.innerHTML = AREAS.map(a => `
+  <button class="area-btn ${currentLoc?.area === a.name ? 'selected' : ''}" data-area='${JSON.stringify(a)}'>
+    <div class="area-name">${a.name}</div>
+    <div class="area-pin">${a.pincode}</div>
+  </button>`).join('');
+
+document.getElementById('locationBar').addEventListener('click', () => openModal(modal));
+modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(modal); });
+
+areaGrid.addEventListener('click', (e) => {
+  const btn = e.target.closest('.area-btn');
+  if (!btn) return;
+  const area = JSON.parse(btn.dataset.area);
+  setLocation({ area: area.name, city: 'Chennai', pincode: area.pincode, address: `${area.name}, Chennai` });
+  renderLocationDisplay();
+  closeModal(modal);
+  showToast(`📍 Location set to ${area.name}`, 'success');
+});
+
+document.getElementById('gpsBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('gpsBtn');
+  const icon = document.getElementById('gpsIcon');
+  const status = document.getElementById('gpsStatus');
+  icon.classList.add('gps-pulsing');
+  status.textContent = 'Detecting location…';
+  btn.disabled = true;
+  try {
+    const loc = await detectLocation();
+    setLocation(loc);
+    renderLocationDisplay();
+    closeModal(modal);
+    showToast(`📍 Location: ${loc.area || loc.city}`, 'success');
+  } catch (err) {
+    showToast(err.message, 'error');
+    status.textContent = err.message;
+  } finally {
+    icon.classList.remove('gps-pulsing');
+    btn.disabled = false;
+    status.textContent = 'Using GPS for precise address';
+  }
+});
+
+function renderLocationDisplay() {
+  const loc = getLocation();
+  document.getElementById('locationText').textContent = loc ? loc.address || loc.area : 'Select delivery location';
+}
+</script>
+</body>
+</html>

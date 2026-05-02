@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <title>Wishlist — Farmers Factory</title>
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+<div class="app-wrap">
+  <div class="page-bar">
+    <a href="/" class="back-btn">&#8592;</a>
+    <span class="page-title">My Wishlist</span>
+    <a href="/cart.html" class="icon-btn" style="margin-left:auto" aria-label="Cart">
+      🛒<span class="badge" data-cart-badge style="display:none">0</span>
+    </a>
+  </div>
+
+  <div class="wishlist-page">
+    <div id="wishlistGrid" class="wishlist-grid"></div>
+  </div>
+</div>
+
+<nav class="bottom-nav" aria-label="Main navigation">
+  <a href="/" class="nav-item"><span class="nav-icon">🏠</span><span>Home</span></a>
+  <a href="/wishlist.html" class="nav-item active"><span class="nav-icon">❤️</span><span>Wishlist</span></a>
+  <a href="/cart.html" class="nav-item"><span class="nav-icon">🛒</span><span>Cart</span><span class="nav-badge" data-cart-badge style="display:none">0</span></a>
+  <a href="/orders.html" class="nav-item"><span class="nav-icon">📋</span><span>Orders</span></a>
+  <a href="/profile.html" class="nav-item"><span class="nav-icon">👤</span><span>Profile</span></a>
+</nav>
+
+<div class="toast-container"></div>
+
+<script type="module">
+import { supabase } from "/js/supabase.js";
+import { getWishlist, renderProductCard, updateWishlistBadges } from "/js/products.js";
+import { initCartBadge } from "/js/cart.js";
+
+initCartBadge();
+updateWishlistBadges();
+
+async function renderWishlist() {
+  const grid = document.getElementById("wishlistGrid");
+  const ids = getWishlist();
+  if (!ids.length) {
+    grid.innerHTML = \`<div class="empty-state" style="grid-column:1/-1">
+      <div class="empty-icon">🤍</div>
+      <h3>Wishlist is empty</h3>
+      <p>Tap the heart on any product to save it here.</p>
+      <a href="/" class="btn btn-primary btn-sm" style="margin-top:10px">Browse Products</a>
+    </div>\`;
+    return;
+  }
+  grid.innerHTML = \`<div class="loader" style="grid-column:1/-1"><div class="spinner"></div></div>\`;
+  const { data } = await supabase.from("products").select("*").in("id", ids);
+  grid.innerHTML = "";
+  (data || []).forEach(p => grid.appendChild(renderProductCard(p)));
+}
+
+renderWishlist();
+window.addEventListener("wishlist-updated", renderWishlist);
+</script>
+</body>
+</html>
