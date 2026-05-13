@@ -1,106 +1,147 @@
-// ============================================================
-// cart.js — Cart management with localStorage
-// Cart stored as: localStorage['ff_cart'] = JSON array of items
-// Each item: { id, name, unit, price, image_url, emoji, quantity }
-// ============================================================
+/**
+ * cart.js — Farmers Factory
+ * localStorage cart + wishlist logic.
+ */
 
-const CART_KEY = 'ff_cart';
+const CART_KEY     = 'ff_cart';
+const WISHLIST_KEY = 'ff_wishlist';
 
-/** Return all cart items */
+// ── Cart ───────────────────────────────────────────────────
+
+/** @returns {Array} */
 export function getCart() {
   try { return JSON.parse(localStorage.getItem(CART_KEY)) || []; }
   catch { return []; }
 }
 
-/** Save cart to localStorage */
-function saveCart(items) {
-  localStorage.setItem(CART_KEY, JSON.stringify(items));
-  window.dispatchEvent(new CustomEvent('cart-updated', { detail: { items } }));
+function saveCart(cart) {
+  localStorage.setItem(CART_KEY, JSON.stringify(cart));
+  updateCartBadge();
 }
 
-/** Add item to cart (or increase qty if already exists) */
+/**
+ * Add product to cart or increment quantity.
+ * @param {object} product - full product object from Supabase
+ * @param {number} qty
+ */
 export function addToCart(product, qty = 1) {
-  const cart = getCart();
-  const existing = cart.find(i => i.id === product.id);
-  if (existing) {
-    existing.quantity += qty;
+  const cart  = getCart();
+  const index = cart.findIndex(i => i.id === product.id);
+  if (index >= 0) {
+    cart[index].qty += qty;
   } else {
-    cart.push({
-      id:        product.id,
-      name:      product.name,
-      unit:      product.unit,
-      price:     product.price,
-      image_url: product.image_url || null,
-      emoji:     getCategoryEmoji(product.category),
-      quantity:  qty,
-    });
+    cart.push({ ...product, qty });
   }
   saveCart(cart);
+  showToast(`${product.name} added to cart 🛒`, 'success');
+  updateCartBadge();
 }
 
-/** Update quantity of item. If qty <= 0, removes item. */
+/**
+ * Update quantity of a cart item.
+ * @param {string} productId
+ * @param {number} qty - if <= 0, removes the item
+ */
 export function updateCartQty(productId, qty) {
   let cart = getCart();
   if (qty <= 0) {
     cart = cart.filter(i => i.id !== productId);
   } else {
     const item = cart.find(i => i.id === productId);
-    if (item) item.quantity = qty;
+    if (item) item.qty = qty;
   }
   saveCart(cart);
 }
 
-/** Remove item from cart */
+/** Remove item from cart by product id. */
 export function removeFromCart(productId) {
-  saveCart(getCart().filter(i => i.id !== productId));
+  const cart = getCart().filter(i => i.id !== productId);
+  saveCart(cart);
 }
 
-/** Clear entire cart */
+/** Clear the entire cart. */
 export function clearCart() {
-  saveCart([]);
+  localStorage.removeItem(CART_KEY);
+  updateCartBadge();
 }
 
-/** Total number of items (sum of quantities) */
-export function getCartCount() {
-  return getCart().reduce((s, i) => s + i.quantity, 0);
+/** Total number of items in cart. */
+export function cartCount() {
+  return getCart().reduce((s, i) => s + i.qty, 0);
 }
 
-/** Subtotal in rupees */
-export function getCartSubtotal() {
-  return getCart().reduce((s, i) => s + i.price * i.quantity, 0);
+/** Cart subtotal. */
+export function cartSubtotal() {
+  return getCart().reduce((s, i) => s + i.price * i.qty, 0);
 }
 
-/** Get single item from cart by productId */
-export function getCartItem(productId) {
-  return getCart().find(i => i.id === productId) || null;
+// ── Wishlist ───────────────────────────────────────────────
+
+/** @returns {Array} */
+export function getWishlist() {
+  try { return JSON.parse(localStorage.getItem(WISHLIST_KEY)) || []; }
+  catch { return []; }
 }
 
-/** Returns emoji for a product category */
-export function getCategoryEmoji(category) {
-  const map = {
-    vegetables: '🥬', veggies: '🥬', fruits: '🍎', dairy: '🥛',
-    grains: '🌾', herbs: '🌿', default: '🥦',
-  };
-  if (!category) return map.default;
-  return map[category.toLowerCase()] || map.default;
+function saveWishlist(list) {
+  localStorage.setItem(WISHLIST_KEY, JSON.stringify(list));
+  updateWishlistBadge();
 }
 
-/** Format price as ₹XX */
-export function formatPrice(amount) {
-  return '₹' + Number(amount).toLocaleString('en-IN', { minimumFractionDigits: 0 });
+/**
+ * Toggle product in wishlist.
+ * @returns {boolean} true if now wishlisted
+ */
+export function toggleWishlist(product) {
+  const list  = getWishlist();
+  const index = list.findIndex(i => i.id === product.id);
+  if (index >= 0) {
+    list.splice(index, 1);
+    saveWishlist(list);
+    return false;
+  } else {
+    list.push(product);
+    saveWishlist(list);
+    return true;
+  }
 }
 
-/** Update all cart count badges on the page */
-export function updateCartBadges() {
-  const count = getCartCount();
-  document.querySelectorAll('[data-cart-badge]').forEach(el => {
-    el.textContent = count > 9 ? '9+' : String(count);
+/** Check if a product is in the wishlist. */
+export function isWishlisted(productId) {
+  return getWishlist().some(i => i.id === productId);
+}
+
+// ── Badge updaters ─────────────────────────────────────────
+
+export function updateCartBadge() {
+  const count = cartCount();
+  document.querySelectorAll('.cart-badge').forEach(el => {
+    el.textContent = count;
     el.style.display = count > 0 ? 'flex' : 'none';
   });
 }
 
-/** Listen for cart updates and refresh badges */
-export function initCartBadge() {
-  updateCartBadges();
-  window.addEventListener('cart-updated', updateCartBadges);
+export function updateWishlistBadge() {
+  const count = getWishlist().length;
+  document.querySelectorAll('.wishlist-badge').forEach(el => {
+    el.textContent = count;
+    el.style.display = count > 0 ? 'flex' : 'none';
+  });
+}
+
+/** Call on page load to sync all badges. */
+export function syncBadges() {
+  updateCartBadge();
+  updateWishlistBadge();
+}
+
+// ── Toast ──────────────────────────────────────────────────
+function showToast(msg, type = 'success') {
+  const c = document.getElementById('toast-container');
+  if (!c) return;
+  const t = document.createElement('div');
+  t.className = `toast ${type}`;
+  t.textContent = msg;
+  c.appendChild(t);
+  setTimeout(() => t.remove(), 3200);
 }

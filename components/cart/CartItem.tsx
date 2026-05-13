@@ -3,7 +3,7 @@
 import Image from 'next/image';
 import { Plus, Minus, Trash2 } from 'lucide-react';
 import { useCartStore } from '@/store/cartStore';
-import { cn, formatPrice } from '@/lib/utils';
+import { cn, formatPrice, calculateEffectivePrice } from '@/lib/utils';
 import type { CartItem as CartItemType } from '@/types';
 
 interface CartItemProps {
@@ -14,7 +14,9 @@ export function CartItem({ item }: CartItemProps) {
   const updateQuantity = useCartStore((s) => s.updateQuantity);
   const removeItem = useCartStore((s) => s.removeItem);
 
-  const { product, quantity } = item;
+  const { product, quantity, weight = 1 } = item;
+
+  const effectiveUnitPrice = calculateEffectivePrice(product.price, product.unit, weight);
 
   return (
     <div className="flex items-center gap-3 py-3">
@@ -35,11 +37,13 @@ export function CartItem({ item }: CartItemProps) {
       {/* Info */}
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         <p className="line-clamp-2 text-sm font-medium leading-snug text-neutral-800">
-          {product.name}
+          {product.name} {weight > 0 && `(${weight} kg)`}
         </p>
-        <p className="text-xs text-neutral-500">{product.unit}</p>
+        <p className="text-xs text-neutral-500">
+          {weight} kg pkg ({product.unit} base)
+        </p>
         <p className="text-sm font-bold text-neutral-900">
-          {formatPrice(product.price * quantity)}
+          {formatPrice(effectiveUnitPrice * quantity)}
         </p>
       </div>
 
@@ -50,7 +54,7 @@ export function CartItem({ item }: CartItemProps) {
         aria-label={`${product.name} quantity`}
       >
         <button
-          onClick={() => updateQuantity(product.id, quantity - 1)}
+          onClick={() => updateQuantity(product.id, quantity - 1, weight)}
           aria-label={
             quantity === 1
               ? `Remove ${product.name} from cart`
@@ -78,7 +82,7 @@ export function CartItem({ item }: CartItemProps) {
         </span>
 
         <button
-          onClick={() => updateQuantity(product.id, quantity + 1)}
+          onClick={() => updateQuantity(product.id, quantity + 1, weight)}
           aria-label={`Increase ${product.name} quantity`}
           className={cn(
             'flex h-8 w-8 items-center justify-center rounded-r-lg',

@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard — Farmers Factory</title>
+  <link rel="stylesheet" href="css/app.css" />
+</head>
+<body>
+<div id="toast-container"></div>
+
+<!-- Top Bar -->
+<div class="top-bar">
+  <div class="top-bar-logo">🌾 Farmers Factory</div>
+  <div class="top-bar-actions">
+    <button class="icon-btn" onclick="window.logout()" title="Log out">⎋</button>
+  </div>
+</div>
+
+<!-- Main Content -->
+<div class="dashboard-page">
+
+  <!-- Welcome Card -->
+  <div class="welcome-card">
+    <div class="avatar-circle" id="avatar">?</div>
+    <div class="welcome-text">
+      <div class="welcome-greeting" id="greeting">Good morning!</div>
+      <div class="welcome-name" id="user-name">Loading…</div>
+    </div>
+  </div>
+
+  <!-- Account Card -->
+  <div class="card" id="account-card">
+    <div class="card-header">
+      <h2 class="card-title">My Account</h2>
+      <button class="btn-edit" id="edit-btn" onclick="toggleEdit()">Edit</button>
+    </div>
+
+    <!-- View Mode -->
+    <div id="view-mode">
+      <div class="info-row"><span class="info-label">Name</span><span class="info-value" id="view-name">—</span></div>
+      <div class="info-row"><span class="info-label">Phone</span><span class="info-value" id="view-phone">—</span></div>
+      <div class="info-row"><span class="info-label">Email</span><span class="info-value" id="view-email">—</span></div>
+      <div class="info-row"><span class="info-label">Address</span><span class="info-value" id="view-address">—</span></div>
+    </div>
+
+    <!-- Edit Mode -->
+    <div id="edit-mode" class="hidden">
+      <div class="input-group">
+        <label class="input-label" for="edit-name">Full Name</label>
+        <input class="input-field" id="edit-name" type="text" placeholder="Full name" />
+      </div>
+      <div class="input-group">
+        <label class="input-label" for="edit-phone">Phone</label>
+        <input class="input-field" id="edit-phone" type="tel" maxlength="10" placeholder="10-digit number" />
+      </div>
+      <div class="input-group">
+        <label class="input-label" for="edit-email">Email</label>
+        <input class="input-field" id="edit-email" type="email" disabled style="opacity:0.6;cursor:not-allowed;" />
+      </div>
+      <div class="input-group">
+        <label class="input-label" for="edit-address">Delivery Address</label>
+        <textarea class="input-field" id="edit-address" rows="3" placeholder="Your delivery address"></textarea>
+      </div>
+      <div class="edit-actions">
+        <button class="btn-secondary" onclick="cancelEdit()">Cancel</button>
+        <button class="btn-primary" id="save-btn" onclick="saveProfile()">Save Changes</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Quick Links -->
+  <div class="card">
+    <h2 class="card-title">Quick Actions</h2>
+    <div class="quick-grid">
+      <a class="quick-item" href="index.html">
+        <div class="quick-icon">🛒</div>
+        <div class="quick-label">Shop Now</div>
+      </a>
+      <a class="quick-item" href="orders.html">
+        <div class="quick-icon">📦</div>
+        <div class="quick-label">My Orders</div>
+      </a>
+      <a class="quick-item" href="cart.html">
+        <div class="quick-icon">🛍️</div>
+        <div class="quick-label">My Cart</div>
+      </a>
+      <a class="quick-item" href="support.html">
+        <div class="quick-icon">💬</div>
+        <div class="quick-label">Contact Us</div>
+      </a>
+    </div>
+  </div>
+
+</div>
+
+<!-- Bottom Nav -->
+<nav class="bottom-nav">
+  <a class="nav-item" href="index.html">
+    <div class="nav-icon">🏠</div>
+    <div class="nav-label">Home</div>
+  </a>
+  <a class="nav-item" href="index.html">
+    <div class="nav-icon">🛒</div>
+    <div class="nav-label">Shop</div>
+  </a>
+  <a class="nav-item" href="orders.html">
+    <div class="nav-icon">📦</div>
+    <div class="nav-label">Orders</div>
+  </a>
+  <a class="nav-item active" href="dashboard.html">
+    <div class="nav-icon">👤</div>
+    <div class="nav-label">Profile</div>
+  </a>
+</nav>
+
+<!-- CDN Scripts -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/supabase.js"></script>
+<script src="js/auth.js"></script>
+<script>
+  var _user = null;
+
+  // Require login
+  requireUser();
+
+  window.addEventListener('load', function() {
+    _user = getSession();
+    if (!_user) return;
+    populateView();
+    setGreeting();
+  });
+
+  function setGreeting() {
+    var h = new Date().getHours();
+    var g = h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
+    document.getElementById('greeting').textContent = g + ',';
+    var n = (_user.name || '').split(' ')[0];
+    document.getElementById('user-name').textContent = n;
+    document.getElementById('avatar').textContent = n.charAt(0).toUpperCase() || '?';
+  }
+
+  function populateView() {
+    document.getElementById('view-name').textContent    = _user.name    || '—';
+    document.getElementById('view-phone').textContent   = _user.phone   || '—';
+    document.getElementById('view-email').textContent   = _user.email   || '—';
+    document.getElementById('view-address').textContent = _user.address || 'Not set';
+  }
+
+  function toggleEdit() {
+    document.getElementById('view-mode').classList.add('hidden');
+    document.getElementById('edit-mode').classList.remove('hidden');
+    document.getElementById('edit-btn').style.display = 'none';
+
+    document.getElementById('edit-name').value    = _user.name    || '';
+    document.getElementById('edit-phone').value   = _user.phone   || '';
+    document.getElementById('edit-email').value   = _user.email   || '';
+    document.getElementById('edit-address').value = _user.address || '';
+  }
+
+  function cancelEdit() {
+    document.getElementById('edit-mode').classList.add('hidden');
+    document.getElementById('view-mode').classList.remove('hidden');
+    document.getElementById('edit-btn').style.display = '';
+  }
+
+  async function saveProfile() {
+    var name    = document.getElementById('edit-name').value.trim();
+    var phone   = document.getElementById('edit-phone').value.trim();
+    var address = document.getElementById('edit-address').value.trim();
+
+    if (!name)  { showToast('Name cannot be empty', 'error'); return; }
+    if (!/^\d{10}$/.test(phone)) { showToast('Enter a valid 10-digit phone number', 'error'); return; }
+
+    var btn = document.getElementById('save-btn');
+    btn.disabled = true;
+    btn.textContent = 'Saving…';
+
+    try {
+      var res = await window.db.from('users').update({ name: name, phone: phone, address: address })
+        .eq('id', _user.id).select().single();
+
+      if (res.error) {
+        showToast('Failed to save. Please try again.', 'error');
+        btn.disabled = false;
+        btn.textContent = 'Save Changes';
+        return;
+      }
+
+      _user = res.data;
+      saveSession(_user);
+      populateView();
+      setGreeting();
+      cancelEdit();
+      showToast('Profile updated!', 'success');
+    } catch(e) {
+      showToast('Something went wrong.', 'error');
+    }
+    btn.disabled = false;
+    btn.textContent = 'Save Changes';
+  }
+</script>
+</body>
+</html>

@@ -54,7 +54,7 @@ const securityHeaders = [
       "default-src 'self'",
       "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://checkout.razorpay.com https://cdn.razorpay.com",
       "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data: blob: https://res.cloudinary.com https://lh3.googleusercontent.com https://images.unsplash.com https://*.supabase.co",
+      "img-src 'self' data: blob: https:",
       "font-src 'self'",
       "connect-src 'self' https://api.razorpay.com https://lumberjack.razorpay.com https://vitals.vercel-insights.com https://*.supabase.co",
       "frame-src https://api.razorpay.com https://checkout.razorpay.com",
@@ -92,6 +92,24 @@ const nextConfig: NextConfig = {
         protocol: 'https',
         hostname: '*.supabase.co',
         pathname: '/storage/v1/object/public/**',
+      },
+      // Flaticon — category/product icons
+      {
+        protocol: 'https',
+        hostname: 'cdn-icons-png.flaticon.com',
+        pathname: '/**',
+      },
+      // Freepik CDN (related icon host)
+      {
+        protocol: 'https',
+        hostname: 'cdn-icons-png.freepik.com',
+        pathname: '/**',
+      },
+      // Allow any external image host (covers imageUrls stored in DB)
+      {
+        protocol: 'https',
+        hostname: '**',
+        pathname: '/**',
       },
     ],
     minimumCacheTTL: 60 * 60 * 24 * 30, // 30 days

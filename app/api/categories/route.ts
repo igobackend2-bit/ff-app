@@ -1,35 +1,34 @@
 import { NextResponse } from 'next/server';
 import type { ApiResponse, Category } from '@/types';
-import { db, isSupabaseConfigured } from '@/lib/supabase';
-import { DEMO_CATEGORIES } from '@/lib/demo-data';
+import { prisma } from '@/lib/db';
 
-export const revalidate = 3600;
-
-function formatCategory(c: Record<string, unknown>): Category {
-  return {
-    id: c['id'] as string,
-    name: c['name'] as string,
-    slug: c['slug'] as string,
-    description: (c['description'] as string) ?? null,
-    imageUrl: (c['image_url'] as string) ?? '',
-    iconUrl: (c['icon_url'] as string) ?? null,
-    parentId: (c['parent_id'] as string) ?? null,
-    sortOrder: Number(c['sort_order']),
-    metaTitle: (c['meta_title'] as string) ?? null,
-    metaDescription: (c['meta_description'] as string) ?? null,
-    ogImageUrl: (c['og_image_url'] as string) ?? null,
-  };
-}
+export const revalidate = 0;
 
 export async function GET() {
   try {
-    if (!isSupabaseConfigured) {
-      return NextResponse.json<ApiResponse<Category[]>>({ data: DEMO_CATEGORIES, error: null });
-    }
-    const rows = await db.getCategories();
-    return NextResponse.json<ApiResponse<Category[]>>({ data: rows.map(formatCategory), error: null });
+    const rows = await prisma.category.findMany({
+      where:   { isActive: true },
+      orderBy: { sortOrder: 'asc' },
+      include: { _count: { select: { products: { where: { isActive: true } } } } },
+    });
+
+    const data = rows.map((c) => ({
+      id:              c.id,
+      name:            c.name,
+      slug:            c.slug,
+      description:     c.description ?? null,
+      imageUrl:        c.imageUrl,
+      iconUrl:         c.iconUrl ?? null,
+      parentId:        c.parentId ?? null,
+      sortOrder:       c.sortOrder,
+      metaTitle:       c.metaTitle ?? null,
+      metaDescription: c.metaDescription ?? null,
+      _count:          { products: c._count.products },
+    }));
+
+    return NextResponse.json({ data, error: null });
   } catch (err) {
     console.error('Categories API error:', err);
-    return NextResponse.json<ApiResponse<Category[]>>({ data: DEMO_CATEGORIES, error: null });
+    return NextResponse.json<ApiResponse<Category[]>>({ data: [], error: 'Failed to load categories' }, { status: 500 });
   }
 }

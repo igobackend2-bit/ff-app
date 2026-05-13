@@ -2,9 +2,91 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
 import { cn } from '@/lib/utils';
 import type { Category } from '@/types';
+
+const SHOW_SLUGS = [
+  'fruits',
+  'vegetables',
+  'valluvam',
+  'dry-fruits',
+  'nuts',
+  'spices',
+  'cold-pressed-oils',
+  'millets',
+  'dairy-ghee',
+  'honey',
+  'seeds-health-mix',
+];
+
+const EMOJI: Record<string, string> = {
+  'fruits':            '🍎',
+  'vegetables':        '🥦',
+  'valluvam':          '🫙',
+  'dry-fruits':        '🌰',
+  'nuts':              '🥜',
+  'spices':            '🌶',
+  'cold-pressed-oils': '🫒',
+  'millets':           '🌾',
+  'dairy-ghee':        '🧈',
+  'honey':             '🍯',
+  'seeds-health-mix':  '🌱',
+};
+
+const RING_COLOR: Record<string, string> = {
+  'fruits':            'border-red-200 bg-red-50',
+  'vegetables':        'border-green-200 bg-green-50',
+  'valluvam':          'border-amber-200 bg-amber-50',
+  'dry-fruits':        'border-orange-200 bg-orange-50',
+  'nuts':              'border-yellow-200 bg-yellow-50',
+  'spices':            'border-red-300 bg-red-50',
+  'cold-pressed-oils': 'border-yellow-300 bg-yellow-50',
+  'millets':           'border-lime-200 bg-lime-50',
+  'dairy-ghee':        'border-amber-100 bg-amber-50',
+  'honey':             'border-yellow-300 bg-yellow-50',
+  'seeds-health-mix':  'border-teal-200 bg-teal-50',
+};
+
+function CategoryCircle({ cat, isActive }: { cat: Category; isActive: boolean }) {
+  const [imgError, setImgError] = useState(false);
+  const emoji     = EMOJI[cat.slug] ?? '🛒';
+  const ringColor = RING_COLOR[cat.slug] ?? 'border-neutral-100 bg-white';
+
+  return (
+    <Link
+      href={`/category/${cat.slug}`}
+      className="flex shrink-0 flex-col items-center gap-1.5 transition-all active:scale-95"
+    >
+      <div className={cn(
+        'relative flex h-[68px] w-[68px] items-center justify-center overflow-hidden rounded-2xl border-2 shadow-sm transition-all',
+        isActive
+          ? 'border-primary-500 bg-primary-50 scale-110 shadow-primary-100'
+          : `${ringColor} hover:scale-105 hover:shadow-md`,
+      )}>
+        {cat.imageUrl && !imgError ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={cat.imageUrl}
+            alt={cat.name}
+            className="h-full w-full object-cover"
+            onError={() => setImgError(true)}
+          />
+        ) : (
+          <span className="text-3xl select-none" role="img" aria-label={cat.name}>{emoji}</span>
+        )}
+        {isActive && (
+          <div className="absolute inset-0 rounded-2xl ring-2 ring-primary-500 ring-offset-1" />
+        )}
+      </div>
+      <span className={cn(
+        'w-[68px] text-center text-[10px] font-bold leading-tight',
+        isActive ? 'text-primary-700' : 'text-neutral-600',
+      )}>
+        {cat.name}
+      </span>
+    </Link>
+  );
+}
 
 interface CategoryScrollProps {
   activeSlug?: string;
@@ -12,92 +94,61 @@ interface CategoryScrollProps {
 
 export function CategoryScroll({ activeSlug }: CategoryScrollProps) {
   const [categories, setCategories] = useState<Category[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading,  setIsLoading]  = useState(true);
 
   useEffect(() => {
-    async function fetchCategories() {
-      try {
-        const res = await fetch('/api/categories');
-        const data = await res.json();
-        setCategories(data.data || []);
-      } catch (error) {
-        console.error('Failed to fetch categories:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    }
-    fetchCategories();
+    fetch('/api/categories')
+      .then((r) => r.json())
+      .then((d: { data: Category[] }) => {
+        const all = d.data ?? [];
+        const filtered = SHOW_SLUGS
+          .map(s => all.find(c => c.slug === s))
+          .filter((c): c is Category => Boolean(c));
+        setCategories(filtered);
+      })
+      .catch(() => {})
+      .finally(() => setIsLoading(false));
   }, []);
 
-  return (
-    <div className="no-scrollbar flex gap-6 overflow-x-auto pb-6 pt-4">
-      {isLoading ? (
-        Array.from({ length: 8 }).map((_, i) => (
-          <div key={i} className="flex shrink-0 flex-col items-center gap-3">
-            <div className="h-20 w-20 animate-pulse rounded-full bg-neutral-100" />
-            <div className="h-3 w-16 animate-pulse rounded bg-neutral-100" />
+  if (isLoading) {
+    return (
+      <div className="no-scrollbar flex gap-3 overflow-x-auto pb-3 pt-2">
+        {Array.from({ length: 11 }).map((_, i) => (
+          <div key={i} className="flex shrink-0 flex-col items-center gap-1.5">
+            <div className="h-[68px] w-[68px] animate-pulse rounded-2xl bg-neutral-100" />
+            <div className="h-2.5 w-12 animate-pulse rounded bg-neutral-100" />
           </div>
-        ))
-      ) : (
-        <>
-          <Link
-            href="/"
-            className={cn(
-              "flex shrink-0 flex-col items-center gap-3 transition-all active:scale-95",
-              !activeSlug ? "opacity-100" : "opacity-70 hover:opacity-100"
-            )}
-          >
-            <div className={cn(
-              "flex h-20 w-20 items-center justify-center rounded-full border-2 shadow-sm transition-all",
-              !activeSlug 
-                ? "border-primary-600 bg-primary-50 text-primary-600 scale-105" 
-                : "border-transparent bg-neutral-50 text-neutral-400"
-            )}>
-              <span className="text-sm font-black">ALL</span>
-            </div>
-            <span className={cn(
-              "text-xs font-extrabold tracking-tight",
-              !activeSlug ? "text-primary-900" : "text-neutral-600"
-            )}>
-              All Items
-            </span>
-          </Link>
+        ))}
+      </div>
+    );
+  }
 
-          {categories.slice(0, 10).map((cat) => (
-            <Link
-              key={cat.id}
-              href={`/category/${cat.slug}`}
-              className={cn(
-                "flex shrink-0 flex-col items-center gap-3 transition-all active:scale-95",
-                activeSlug === cat.slug ? "opacity-100" : "opacity-70 hover:opacity-100"
-              )}
-            >
-              <div className={cn(
-                "relative h-20 w-20 overflow-hidden rounded-full border-2 shadow-sm transition-all",
-                activeSlug === cat.slug 
-                  ? "border-primary-600 bg-primary-50 scale-105" 
-                  : "border-transparent bg-neutral-50 hover:border-neutral-200"
-              )}>
-                {cat.imageUrl && (
-                  <Image
-                    src={cat.imageUrl}
-                    alt={cat.name}
-                    fill
-                    sizes="80px"
-                    className="object-contain p-3"
-                  />
-                )}
-              </div>
-              <span className={cn(
-                "max-w-[84px] text-center text-xs font-extrabold leading-tight tracking-tight",
-                activeSlug === cat.slug ? "text-primary-900" : "text-neutral-600"
-              )}>
-                {cat.name}
-              </span>
-            </Link>
-          ))}
-        </>
-      )}
+  return (
+    <div className="no-scrollbar flex gap-3 overflow-x-auto pb-3 pt-2" role="navigation" aria-label="Shop by category">
+      {/* ALL pill */}
+      <Link
+        href="/"
+        className="flex shrink-0 flex-col items-center gap-1.5 transition-all active:scale-95"
+      >
+        <div className={cn(
+          'flex h-[68px] w-[68px] items-center justify-center rounded-2xl border-2 shadow-sm transition-all',
+          !activeSlug
+            ? 'border-primary-500 bg-primary-600 scale-110 shadow-primary-200'
+            : 'border-neutral-100 bg-white hover:scale-105 hover:shadow-md',
+        )}>
+          <span className={cn('text-xs font-black', !activeSlug ? 'text-white' : 'text-neutral-500')}>ALL</span>
+        </div>
+        <span className={cn(
+          'w-[68px] text-center text-[10px] font-bold leading-tight',
+          !activeSlug ? 'text-primary-700' : 'text-neutral-600',
+        )}>
+          All Items
+        </span>
+      </Link>
+
+      {categories.map((cat) => (
+        <CategoryCircle key={cat.id} cat={cat} isActive={activeSlug === cat.slug} />
+      ))}
     </div>
   );
 }

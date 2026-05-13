@@ -1,49 +1,102 @@
-// Skill #13 — OTP send with rate limiting (Skill #14 — Redis)
-// Skill #17 — Zod validation
-// Skill #39 — HttpOnly cookie session (no JWT in HTML)
-
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { authRequestSchema } from '@/lib/validations';
+import { prisma } from '@/lib/db';
 
-// Rate limiting: max 3 OTP requests per phone per 10 minutes
-async function checkRateLimit(identifier: string): Promise<{ allowed: boolean; retryAfter?: number }> {
-  // In production: use @upstash/ratelimit
-  // Placeholder implementation — replace with Redis
-  return { allowed: true };
-}
+const sendOtpSchema = z.object({
+  email: z.string().email('Invalid email address'),
+  name:  z.string().min(2).optional(),
+  phone: z.string().optional(),
+});
 
-// Generate 6-digit OTP
 function generateOtp(): string {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
-// Hash OTP before storing (never store plaintext)
 async function hashOtp(otp: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(otp + (process.env['NEXTAUTH_SECRET'] ?? ''));
+  const enc  = new TextEncoder();
+  const data = enc.encode(otp + (process.env['NEXTAUTH_SECRET'] ?? 'ff-dev-secret'));
   const hash = await crypto.subtle.digest('SHA-256', data);
   return Buffer.from(hash).toString('hex');
 }
 
-async function sendOtpEmail(email: string, otp: string): Promise<boolean> {
-  if (process.env['NODE_ENV'] === 'development' || !process.env['RESEND_API_KEY']) {
-    // In dev or if no real email provider: log OTP to console
-    console.warn(`[DEV] OTP for ${email}: ${otp}`);
-    return true;
+function otpHtml(otp: string): string {
+  return `<!DOCTYPE html>
+<html><body style="font-family:Arial,sans-serif;background:#f9fafb;padding:40px 0;">
+  <div style="max-width:500px;margin:0 auto;background:#fff;border-radius:12px;border:1px solid #e5e7eb;padding:40px 32px;text-align:center;">
+    <p style="font-size:18px;font-weight:bold;color:#16a34a;margin-bottom:20px;">Farmers Factory</p>
+    <p style="color:#374151;margin-bottom:16px;">Your one-time login code:</p>
+    <div style="background:#f0fdf4;border:2px solid #86efac;border-radius:10px;padding:20px 40px;display:inline-block;margin-bottom:16px;">
+      <span style="font-size:40px;font-weight:bold;letter-spacing:10px;color:#111827;">${otp}</span>
+    </div>
+    <p style="font-size:13px;color:#6b7280;">Valid for <strong>5 minutes</strong>. Do not share this code.</p>
+  </div>
+</body></html>`;
+}
+
+async function sendOtpEmail(to: string, otp: string): Promise<{ ok: boolean; error?: string }> {
+  const apiKey = process.env['RESEND_API_KEY'];
+  const from   = process.env['RESEND_FROM_EMAIL'] ?? 'Farmers Factory <noreply@igogroup.in>';
+
+  if (!apiKey) {
+    console.log(`\n[OTP DEV] No RESEND_API_KEY — OTP for ${to}: ${otp}\n`);
+    return { ok: true };
   }
 
-  // Placeholder for real email provider (like Resend)
-  console.log(`Sending email to ${email} with OTP: ${otp}`);
-  return true;
+  try {
+    const res = await fetch('https://api.resend.com/emails', {
+      method:  'POST',
+      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        from,
+        to,
+        subject: `Your Farmers Factory login code: ${otp}`,
+        html:    otpHtml(otp),
+        text:    `Your Farmers Factory login code: ${otp}\n\nValid for 5 minutes.`,
+      }),
+    });
+
+    // Try to parse response — might not be JSON on network errors
+    let data: { id?: string; name?: string; message?: string } = {};
+    const ct = res.headers.get('content-type') ?? '';
+    if (ct.includes('application/json')) {
+      data = (await res.json()) as typeof data;
+    }
+
+    if (!res.ok) {
+      const msg = `${data.name ?? res.status}: ${data.message ?? 'Resend error'}`;
+      console.error('[OTP][Resend]', msg);
+      // Don't fail the whole flow — log and continue (dev convenience)
+      if (process.env['NODE_ENV'] !== 'production') {
+        console.log(`[OTP DEV] Email failed but continuing — OTP for ${to}: ${otp}`);
+        return { ok: true };
+      }
+      return { ok: false, error: msg };
+    }
+
+    console.log('[OTP][Resend] Sent to:', to, '| id:', data.id);
+    return { ok: true };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error('[OTP][Resend] Fetch error:', msg);
+    // In dev, let login work even if email fails
+    if (process.env['NODE_ENV'] !== 'production') {
+      console.log(`[OTP DEV] Email error but continuing — OTP for ${to}: ${otp}`);
+      return { ok: true };
+    }
+    return { ok: false, error: msg };
+  }
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const body = (await req.json()) as unknown;
+    const contentType = req.headers.get('content-type') ?? '';
+    if (!contentType.includes('application/json')) {
+      return NextResponse.json({ error: 'Content-Type must be application/json' }, { status: 400 });
+    }
 
-    // Skill #17 — Zod validation
-    const result = authRequestSchema.safeParse(body);
+    const body   = (await req.json()) as unknown;
+    const result = sendOtpSchema.safeParse(body);
+
     if (!result.success) {
       return NextResponse.json(
         { error: result.error.errors[0]?.message ?? 'Invalid input' },
@@ -51,54 +104,41 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { name, phone, email } = result.data;
+    const email = result.data.email.trim().toLowerCase();
+    const otp   = generateOtp();
 
-    // Skill #14 — Redis rate limiting
-    const rateCheck = await checkRateLimit(email);
-    if (!rateCheck.allowed) {
-      return NextResponse.json(
-        { error: 'Too many OTP requests. Please wait before requesting again.' },
-        {
-          status: 429,
-          headers: rateCheck.retryAfter
-            ? { 'Retry-After': String(rateCheck.retryAfter) }
-            : {},
-        },
-      );
-    }
+    console.log('\n[OTP] Sending to:', email);
 
-    // Generate + hash OTP
-    const otp = generateOtp();
+    // Save hashed OTP to DB
     const hashedOtp = await hashOtp(otp);
-
-    // Store in DB with 5-minute expiry
-    const { prisma } = await import('@/lib/db');
-    await prisma.verificationToken.deleteMany({
-      where: { identifier: email },
-    });
-
+    await prisma.verificationToken.deleteMany({ where: { identifier: email } });
     await prisma.verificationToken.create({
       data: {
         identifier: email,
-        token: hashedOtp,
-        expires: new Date(Date.now() + 5 * 60 * 1000), // 5 minutes
+        token:      hashedOtp,
+        expires:    new Date(Date.now() + 5 * 60 * 1000),
       },
     });
 
-    // Send Email
-    const sent = await sendOtpEmail(email, otp);
-    if (!sent) {
+    // Send email (never blocks login in dev)
+    const { ok, error } = await sendOtpEmail(email, otp);
+
+    if (!ok) {
       return NextResponse.json(
-        { error: 'Failed to send OTP. Please try again.' },
+        { error: `Could not send OTP email: ${error}` },
         { status: 500 },
       );
     }
 
-    return NextResponse.json({ message: 'OTP sent successfully' });
-  } catch {
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 },
-    );
+    // In dev, include OTP in response so testers can log in without email
+    const isDev = process.env['NODE_ENV'] !== 'production';
+    return NextResponse.json({
+      message:   'OTP sent to your email',
+      emailSent: true,
+      ...(isDev && { devOtp: otp }),
+    });
+  } catch (error) {
+    console.error('[OTP send] Error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

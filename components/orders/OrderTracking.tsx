@@ -128,9 +128,14 @@ export const OrderTracking = ({ orderId }: { orderId: string }) => {
             )}
           </AnimatePresence>
 
-          {/* Location Badge */}
-          <div className="absolute left-4 top-4 rounded-full bg-black/40 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-white backdrop-blur-lg">
-            Mumbai Center
+          {/* Delivery address badge */}
+          <div className="absolute left-4 top-4 flex items-center gap-1.5 rounded-full bg-black/40 px-3 py-1.5 text-[10px] font-bold text-white backdrop-blur-lg max-w-[200px]">
+            <MapPin className="h-3 w-3 shrink-0 text-primary" />
+            <span className="truncate">
+              {data.order.address
+                ? `${(data.order.address as any).city || ''}, ${(data.order.address as any).state || ''}`
+                : 'Delivery Address'}
+            </span>
           </div>
         </div>
       </div>

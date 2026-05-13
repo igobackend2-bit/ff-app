@@ -4,254 +4,270 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
   <title>Product Detail — Farmers Factory</title>
-  <link rel="stylesheet" href="/css/app.css">
+  <link rel="stylesheet" href="css/app.css">
 </head>
 <body>
-<div class="app-wrap">
+<div id="toast-container"></div>
 
-  <!-- Page bar -->
-  <div class="page-bar" id="pageBar">
-    <a href="javascript:history.back()" class="back-btn" aria-label="Back">&#8592;</a>
-    <span class="page-title">Product Details</span>
-    <button class="icon-btn" id="wishBtn" style="margin-left:auto" aria-label="Toggle wishlist">🤍</button>
+<div class="product-detail-page">
+
+  <!-- Image Slider -->
+  <div class="image-slider-wrap" id="slider-wrap">
+    <div class="image-slider-track" id="slider-track"></div>
+    <button class="slider-btn prev" id="slider-prev">‹</button>
+    <button class="slider-btn next" id="slider-next">›</button>
+    <div class="slider-dots" id="slider-dots"></div>
+
+    <!-- Overlay buttons -->
+    <button class="detail-back-btn" id="back-btn" aria-label="Go back">←</button>
+    <button class="detail-wishlist-btn" id="wishlist-btn" aria-label="Toggle wishlist">🤍</button>
   </div>
 
-  <!-- Product content -->
-  <div class="product-detail" id="productDetail">
-    <div class="loader"><div class="spinner"></div><span class="loader-text">Loading product…</span></div>
+  <!-- Loading state -->
+  <div id="product-loading" class="loading-wrap"><div class="spinner"></div></div>
+
+  <!-- Product Info -->
+  <div class="detail-info hidden" id="detail-info">
+    <div id="category-badge" class="category-badge"></div>
+    <h1 class="detail-name" id="product-name"></h1>
+    <div class="detail-unit" id="product-unit"></div>
+    <div class="stars">★★★★★</div>
+    <div class="detail-price-row">
+      <span class="detail-price" id="product-price"></span>
+      <span class="detail-old-price hidden" id="product-old-price"></span>
+      <span class="detail-discount hidden" id="product-discount"></span>
+    </div>
+    <div class="detail-desc" id="product-desc"></div>
+
+    <div style="font-weight:700;margin-bottom:8px">Select Weight:</div>
+    <div class="weight-row" style="margin-bottom:20px">
+      <input type="range" id="weight-slider" min="1" max="30" value="1" step="0.5" style="width:100%;accent-color:var(--primary)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px">
+        <span style="font-size:12px;color:var(--text-light)">1 kg</span>
+        <span id="weight-display" style="font-weight:700;color:var(--primary);background:var(--primary-pale);padding:2px 10px;border-radius:20px">1 kg</span>
+        <span style="font-size:12px;color:var(--text-light)">30 kg</span>
+      </div>
+    </div>
+
+    <div style="font-weight:700;margin-bottom:8px">Quantity:</div>
+    <div class="qty-row" id="qty-row">
+      <button id="qty-minus">−</button>
+      <span id="qty-val">1</span>
+      <button id="qty-plus">+</button>
+    </div>
   </div>
 
-  <!-- Sticky CTA (filled by JS) -->
-  <div class="detail-actions" id="detailActions" style="display:none"></div>
+  <!-- Related Products -->
+  <div id="related-section" class="hidden">
+    <div class="divider"></div>
+    <div class="section-header" style="padding-top:12px">
+      <h3>Related Products</h3>
+    </div>
+    <div class="related-scroll" id="related-container"></div>
+  </div>
 
 </div>
 
-<!-- Bottom nav -->
-<nav class="bottom-nav" aria-label="Main navigation">
-  <a href="/" class="nav-item"><span class="nav-icon">🏠</span><span>Home</span></a>
-  <a href="/wishlist.html" class="nav-item"><span class="nav-icon">❤️</span><span>Wishlist</span><span class="nav-badge" data-wish-badge style="display:none">0</span></a>
-  <a href="/cart.html" class="nav-item"><span class="nav-icon">🛒</span><span>Cart</span><span class="nav-badge" data-cart-badge style="display:none">0</span></a>
-  <a href="/orders.html" class="nav-item"><span class="nav-icon">📋</span><span>Orders</span></a>
-  <a href="/profile.html" class="nav-item"><span class="nav-icon">👤</span><span>Profile</span></a>
-</nav>
-
-<div class="toast-container"></div>
+<!-- Sticky CTA -->
+<div class="detail-cta hidden" id="detail-cta">
+  <button class="btn btn-outline" style="flex:1" id="buy-now-btn">Buy Now</button>
+  <button class="btn btn-primary" style="flex:2" id="add-cart-btn">Add to Cart 🛒</button>
+</div>
 
 <script type="module">
-import { fetchProduct, fetchRelated, getCategoryEmoji, toggleWishlist, isWishlisted, updateWishlistBadges } from "/js/products.js";
-import { addToCart, getCartItem, updateCartQty, formatPrice, initCartBadge } from "/js/cart.js";
-import { showToast } from "/js/utils.js";
+import { fetchProduct, fetchRelated, formatPrice, discountPct, getCategoryEmoji } from './js/products.js';
+import { addToCart, isWishlisted, toggleWishlist, syncBadges } from './js/cart.js';
 
-initCartBadge();
-updateWishlistBadges();
+syncBadges();
 
-const params  = new URLSearchParams(location.search);
-const id      = params.get("id");
-if (!id) { window.location.href = "/"; }
+const params    = new URLSearchParams(location.search);
+const productId = params.get('id');
+let product     = null;
+let qty         = 1;
+let weight      = 1;
+let slideIndex  = 0;
+let images      = [];
+let autoSlide;
 
-let product   = null;
-let qty       = 1;
-let slideIdx  = 0;
-let slideTimer;
+document.getElementById('back-btn').addEventListener('click', () => history.back());
+
+function showToast(msg, type='success') {
+  const c = document.getElementById('toast-container');
+  const t = document.createElement('div');
+  t.className = `toast ${type}`;
+  t.textContent = msg;
+  c.appendChild(t);
+  setTimeout(() => t.remove(), 3200);
+}
 
 async function init() {
-  product = await fetchProduct(id);
+  if (!productId) { showToast('Product not found', 'error'); return; }
+
+  product = await fetchProduct(productId);
   if (!product) {
-    document.getElementById("productDetail").innerHTML = \`<div class="empty-state"><div class="empty-icon">😕</div><h3>Product not found</h3><p><a href="/" style="color:var(--primary)">Back to home</a></p></div>\`;
+    document.getElementById('product-loading').innerHTML =
+      '<div class="empty-state"><div class="empty-icon">❌</div><h3>Product not found</h3></div>';
     return;
   }
 
-  document.title = product.name + " — Farmers Factory";
-  renderDetail();
-  renderCTA();
-  renderRelated();
+  // Images: use image_url if set, else emoji
+  images = product.image_url ? [product.image_url] : [];
+  renderSlider();
 
-  // Wishlist button in header
-  const wishBtn = document.getElementById("wishBtn");
-  wishBtn.textContent = isWishlisted(id) ? "❤️" : "🤍";
-  wishBtn.addEventListener("click", () => {
-    const wl = toggleWishlist(id, product.name);
-    wishBtn.textContent = wl ? "❤️" : "🤍";
-    updateWishlistBadges();
-  });
-}
+  // Info
+  document.getElementById('product-loading').classList.add('hidden');
+  document.getElementById('detail-info').classList.remove('hidden');
+  document.getElementById('detail-cta').classList.remove('hidden');
 
-function renderDetail() {
-  const hasDiscount = product.old_price && product.old_price > product.price;
-  const discPct = hasDiscount ? Math.round((1 - product.price / product.old_price) * 100) : 0;
-  const emoji = getCategoryEmoji(product.category);
-  // Build image slides — if image_url provided use it + emoji as fallback
-  const slides = product.image_url ? [{ url: product.image_url }] : [];
-  // Always add emoji slide as extra / fallback
-  slides.push({ emoji });
+  document.getElementById('category-badge').textContent = product.category || 'Fresh';
+  document.getElementById('product-name').textContent   = product.name;
+  document.getElementById('product-unit').textContent   = product.unit || '';
+  document.getElementById('product-price').textContent  = formatPrice(product.price);
+  document.getElementById('product-desc').textContent   = product.description || 'Farm fresh, delivered within 24 hours.';
 
-  document.getElementById("productDetail").innerHTML = \`
-    <!-- Image slider -->
-    <div class="slider-wrap" id="sliderWrap">
-      <div class="slider-track" id="sliderTrack">
-        \${slides.map((s, i) => \`
-          <div class="slide" data-i="\${i}">
-            \${s.url
-              ? \`<img src="\${s.url}" alt="\${product.name}" onerror="this.parentElement.innerHTML='<span style=font-size:80px>\${emoji}</span>'">\`
-              : \`<span style="font-size:90px">\${s.emoji}</span>\`
-            }
-          </div>\`).join("")}
-      </div>
-      \${slides.length > 1 ? \`
-        <button class="slider-arrow prev" id="prevSlide">&#8249;</button>
-        <button class="slider-arrow next" id="nextSlide">&#8250;</button>
-        <div class="slider-dots" id="sliderDots">
-          \${slides.map((_, i) => \`<div class="dot \${i===0?"active":""}"></div>\`).join("")}
-        </div>\` : ""}
-    </div>
-
-    <!-- Info -->
-    <div class="detail-info">
-      <div class="detail-top">
-        <div>
-          <h1 class="detail-name">\${product.name}</h1>
-          <div class="detail-unit">\${product.unit}</div>
-        </div>
-        <span class="cat-badge">\${product.category || "Fresh"}</span>
-      </div>
-      \${product.is_organic ? '<div style="margin:8px 0"><span class="organic-badge" style="position:static;display:inline-block;font-size:11px">🌱 Certified Organic</span></div>' : ""}
-      <div class="stars">★★★★☆ <span style="color:var(--text-3);font-size:13px">(4.2)</span></div>
-      <div class="price-row">
-        <span class="detail-price">\${formatPrice(product.price)}</span>
-        \${hasDiscount ? \`<span class="detail-old">\${formatPrice(product.old_price)}</span><span class="detail-discount">\${discPct}% OFF</span>\` : ""}
-      </div>
-      \${product.description ? \`<p class="detail-desc">\${product.description}</p>\` : ""}
-
-      <!-- Qty row -->
-      <div class="qty-row">
-        <span class="qty-label">Quantity:</span>
-        <div class="qty-large qty-control">
-          <button class="qty-btn" id="qtyDec">−</button>
-          <span class="qty-num" id="qtyNum">1</span>
-          <button class="qty-btn" id="qtyInc">+</button>
-        </div>
-      </div>
-
-      <!-- Delivery note -->
-      <div style="display:flex;align-items:center;gap:8px;background:var(--primary-p);border-radius:12px;padding:10px 14px;margin-bottom:16px">
-        <span style="font-size:18px">🚚</span>
-        <div>
-          <div style="font-size:13px;font-weight:800;color:var(--primary-d)">24hr Delivery</div>
-          <div style="font-size:11px;color:var(--primary)">Order now, delivered within 24 hours</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Related products section -->
-    <div class="related-section" id="relatedSection" style="display:none">
-      <div class="section-header" style="padding:0 0 10px">
-        <h3>More like this</h3>
-      </div>
-      <div class="related-scroll" id="relatedScroll"></div>
-    </div>
-  \`;
-
-  // Slider logic
-  if (slides.length > 1) setupSlider(slides.length);
-  
-  // Qty controls
-  const cartItem = getCartItem(id);
-  if (cartItem) { qty = cartItem.quantity; document.getElementById("qtyNum").textContent = qty; }
-  document.getElementById("qtyDec").addEventListener("click", () => { if (qty > 1) { qty--; document.getElementById("qtyNum").textContent = qty; } });
-  document.getElementById("qtyInc").addEventListener("click", () => { qty++; document.getElementById("qtyNum").textContent = qty; });
-}
-
-function setupSlider(total) {
-  const track = document.getElementById("sliderTrack");
-  const dots = document.querySelectorAll(".dot");
-  
-  function goTo(idx) {
-    slideIdx = (idx + total) % total;
-    track.style.transform = \`translateX(-\${slideIdx * 100}%)\`;
-    dots.forEach((d, i) => d.classList.toggle("active", i === slideIdx));
+  if (product.old_price && product.old_price > product.price) {
+    document.getElementById('product-old-price').textContent = formatPrice(product.old_price);
+    document.getElementById('product-old-price').classList.remove('hidden');
+    const pct = discountPct(product.price, product.old_price);
+    document.getElementById('product-discount').textContent = pct + '% off';
+    document.getElementById('product-discount').classList.remove('hidden');
   }
-  
-  document.getElementById("prevSlide")?.addEventListener("click", () => goTo(slideIdx - 1));
-  document.getElementById("nextSlide")?.addEventListener("click", () => goTo(slideIdx + 1));
-  slideTimer = setInterval(() => goTo(slideIdx + 1), 3000);
-  
-  const wrap = document.getElementById("sliderWrap");
-  wrap.addEventListener("mouseenter", () => clearInterval(slideTimer));
-  wrap.addEventListener("mouseleave", () => { slideTimer = setInterval(() => goTo(slideIdx + 1), 3000); });
-  
-  // Touch swipe
-  let touchX = 0;
-  wrap.addEventListener("touchstart", e => { touchX = e.touches[0].clientX; }, { passive: true });
-  wrap.addEventListener("touchend", e => {
-    const diff = touchX - e.changedTouches[0].clientX;
-    if (Math.abs(diff) > 40) goTo(slideIdx + (diff > 0 ? 1 : -1));
-  });
-}
 
-function renderCTA() {
-  const actions = document.getElementById("detailActions");
-  actions.style.display = "flex";
+  // Wishlist state
+  const wishBtn = document.getElementById('wishlist-btn');
+  if (isWishlisted(product.id)) wishBtn.textContent = '❤️';
+  wishBtn.addEventListener('click', () => {
+    const now = toggleWishlist(product);
+    wishBtn.textContent = now ? '❤️' : '🤍';
+    showToast(now ? 'Added to wishlist ❤️' : 'Removed from wishlist', 'info');
+  });
+
+  // Weight
+  const weightSlider = document.getElementById('weight-slider');
+  const weightDisplay = document.getElementById('weight-display');
   
-  const cartItem = getCartItem(id);
-  if (cartItem) {
-    actions.innerHTML = \`
-      <div class="qty-large qty-control" style="flex:1;justify-content:center;border:2px solid var(--primary);border-radius:12px;padding:8px">
-        <button class="qty-btn" id="ctaDec">−</button>
-        <span class="qty-num" id="ctaQty">\${cartItem.quantity}</span>
-        <button class="qty-btn" id="ctaInc">+</button>
-      </div>
-      <a href="/cart.html" class="btn btn-primary" style="flex:2">🛒 Go to Cart</a>
-    \`;
-    document.getElementById("ctaDec").addEventListener("click", () => {
-      const cur = getCartItem(id)?.quantity || 0;
-      updateCartQty(id, cur - 1);
-      document.getElementById("ctaQty").textContent = Math.max(0, cur - 1);
-      document.getElementById("qtyNum").textContent  = Math.max(1, cur - 1);
-      if (cur - 1 <= 0) renderCTA();
-    });
-    document.getElementById("ctaInc").addEventListener("click", () => {
-      const cur = getCartItem(id)?.quantity || 0;
-      updateCartQty(id, cur + 1);
-      document.getElementById("ctaQty").textContent = cur + 1;
-      document.getElementById("qtyNum").textContent  = cur + 1;
-    });
-  } else {
-    actions.innerHTML = \`
-      <button class="btn btn-outline" id="addCartBtn" style="flex:1">Add to Cart</button>
-      <button class="btn btn-primary" id="buyNowBtn" style="flex:2">🛒 Buy Now</button>
-    \`;
-    document.getElementById("addCartBtn").addEventListener("click", () => {
-      addToCart(product, qty);
-      showToast(\`🛒 \${product.name} added to cart\`, "success");
-      renderCTA();
-    });
-    document.getElementById("buyNowBtn").addEventListener("click", () => {
-      addToCart(product, qty);
-      window.location.href = "/cart.html";
-    });
+  weightSlider.addEventListener('input', (e) => {
+    weight = parseFloat(e.target.value);
+    weightDisplay.textContent = weight + ' kg';
+    updatePrice();
+  });
+
+  // Qty
+  document.getElementById('qty-minus').addEventListener('click', () => {
+    if (qty > 1) { qty--; document.getElementById('qty-val').textContent = qty; updatePrice(); }
+  });
+  document.getElementById('qty-plus').addEventListener('click', () => {
+    qty++;
+    document.getElementById('qty-val').textContent = qty;
+    updatePrice();
+  });
+
+  function updatePrice() {
+    if (!product) return;
+    
+    let basePricePerKg = product.price;
+    if (product.unit && product.unit.toLowerCase().includes('250g')) basePricePerKg = product.price * 4;
+    else if (product.unit && product.unit.toLowerCase().includes('500g')) basePricePerKg = product.price * 2;
+
+    const total = basePricePerKg * weight * qty;
+    document.getElementById('product-price').textContent = formatPrice(total);
+    document.getElementById('weight-display').textContent = weight.toFixed(1) + ' kg';
+    
+    if (product.old_price) {
+        let baseOldPricePerKg = product.old_price;
+        if (product.unit && product.unit.toLowerCase().includes('250g')) baseOldPricePerKg = product.old_price * 4;
+        else if (product.unit && product.unit.toLowerCase().includes('500g')) baseOldPricePerKg = product.old_price * 2;
+        document.getElementById('product-old-price').textContent = formatPrice(baseOldPricePerKg * weight * qty);
+    }
+  }
+
+  updatePrice();
+
+  // Add to cart
+  document.getElementById('add-cart-btn').addEventListener('click', () => {
+    addToCart(product, qty);
+    syncBadges();
+  });
+
+  // Buy now
+  document.getElementById('buy-now-btn').addEventListener('click', () => {
+    addToCart(product, qty);
+    syncBadges();
+    window.location.href = 'cart.html';
+  });
+
+  // Related
+  if (product.category) {
+    const related = await fetchRelated(product.category, product.id);
+    if (related.length) {
+      document.getElementById('related-section').classList.remove('hidden');
+      document.getElementById('related-container').innerHTML = related.map(r => `
+        <div class="related-card" data-id="${r.id}">
+          ${r.image_url
+            ? `<img src="${r.image_url}" alt="${r.name}" onerror="this.outerHTML='<div style=\'width:100%;height:100px;background:var(--primary-pale);display:flex;align-items:center;justify-content:center;font-size:36px\'>${getCategoryEmoji(r.category)}</div>'">`
+            : `<div style="width:100%;height:100px;background:var(--primary-pale);display:flex;align-items:center;justify-content:center;font-size:36px">${getCategoryEmoji(r.category)}</div>`}
+          <div class="related-card-body">
+            <div class="related-card-name">${r.name}</div>
+            <div class="related-card-price">${formatPrice(r.price)}</div>
+          </div>
+        </div>`).join('');
+      document.querySelectorAll('.related-card').forEach(c =>
+        c.addEventListener('click', () => window.location.href = `product-detail.html?id=${c.dataset.id}`)
+      );
+    }
   }
 }
 
-async function renderRelated() {
-  const related = await fetchRelated(product.category, id);
-  if (!related.length) return;
-  const section = document.getElementById("relatedSection");
-  const scroll  = document.getElementById("relatedScroll");
-  section.style.display = "block";
-  scroll.innerHTML = related.map(p => \`
-    <a href="/product-detail.html?id=\${p.id}" class="related-card">
-      <div class="related-img">
-        \${p.image_url ? \`<img src="\${p.image_url}" alt="\${p.name}" onerror="this.style.display='none'">\` : ""}
-        <span>\${getCategoryEmoji(p.category)}</span>
-      </div>
-      <div class="related-body">
-        <div class="related-name">\${p.name}</div>
-        <div class="related-price">\${formatPrice(p.price)}</div>
-      </div>
-    </a>\`).join("");
+function renderSlider() {
+  const track = document.getElementById('slider-track');
+  const dots  = document.getElementById('slider-dots');
+  const emoji = getCategoryEmoji(product?.category);
+
+  if (!images.length) {
+    track.innerHTML = `<div style="min-width:100%;height:100%;background:var(--primary-pale);display:flex;align-items:center;justify-content:center;font-size:80px">${emoji}</div>`;
+    document.getElementById('slider-prev').style.display = 'none';
+    document.getElementById('slider-next').style.display = 'none';
+    dots.innerHTML = '';
+    return;
+  }
+
+  track.innerHTML = images.map(src => `<img src="${src}" alt="Product" style="min-width:100%;height:100%;object-fit:cover">`).join('');
+
+  if (images.length <= 1) {
+    document.getElementById('slider-prev').style.display = 'none';
+    document.getElementById('slider-next').style.display = 'none';
+  }
+
+  dots.innerHTML = images.map((_, i) =>
+    `<div class="slider-dot ${i===0?'active':''}" data-i="${i}"></div>`
+  ).join('');
+
+  function goTo(i) {
+    slideIndex = (i + images.length) % images.length;
+    track.style.transform = `translateX(-${slideIndex * 100}%)`;
+    document.querySelectorAll('.slider-dot').forEach((d, di) => d.classList.toggle('active', di === slideIndex));
+  }
+
+  document.getElementById('slider-prev').addEventListener('click', () => { clearInterval(autoSlide); goTo(slideIndex - 1); });
+  document.getElementById('slider-next').addEventListener('click', () => { clearInterval(autoSlide); goTo(slideIndex + 1); });
+
+  if (images.length > 1) {
+    autoSlide = setInterval(() => goTo(slideIndex + 1), 3000);
+    const wrap = document.getElementById('slider-wrap');
+    wrap.addEventListener('mouseenter', () => clearInterval(autoSlide));
+    wrap.addEventListener('mouseleave', () => { autoSlide = setInterval(() => goTo(slideIndex + 1), 3000); });
+  }
 }
 
 init();
 </script>
+
+<nav class="bottom-nav">
+  <a href="index.html"   class="nav-item active"><span class="nav-icon">🏠</span><span>Home</span></a>
+  <a href="wishlist.html"class="nav-item"><span class="nav-icon">❤️</span><span>Wishlist</span></a>
+  <a href="cart.html"    class="nav-item"><span class="nav-icon">🛒</span><span>Cart</span></a>
+  <a href="orders.html"  class="nav-item"><span class="nav-icon">📋</span><span>Orders</span></a>
+  <a href="account.html" class="nav-item"><span class="nav-icon">👤</span><span>Account</span></a>
+</nav>
 </body>
 </html>

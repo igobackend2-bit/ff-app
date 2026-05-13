@@ -1,8 +1,5 @@
 'use client';
 
-// Skill #16 — Razorpay integration loaded only on checkout page
-// Skill #39 — CSRF via double-submit cookie pattern
-
 import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Script from 'next/script';
@@ -12,178 +9,136 @@ import { useUIStore } from '@/store/uiStore';
 import { cn, formatPrice } from '@/lib/utils';
 import type { CartItem } from '@/types';
 
-// Razorpay types (minimal)
 declare global {
   interface Window {
     Razorpay: new (options: RazorpayOptions) => RazorpayInstance;
   }
 }
-
 interface RazorpayOptions {
-  key: string;
-  amount: number;
-  currency: string;
-  name: string;
-  description: string;
-  order_id: string;
+  key: string; amount: number; currency: string; name: string;
+  description: string; order_id: string;
   handler: (response: RazorpayResponse) => void;
   prefill?: { name?: string; email?: string; contact?: string };
   theme?: { color?: string };
   modal?: { ondismiss?: () => void };
 }
-
-interface RazorpayInstance {
-  open: () => void;
-}
-
+interface RazorpayInstance { open: () => void; }
 interface RazorpayResponse {
   razorpay_order_id: string;
   razorpay_payment_id: string;
   razorpay_signature: string;
 }
 
+interface AddressData {
+  fullName: string; phone: string; line1: string;
+  city: string; state: string; pincode: string;
+}
+
 interface RazorpayCheckoutProps {
   amount: number;
   items: CartItem[];
-  appliedDiscount: number;
-  couponCode: string;
-  deliveryFee: number;
+  address: AddressData;
+  onValidateAddress: () => boolean;
 }
 
-export function RazorpayCheckout({
-  amount,
-  items,
-  appliedDiscount,
-  couponCode,
-  deliveryFee,
-}: RazorpayCheckoutProps) {
-  const router = useRouter();
+export function RazorpayCheckout({ amount, items, address, onValidateAddress }: RazorpayCheckoutProps) {
+  const router    = useRouter();
   const clearCart = useCartStore((s) => s.clearCart);
-  const addToast = useUIStore((s) => s.addToast);
+  const addToast  = useUIStore((s) => s.addToast);
 
   const [isScriptLoaded, setIsScriptLoaded] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
+  const [isProcessing, setIsProcessing]     = useState(false);
 
   const handlePayment = useCallback(async () => {
+    if (!onValidateAddress()) return;
     if (!isScriptLoaded || !window.Razorpay) {
-      addToast({ title: 'Payment not ready. Please wait.', variant: 'error' });
+      addToast({ title: 'Payment not ready. Please wait a moment.', variant: 'error' });
       return;
     }
 
     setIsProcessing(true);
-
     try {
-      // Step 1: Create server-side Razorpay order (CSRF-protected)
+      // Create order on server (Razorpay order + DB record)
       const orderRes = await fetch('/api/orders', {
-        method: 'POST',
+        method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'same-origin', // Includes cookies for CSRF check
-        body: JSON.stringify({
-          items: items.map((i) => ({
-            productId: i.productId,
-            quantity: i.quantity,
-          })),
-          couponCode: couponCode || undefined,
+        body:    JSON.stringify({
+          items:         items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
+          paymentMethod: 'RAZORPAY',
+          address,
         }),
       });
 
-      const orderData = (await orderRes.json()) as {
-        razorpayOrderId?: string;
-        orderId?: string;
-        error?: string;
+      const orderData = await orderRes.json() as {
+        orderId?: string; razorpayOrderId?: string;
+        amount?: number; error?: string;
       };
 
       if (!orderRes.ok || !orderData.razorpayOrderId) {
-        throw new Error(orderData.error ?? 'Failed to create order');
+        throw new Error(orderData.error ?? 'Failed to create payment order');
       }
 
-      // Step 2: Open Razorpay checkout
+      // Open Razorpay modal
       const rzp = new window.Razorpay({
-        key: process.env['NEXT_PUBLIC_RAZORPAY_KEY_ID'] ?? '',
-        amount: amount * 100, // paise
-        currency: 'INR',
-        name: 'Farmers Factory',
-        description: '24-Hour Farm-Fresh Delivery',
-        order_id: orderData.razorpayOrderId,
-        theme: { color: '#2e7d4f' },
+        key:         process.env['NEXT_PUBLIC_RAZORPAY_KEY_ID'] ?? '',
+        amount:      orderData.amount ?? amount * 100,
+        currency:    'INR',
+        name:        'Farmers Factory',
+        description: 'Fresh Farm Delivery',
+        order_id:    orderData.razorpayOrderId,
+        theme:       { color: '#2e7d4f' },
+        prefill:     { name: address.fullName, contact: address.phone },
 
         handler: async (response: RazorpayResponse) => {
-          // Step 3: Confirm payment server-side
+          // Confirm payment on server
           const confirmRes = await fetch(`/api/orders/${orderData.orderId}/confirm`, {
-            method: 'POST',
+            method:  'POST',
             headers: { 'Content-Type': 'application/json' },
-            credentials: 'same-origin',
-            body: JSON.stringify({
-              razorpay_order_id: response.razorpay_order_id,
+            body:    JSON.stringify({
+              razorpay_order_id:   response.razorpay_order_id,
               razorpay_payment_id: response.razorpay_payment_id,
-              razorpay_signature: response.razorpay_signature,
+              razorpay_signature:  response.razorpay_signature,
             }),
           });
-
           if (confirmRes.ok) {
             clearCart();
+            addToast({ variant: 'success', title: '✅ Payment successful! Order confirmed.' });
             router.replace(`/checkout/success?orderId=${orderData.orderId}`);
           } else {
-            addToast({
-              title: 'Payment received but confirmation failed. Contact support.',
-              variant: 'error',
-              duration: 10000,
-            });
+            addToast({ variant: 'error', title: 'Payment received but confirmation failed. Contact support.', duration: 10000 });
           }
         },
-
-        modal: {
-          ondismiss: () => {
-            setIsProcessing(false);
-          },
-        },
+        modal: { ondismiss: () => setIsProcessing(false) },
       });
 
       rzp.open();
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Payment failed. Please try again.';
-      addToast({ title: msg, variant: 'error' });
+      addToast({ title: err instanceof Error ? err.message : 'Payment failed', variant: 'error' });
       setIsProcessing(false);
     }
-  }, [isScriptLoaded, items, amount, couponCode, clearCart, addToast, router]);
+  }, [isScriptLoaded, items, amount, address, onValidateAddress, clearCart, addToast, router]);
 
   return (
     <>
-      {/* Skill #16: Razorpay SDK loaded dynamically, only at checkout */}
       <Script
         src="https://checkout.razorpay.com/v1/checkout.js"
         strategy="lazyOnload"
         onLoad={() => setIsScriptLoaded(true)}
       />
-
       <button
-        onClick={handlePayment}
+        onClick={() => void handlePayment()}
         disabled={isProcessing || !isScriptLoaded}
         className={cn(
           'flex h-14 w-full items-center justify-center gap-2 rounded-2xl',
-          'bg-primary-600 text-base font-bold text-white',
-          'transition-colors hover:bg-primary-700',
-          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600 focus-visible:ring-offset-2',
+          'bg-primary-600 text-base font-bold text-white transition-colors hover:bg-primary-700',
           'disabled:cursor-not-allowed disabled:opacity-60',
         )}
-        aria-label={`Pay ${formatPrice(amount)} securely with Razorpay`}
       >
-        {isProcessing ? (
-          <>
-            <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
-            Processing…
-          </>
-        ) : (
-          <>
-            <Lock className="h-4 w-4" aria-hidden="true" />
-            Pay {formatPrice(amount)} Securely
-          </>
-        )}
+        {isProcessing
+          ? <><Loader2 className="h-5 w-5 animate-spin" /> Processing…</>
+          : <><Lock className="h-4 w-4" /> Pay {formatPrice(amount)} Securely</>}
       </button>
-
-      <p className="mt-2 text-center text-xs text-neutral-400">
-        Secured by Razorpay · UPI · Cards · Wallets
-      </p>
+      <p className="text-center text-xs text-neutral-400">Secured by Razorpay · UPI · Cards · Wallets</p>
     </>
   );
 }

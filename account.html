@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0"/>
+  <title>Settings — Farmers Factory</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Poppins:wght@600;700;800&display=swap"/>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+    body{background:#F2F3F7;font-family:'Nunito',sans-serif;max-width:430px;margin:0 auto;min-height:100vh;padding-bottom:70px;}
+
+    /* ── TOP BAR ── */
+    .topbar{
+      position:sticky;top:0;z-index:50;
+      background:#fff;
+      display:flex;align-items:center;
+      padding:14px 16px;
+      border-bottom:1px solid #EBEBEB;
+    }
+    .back-btn{
+      width:36px;height:36px;border-radius:50%;
+      background:#F5F5F5;border:none;cursor:pointer;
+      display:flex;align-items:center;justify-content:center;
+      font-size:1.1rem;color:#111;margin-right:12px;
+      transition:background .15s;
+    }
+    .back-btn:active{background:#E5E5E5;}
+    .topbar-title{font-family:'Poppins',sans-serif;font-size:1.1rem;font-weight:800;color:#111;}
+
+    /* ── PAGE BODY ── */
+    .page-body{padding:14px 12px;display:flex;flex-direction:column;gap:14px;}
+
+    /* ── 3 TILES ── */
+    .tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
+    .tile{
+      background:#fff;border-radius:16px;
+      display:flex;flex-direction:column;align-items:center;justify-content:center;
+      padding:16px 8px;cursor:pointer;
+      box-shadow:0 1px 4px rgba(0,0,0,.06);
+      text-decoration:none;color:#111;
+      transition:transform .12s;
+    }
+    .tile:active{transform:scale(.95);}
+    .tile-icon{font-size:1.55rem;margin-bottom:6px;}
+    .tile-label{font-size:.72rem;font-weight:800;color:#333;text-align:center;line-height:1.25;}
+
+    /* ── WALLET CARD ── */
+    .wallet-card{
+      background:#fff;border-radius:16px;
+      padding:0;overflow:hidden;
+      box-shadow:0 1px 4px rgba(0,0,0,.06);
+    }
+    .wallet-top{
+      display:flex;align-items:center;gap:12px;
+      padding:14px 16px;
+      border-bottom:1px solid #F2F3F7;
+      cursor:pointer;
+    }
+    .wallet-icon-wrap{
+      width:40px;height:40px;border-radius:12px;
+      background:linear-gradient(135deg,#2E7D4F,#1B5E35);
+      display:flex;align-items:center;justify-content:center;
+      font-size:1.2rem;flex-shrink:0;
+    }
+    .wallet-name{font-size:.9rem;font-weight:800;color:#111;flex:1;}
+    .badge-new{
+      background:#2E7D4F;color:#fff;
+      font-size:.6rem;font-weight:800;
+      border-radius:5px;padding:2px 6px;
+      letter-spacing:.4px;text-transform:uppercase;
+    }
+    .wallet-chevron{color:#BDBDBD;font-size:1.1rem;}
+    .wallet-bottom{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;}
+    .wallet-bal-lbl{font-size:.82rem;color:#757575;font-weight:600;}
+    .wallet-bal-val{font-size:.95rem;font-weight:800;color:#111;margin-top:1px;}
+    .wallet-add-btn{
+      background:#fff;border:1.5px solid #2E7D4F;
+      color:#2E7D4F;border-radius:10px;
+      font-size:.78rem;font-weight:800;
+      padding:7px 14px;cursor:pointer;
+      font-family:'Nunito',sans-serif;
+      transition:background .15s;
+    }
+    .wallet-add-btn:active{background:#E8F5EE;}
+
+    /* ── UPDATE BANNER ── */
+    .update-banner{
+      background:#fff;border-radius:16px;
+      display:flex;align-items:center;gap:12px;
+      padding:14px 16px;
+      box-shadow:0 1px 4px rgba(0,0,0,.06);
+      cursor:pointer;
+    }
+    .update-icon{font-size:1.4rem;flex-shrink:0;}
+    .update-text{flex:1;}
+    .update-title{font-size:.88rem;font-weight:800;color:#111;}
+    .update-sub{font-size:.72rem;color:#757575;margin-top:1px;font-weight:600;}
+    .update-badge{background:#2E7D4F;color:#fff;font-size:.62rem;font-weight:800;border-radius:6px;padding:3px 8px;text-transform:uppercase;}
+    .update-chevron{color:#BDBDBD;font-size:.9rem;margin-left:4px;}
+
+    /* ── SECTION HEADING ── */
+    .section-title{font-family:'Poppins',sans-serif;font-size:1rem;font-weight:800;color:#111;padding:2px 4px;}
+
+    /* ── INFO LIST ── */
+    .info-card{background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.06);}
+    .list-row{
+      display:flex;align-items:center;gap:13px;
+      padding:16px;
+      border-bottom:1px solid #F5F5F5;
+      cursor:pointer;text-decoration:none;color:#111;
+      transition:background .12s;
+    }
+    .list-row:last-child{border-bottom:none;}
+    .list-row:active{background:#F9F9F9;}
+    .list-row-icon{
+      width:38px;height:38px;border-radius:10px;
+      background:#F5F5F5;
+      display:flex;align-items:center;justify-content:center;
+      font-size:1.1rem;flex-shrink:0;
+    }
+    .list-row-body{flex:1;}
+    .list-row-label{font-size:.88rem;font-weight:800;color:#111;display:block;}
+    .list-row-sub{font-size:.72rem;color:#9E9E9E;display:block;margin-top:1px;font-weight:600;}
+    .list-chevron{color:#BDBDBD;font-size:1.1rem;flex-shrink:0;}
+
+    /* ── PROFILE PANEL ── */
+    .profile-panel{overflow:hidden;max-height:0;transition:max-height .35s ease;background:#FAFAFA;}
+    .profile-panel.open{max-height:600px;}
+    .profile-inner{padding:16px;}
+    .pf-row{margin-bottom:14px;}
+    .pf-label{font-size:.7rem;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:#9E9E9E;margin-bottom:5px;display:block;}
+    .pf-value{font-size:.88rem;font-weight:700;color:#111;background:#fff;border:1.5px solid #E8E8E8;border-radius:10px;padding:11px 13px;width:100%;font-family:'Nunito',sans-serif;outline:none;transition:border-color .2s;}
+    .pf-value:focus{border-color:#2E7D4F;}
+    .pf-value:disabled{background:#F5F5F5;color:#9E9E9E;cursor:not-allowed;}
+    .pf-actions{display:flex;align-items:center;justify-content:flex-end;gap:10px;margin-top:6px;}
+    .pf-cancel{font-size:.82rem;font-weight:700;color:#9E9E9E;background:none;border:none;cursor:pointer;padding:8px 12px;font-family:'Nunito',sans-serif;}
+    .pf-save{
+      background:#2E7D4F;color:#fff;border:none;
+      border-radius:10px;padding:10px 22px;
+      font-size:.85rem;font-weight:800;font-family:'Poppins',sans-serif;
+      cursor:pointer;transition:opacity .15s;
+    }
+    .pf-save:disabled{opacity:.55;cursor:not-allowed;}
+    .profile-trigger{display:flex;align-items:center;gap:13px;padding:16px;border-bottom:1px solid #F5F5F5;cursor:pointer;background:#fff;}
+    .profile-trigger:active{background:#F9F9F9;}
+    .profile-trigger-chevron{color:#BDBDBD;font-size:1.1rem;flex-shrink:0;transition:transform .3s;}
+    .profile-trigger-chevron.open{transform:rotate(90deg);}
+
+    /* ── LOGOUT ── */
+    .logout-btn{
+      background:#fff;border:none;border-radius:16px;
+      width:100%;padding:16px;
+      display:flex;align-items:center;justify-content:center;gap:8px;
+      font-size:.92rem;font-weight:800;font-family:'Nunito',sans-serif;
+      color:#E53935;cursor:pointer;
+      box-shadow:0 1px 4px rgba(0,0,0,.06);
+      transition:background .15s;
+    }
+    .logout-btn:active{background:#FFF3F3;}
+
+    /* ── BOTTOM NAV ── */
+    .bottom-nav{
+      position:fixed;bottom:0;left:0;right:0;max-width:430px;margin:0 auto;
+      background:#fff;border-top:1px solid #EBEBEB;
+      display:flex;height:62px;z-index:40;
+    }
+    .nav-item{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;text-decoration:none;color:#9E9E9E;font-size:.62rem;font-weight:700;transition:color .15s;}
+    .nav-item.active{color:#2E7D4F;}
+    .nav-icon{font-size:1.25rem;}
+
+    /* ── LOADER & TOAST ── */
+    .page-loader{display:flex;align-items:center;justify-content:center;height:60vh;font-size:2.5rem;}
+    .hidden{display:none!important;}
+    #toast-c{position:fixed;bottom:74px;left:50%;transform:translateX(-50%);z-index:9999;display:flex;flex-direction:column;align-items:center;gap:8px;pointer-events:none;}
+    .toast{background:#1A2E1F;color:#fff;padding:10px 20px;border-radius:25px;font-size:.82rem;font-weight:700;white-space:nowrap;font-family:'Nunito',sans-serif;animation:tIn .3s ease;}
+    .toast.error{background:#C62828;}
+    .toast.out{animation:tOut .3s ease forwards;}
+    @keyframes tIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+    @keyframes tOut{to{opacity:0;transform:translateY(8px)}}
+    @keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+    .page-body{animation:fadeUp .3s ease;}
+  </style>
+</head>
+<body>
+<div id="toast-c"></div>
+
+<!-- TOP BAR -->
+<div class="topbar">
+  <button class="back-btn" onclick="history.back()" aria-label="Back">←</button>
+  <span class="topbar-title">Settings</span>
+</div>
+
+<!-- LOADER -->
+<div class="page-loader" id="page-loader">🌿</div>
+
+<!-- PAGE BODY -->
+<div class="page-body hidden" id="page-body">
+
+  <!-- 3 Quick Tiles -->
+  <div class="tiles">
+    <a class="tile" href="orders.html">
+      <div class="tile-icon">🛍️</div>
+      <div class="tile-label">Your Orders</div>
+    </a>
+    <a class="tile" href="support.html">
+      <div class="tile-icon">💬</div>
+      <div class="tile-label">Help &amp; Support</div>
+    </a>
+    <a class="tile" href="wishlist.html">
+      <div class="tile-icon">🤍</div>
+      <div class="tile-label">Your Wishlist</div>
+    </a>
+  </div>
+
+  <!-- FF Wallet -->
+  <div class="wallet-card">
+    <div class="wallet-top" onclick="showToast('FF Wallet coming soon! 💰','success')">
+      <div class="wallet-icon-wrap">💰</div>
+      <div class="wallet-name">FF Cash &amp; Gift Card</div>
+      <span class="badge-new">NEW</span>
+      <span class="wallet-chevron">›</span>
+    </div>
+    <div class="wallet-bottom">
+      <div>
+        <div class="wallet-bal-lbl">Available Balance</div>
+        <div class="wallet-bal-val" id="wallet-balance">₹0</div>
+      </div>
+      <button class="wallet-add-btn" onclick="showToast('Add balance coming soon!','success')">Add Balance</button>
+    </div>
+  </div>
+
+  <!-- Update Banner -->
+  <div class="update-banner" onclick="showToast('App is up to date ✅','success')">
+    <div class="update-icon">⚙️</div>
+    <div class="update-text">
+      <div class="update-title">You're up to date</div>
+      <div class="update-sub">Enjoy a seamless shopping experience</div>
+    </div>
+    <span class="update-badge">v1.0</span>
+    <span class="update-chevron">›</span>
+  </div>
+
+  <!-- Your Information -->
+  <div class="section-title">Your Information</div>
+
+  <div class="info-card">
+
+    <!-- Your Refunds -->
+    <div class="list-row" onclick="showToast('Refunds coming soon!','success')">
+      <div class="list-row-icon">₹</div>
+      <div class="list-row-body">
+        <span class="list-row-label">Your Refunds</span>
+      </div>
+      <span class="list-chevron">›</span>
+    </div>
+
+    <!-- Your Wishlist -->
+    <a class="list-row" href="wishlist.html">
+      <div class="list-row-icon">🤍</div>
+      <div class="list-row-body">
+        <span class="list-row-label">Your Wishlist</span>
+      </div>
+      <span class="list-chevron">›</span>
+    </a>
+
+    <!-- E-Gift Cards -->
+    <div class="list-row" onclick="showToast('E-Gift Cards coming soon!','success')">
+      <div class="list-row-icon">🎫</div>
+      <div class="list-row-body">
+        <span class="list-row-label">E-Gift Cards</span>
+      </div>
+      <span class="list-chevron">›</span>
+    </div>
+
+    <!-- Help & Support -->
+    <a class="list-row" href="support.html">
+      <div class="list-row-icon">💬</div>
+      <div class="list-row-body">
+        <span class="list-row-label">Help &amp; Support</span>
+      </div>
+      <span class="list-chevron">›</span>
+    </a>
+
+    <!-- Saved Addresses -->
+    <a class="list-row" href="address.html">
+      <div class="list-row-icon">📍</div>
+      <div class="list-row-body">
+        <span class="list-row-label">Saved Addresses</span>
+        <span class="list-row-sub" id="addr-count">Loading…</span>
+      </div>
+      <span class="list-chevron">›</span>
+    </a>
+
+    <!-- Profile (expandable) -->
+    <div id="profile-trigger" class="profile-trigger" onclick="toggleProfile()">
+      <div class="list-row-icon">👤</div>
+      <div class="list-row-body">
+        <span class="list-row-label">Profile</span>
+        <span class="list-row-sub" id="profile-sub-label">View & edit your info</span>
+      </div>
+      <span class="profile-trigger-chevron" id="profile-chevron">›</span>
+    </div>
+    <div class="profile-panel" id="profile-panel">
+      <div class="profile-inner">
+        <div class="pf-row">
+          <label class="pf-label">Full Name</label>
+          <input class="pf-value" id="pf-name" type="text" placeholder="Your full name"/>
+        </div>
+        <div class="pf-row">
+          <label class="pf-label">Phone Number</label>
+          <input class="pf-value" id="pf-phone" type="tel" inputmode="numeric" maxlength="10" placeholder="10-digit number"/>
+        </div>
+        <div class="pf-row">
+          <label class="pf-label">Email Address <span style="font-weight:400;text-transform:none;font-size:.65rem">(cannot change)</span></label>
+          <input class="pf-value" id="pf-email" type="email" disabled/>
+        </div>
+        <div class="pf-actions">
+          <button class="pf-cancel" onclick="closeProfile()">Cancel</button>
+          <button class="pf-save" id="pf-save-btn" onclick="saveProfile()">Save Changes</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Rewards -->
+    <a class="list-row" href="rewards.html">
+      <div class="list-row-icon">🎁</div>
+      <div class="list-row-body">
+        <span class="list-row-label">Rewards</span>
+      </div>
+      <span class="list-chevron">›</span>
+    </a>
+
+    <!-- Payments -->
+    <a class="list-row" href="payments.html">
+      <div class="list-row-icon">💳</div>
+      <div class="list-row-body">
+        <span class="list-row-label">Payments</span>
+      </div>
+      <span class="list-chevron">›</span>
+    </a>
+
+    <!-- Notifications -->
+    <div class="list-row" onclick="showToast('Notification settings coming soon!','success')">
+      <div class="list-row-icon">🔔</div>
+      <div class="list-row-body">
+        <span class="list-row-label">Notification Settings</span>
+      </div>
+      <span class="list-chevron">›</span>
+    </div>
+
+    <!-- Privacy -->
+    <div class="list-row" onclick="showToast('Privacy Policy coming soon!','success')">
+      <div class="list-row-icon">🛡️</div>
+      <div class="list-row-body">
+        <span class="list-row-label">Privacy Policy</span>
+      </div>
+      <span class="list-chevron">›</span>
+    </div>
+
+  </div>
+
+  <!-- Logout -->
+  <button class="logout-btn" onclick="confirmLogout()">🚪 &nbsp;Logout</button>
+
+  <!-- Version -->
+  <div style="text-align:center;font-size:.7rem;color:#BDBDBD;font-weight:700;padding-bottom:8px;">Farmers Factory v1.0</div>
+
+</div>
+
+<!-- Bottom Nav -->
+<nav class="bottom-nav">
+  <a href="index.html"    class="nav-item"><span class="nav-icon">🏠</span><span>Home</span></a>
+  <a href="wishlist.html" class="nav-item"><span class="nav-icon">🤍</span><span>Wishlist</span></a>
+  <a href="cart.html"     class="nav-item"><span class="nav-icon">🛒</span><span>Cart</span></a>
+  <a href="orders.html"   class="nav-item"><span class="nav-icon">📦</span><span>Orders</span></a>
+  <a href="account.html"  class="nav-item active"><span class="nav-icon">👤</span><span>Account</span></a>
+</nav>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/supabase.js"></script>
+<script src="js/auth.js"></script>
+<script>
+var _user = null;
+var _profileOpen = false;
+
+/* ── toast ── */
+function showToast(msg,type){
+  var c=document.getElementById('toast-c');
+  var t=document.createElement('div');
+  t.className='toast'+(type==='error'?' error':'');
+  t.textContent=msg;
+  c.appendChild(t);
+  setTimeout(function(){t.classList.add('out');setTimeout(function(){t.remove();},300);},2800);
+}
+
+/* ── auth guard ── */
+(function(){
+  try{
+    var u=JSON.parse(localStorage.getItem('ff_user'));
+    if(!u||!u.id){ window.location.replace('login.html'); }
+  }catch(e){ window.location.replace('login.html'); }
+})();
+
+/* ── profile panel toggle ── */
+function toggleProfile(){
+  _profileOpen=!_profileOpen;
+  var panel=document.getElementById('profile-panel');
+  var chevron=document.getElementById('profile-chevron');
+  if(_profileOpen){
+    panel.classList.add('open');
+    chevron.classList.add('open');
+    // populate fields
+    document.getElementById('pf-name').value  = _user.name  || '';
+    document.getElementById('pf-phone').value = (_user.phone||'').replace(/^\+91/,'');
+    document.getElementById('pf-email').value = _user.email || '';
+  } else {
+    panel.classList.remove('open');
+    chevron.classList.remove('open');
+  }
+}
+
+function closeProfile(){
+  _profileOpen=false;
+  document.getElementById('profile-panel').classList.remove('open');
+  document.getElementById('profile-chevron').classList.remove('open');
+}
+
+/* ── save profile ── */
+async function saveProfile(){
+  var name  = document.getElementById('pf-name').value.trim();
+  var phone = document.getElementById('pf-phone').value.trim().replace(/^\+91/,'');
+  if(!name){ showToast('Name cannot be empty','error'); return; }
+  if(!/^\d{10}$/.test(phone)){ showToast('Enter a valid 10-digit phone number','error'); return; }
+  var btn=document.getElementById('pf-save-btn');
+  btn.disabled=true; btn.textContent='Saving…';
+  try{
+    var res=await window.db.from('users').update({name:name,phone:phone}).eq('id',_user.id).select().single();
+    if(res.error){ showToast('Could not save. Try again.','error'); btn.disabled=false; btn.textContent='Save Changes'; return; }
+    _user=res.data;
+    /* update localStorage */
+    var stored=JSON.parse(localStorage.getItem('ff_user')||'{}');
+    stored.name=name; stored.phone=phone;
+    localStorage.setItem('ff_user',JSON.stringify(stored));
+    /* update header sub-label */
+    document.getElementById('profile-sub-label').textContent=name;
+    closeProfile();
+    showToast('Profile updated ✅','success');
+  }catch(e){ showToast('Something went wrong.','error'); }
+  btn.disabled=false; btn.textContent='Save Changes';
+}
+
+/* ── logout ── */
+function confirmLogout(){
+  if(confirm('Are you sure you want to logout?')){
+    localStorage.removeItem('ff_user');
+    window.location.href='index.html';
+  }
+}
+
+/* ── address count ── */
+async function loadAddressCount(){
+  try{
+    var r=await window.db.from('addresses').select('id',{count:'exact',head:true}).eq('user_id',_user.id);
+    var n=r.count||0;
+    document.getElementById('addr-count').textContent=
+      n===0 ? 'No addresses saved' : n+' Address'+(n===1?'':'es');
+  }catch(e){
+    document.getElementById('addr-count').textContent='Manage addresses';
+  }
+}
+
+/* ── init ── */
+window.addEventListener('load',async function(){
+  try{ _user=JSON.parse(localStorage.getItem('ff_user')); }catch(e){}
+  if(!_user||!_user.id){ window.location.replace('login.html'); return; }
+
+  /* show page immediately from cache */
+  document.getElementById('page-loader').classList.add('hidden');
+  document.getElementById('page-body').classList.remove('hidden');
+
+  /* update wallet balance if present */
+  if(_user.walletBalance){
+    document.getElementById('wallet-balance').textContent='₹'+_user.walletBalance;
+  }
+
+  /* update profile sub-label with name */
+  document.getElementById('profile-sub-label').textContent=_user.name||'View & edit your info';
+
+  /* fetch fresh data from Supabase in background */
+  try{
+    var r=await window.db.from('users').select('*').eq('id',_user.id).single();
+    if(r.data){
+      _user=r.data;
+      var stored=JSON.parse(localStorage.getItem('ff_user')||'{}');
+      Object.assign(stored,{name:r.data.name,phone:r.data.phone,email:r.data.email});
+      localStorage.setItem('ff_user',JSON.stringify(stored));
+      document.getElementById('profile-sub-label').textContent=r.data.name||'View & edit your info';
+    }
+  }catch(e){}
+
+  loadAddressCount();
+});
+</script>
+</body>
+</html>

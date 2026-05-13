@@ -1,418 +1,556 @@
 'use client';
 
-// Skill #13 — Phone OTP login
-// Skill #14 — Redis rate limiting applied server-side
-// Skill #17 — Zod validation
-// Skill #30 — Proper <label> elements
-// Skill #31 — type="tel", inputmode="numeric", maxLength={10}
-// Skill #39 — CSRF token on mutations
-
 import { useState, useRef, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { z } from 'zod';
-import { Loader2, Phone, ArrowRight, Shield } from 'lucide-react';
+import { Loader2, Mail, ArrowRight, Shield, ChevronLeft, User, Phone } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useUIStore } from '@/store/uiStore';
 import { useCartStore } from '@/store/cartStore';
+import { useUserStore } from '@/store/userStore';
 
-// Zod schemas (Skill #17)
-const formSchema = z.object({
-  name: z.string().min(2, 'Name is required').max(50),
-  phone: z.string().regex(/^[6-9]\d{9}$/, 'Enter a valid 10-digit Indian mobile number'),
-  email: z.string().email('Invalid email address'),
-});
+type Step = 'email' | 'signup' | 'otp' | 'success';
 
-const otpSchema = z
-  .string()
-  .length(6, 'OTP must be 6 digits')
-  .regex(/^\d{6}$/, 'OTP must contain only digits');
+interface OtpLoginFormProps {
+  onSuccess?: () => void;
+}
 
-type Step = 'phone' | 'otp';
+export function OtpLoginForm({ onSuccess }: OtpLoginFormProps = {}) {
+  const router          = useRouter();
+  const searchParams    = useSearchParams();
+  const addToast        = useUIStore((s) => s.addToast);
+  const authCallbackUrl = useUIStore((s) => s.authModalCallbackUrl);
+  const syncCart        = useCartStore((s) => s.syncWithServer);
+  const setUser         = useUserStore((s) => s.setUser);
 
-export function OtpLoginForm() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const addToast = useUIStore((s) => s.addToast);
-  const syncCart = useCartStore((s) => s.syncWithServer);
+  const [step, setStep]               = useState<Step>('email');
+  const [email, setEmail]             = useState('');
+  const [name, setName]               = useState('');
+  const [phone, setPhone]             = useState('');
+  const [otp, setOtp]                 = useState('');
+  const [isExisting, setIsExisting]   = useState(false);
 
-  const [step, setStep] = useState<Step>('phone');
-  const [name, setName] = useState('');
-  const [phone, setPhone] = useState('');
-  const [email, setEmail] = useState('');
-  const [otp, setOtp] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [formErrors, setFormErrors] = useState<{name?: string, phone?: string, email?: string, general?: string}>({});
-  const [otpError, setOtpError] = useState('');
+  const [isLoading, setIsLoading]     = useState(false);
+  const [emailError, setEmailError]   = useState('');
+  const [signupError, setSignupError] = useState('');
+  const [otpError, setOtpError]       = useState('');
   const [resendCooldown, setResendCooldown] = useState(0);
+  const [devOtp, setDevOtp]               = useState('');
 
   const otpInputRef = useRef<HTMLInputElement>(null);
 
+  // ── helpers ─────────────────────────────────────────────────────────────────
   const startCooldown = useCallback(() => {
     setResendCooldown(30);
-    const interval = setInterval(() => {
-      setResendCooldown((prev) => {
-        if (prev <= 1) {
-          clearInterval(interval);
-          return 0;
-        }
-        return prev - 1;
+    const id = setInterval(() => {
+      setResendCooldown((p) => {
+        if (p <= 1) { clearInterval(id); return 0; }
+        return p - 1;
       });
     }, 1000);
   }, []);
 
-  const handleSendOtp = useCallback(
-    async (e: React.FormEvent) => {
-      e.preventDefault();
-      setFormErrors({});
+  const doRedirect = useCallback(() => {
+    const callbackUrl = searchParams?.get('callbackUrl');
+    if (callbackUrl && callbackUrl.startsWith('/')) { router.push(callbackUrl); return; }
+    if (authCallbackUrl) { router.push(authCallbackUrl); return; }
+    router.push('/account');
+  }, [searchParams, authCallbackUrl, router]);
 
-      // Client-side Zod validation (Skill #17)
-      const result = formSchema.safeParse({ name, phone, email });
-      if (!result.success) {
-        const newErrors: any = {};
-        result.error.issues.forEach(issue => {
-          if (issue.path[0] !== undefined) {
-             newErrors[String(issue.path[0])] = issue.message;
-          }
-        });
-        setFormErrors(newErrors);
-        return;
+  // ── send OTP helper ────────────────────────────────────────────────────────
+  const sendOtp = useCallback(async (
+    emailAddr: string,
+    nameVal?: string,
+    phoneVal?: string,
+  ) => {
+    const res = await fetch('/api/auth/otp/send', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: emailAddr,
+        ...(nameVal  && { name: nameVal }),
+        ...(phoneVal && { phone: `+91${phoneVal}` }),
+      }),
+    });
+
+    // Safely parse response — guard against HTML error pages
+    const ct = res.headers.get('content-type') ?? '';
+    if (!ct.includes('application/json')) {
+      throw new Error(`Server error (${res.status}). Please try again.`);
+    }
+    const data = await res.json() as { error?: string; message?: string; emailSent?: boolean; devOtp?: string };
+    if (!res.ok) throw new Error(data.error ?? 'Failed to send OTP');
+
+    // Dev mode: server returns OTP directly so testers don't need email
+    if (data.devOtp) {
+      setDevOtp(data.devOtp);
+      setOtp(data.devOtp);
+    }
+
+    setStep('otp');
+    startCooldown();
+    setTimeout(() => otpInputRef.current?.focus(), 80);
+
+    addToast?.({ variant: 'success', title: 'Code Sent ✓', description: `OTP sent to ${emailAddr}` });
+    return data;
+  }, [startCooldown, addToast]);
+
+  // ── Step 1: email submit → check existence ─────────────────────────────────
+  const handleEmailSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setEmailError('');
+    const trimmed = email.trim().toLowerCase();
+    if (!trimmed || !trimmed.includes('@') || !trimmed.includes('.')) {
+      setEmailError('Enter a valid email address'); return;
+    }
+    setIsLoading(true);
+    try {
+      const res  = await fetch(`/api/auth/check-user?email=${encodeURIComponent(trimmed)}`);
+      const ct = res.headers.get('content-type') ?? '';
+      if (!ct.includes('application/json')) {
+        throw new Error('Server error. Please refresh and try again.');
       }
-
-      setIsLoading(true);
-
-      try {
-        const res = await fetch('/api/auth/otp/send', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name, email, phone: `+91${phone}` }),
-        });
-
-        const data = (await res.json()) as { error?: string; message?: string };
-
-        if (!res.ok) {
-          setFormErrors({ general: data.error ?? 'Failed to send OTP. Please try again.' });
-          return;
-        }
-
-        setStep('otp');
-        startCooldown();
-        // Move focus to OTP input (accessibility)
-        setTimeout(() => otpInputRef.current?.focus(), 100);
-      } catch {
-        setFormErrors({ general: 'Network error. Please check your connection.' });
-      } finally {
-        setIsLoading(false);
+      const data = await res.json() as { exists: boolean; name: string | null };
+      if (data.exists) {
+        setIsExisting(true);
+        if (data.name) setName(data.name);
+        await sendOtp(trimmed);
+      } else {
+        setIsExisting(false);
+        setStep('signup');
       }
-    },
-    [name, email, phone, startCooldown],
-  );
+    } catch (err) {
+      setEmailError(err instanceof Error ? err.message : 'Could not reach server. Try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-  const handleVerifyOtp = useCallback(
-    async (e: React.FormEvent) => {
-      e.preventDefault();
-      setOtpError('');
+  // ── Step 2: signup form submit ─────────────────────────────────────────────
+  const handleSignupSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSignupError('');
+    const trimName  = name.trim();
+    const trimPhone = phone.trim().replace(/\D/g, '');
+    if (trimName.length < 2) { setSignupError('Name must be at least 2 characters'); return; }
+    if (!/^[6-9]\d{9}$/.test(trimPhone)) { setSignupError('Enter a valid 10-digit mobile number'); return; }
+    setIsLoading(true);
+    try {
+      await sendOtp(email.trim().toLowerCase(), trimName, trimPhone);
+    } catch (err) {
+      setSignupError(err instanceof Error ? err.message : 'Failed to send OTP');
+      addToast?.({ variant: 'error', title: 'Error', description: err instanceof Error ? err.message : 'Failed to send verification code.' });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-      // Client-side Zod validation
-      const result = otpSchema.safeParse(otp);
-      if (!result.success) {
-        setOtpError(result.error.errors[0]?.message ?? 'Invalid OTP');
-        return;
-      }
-
-      setIsLoading(true);
-
-      try {
-        const res = await fetch('/api/auth/otp/verify', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name, email, phone: `+91${phone}`, otp }),
-        });
-
-        const data = (await res.json()) as { error?: string; user?: { id: string } };
-
-        if (!res.ok) {
-          setOtpError(data.error ?? 'Invalid OTP. Please try again.');
-          return;
-        }
-
-        // Sync local cart to server after login
-        await syncCart();
-
-        addToast({
-          title: 'Welcome to Farmers Factory! 🎉',
-          variant: 'success',
-        });
-
-        const callbackUrl = searchParams.get('callbackUrl') ?? '/';
-        router.replace(callbackUrl);
-        router.refresh();
-      } catch {
-        setOtpError('Verification failed. Please try again.');
-      } finally {
-        setIsLoading(false);
-      }
-    },
-    [otp, phone, syncCart, addToast, searchParams, router],
-  );
-
-  const handleResend = useCallback(async () => {
-    if (resendCooldown > 0) return;
+  // ── Step 3: verify OTP ────────────────────────────────────────────────────
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
     setOtpError('');
-    setOtp('');
-    await handleSendOtp({ preventDefault: () => {} } as React.FormEvent);
-  }, [resendCooldown, handleSendOtp]);
+    if (!/^\d{6}$/.test(otp)) { setOtpError('Enter the 6-digit OTP'); return; }
+    setIsLoading(true);
+    try {
+      const res = await fetch('/api/auth/otp/verify', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: email.trim().toLowerCase(),
+          name:  name || undefined,
+          phone: phone ? `+91${phone.replace(/\D/g, '')}` : '',
+          otp,
+        }),
+      });
+      const data = await res.json() as { user?: any; error?: string };
+      if (!res.ok) { setOtpError(data.error ?? 'Invalid OTP. Try again.'); return; }
+      if (data.user) {
+        setUser(data.user);
+        document.cookie = 'ff_auth=1; path=/; max-age=2592000; SameSite=Lax';
+        await syncCart?.();
+        addToast?.({ 
+          variant: 'success', 
+          title: `Welcome back${data.user.name ? `, ${data.user.name.split(' ')[0]}` : ''}! 🎉`,
+          description: 'You have successfully signed in.'
+        });
+        onSuccess?.();
+        doRedirect();
+      }
+    } catch {
+      setOtpError('Verification failed. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-  if (step === 'phone') {
-    return (
-      <form onSubmit={handleSendOtp} noValidate>
-        {/* Skill #30 — <label> required for every input */}
-        
-        {/* Name Field */}
-        <div className="mb-4">
-          <label htmlFor="name" className="mb-1.5 block text-sm font-medium text-neutral-700">
-            Full Name
-          </label>
-          <input
-            id="name"
-            type="text"
-            value={name}
-            onChange={(e) => {
-              setName(e.target.value);
-              if (formErrors.name) setFormErrors({ ...formErrors, name: undefined });
-            }}
-            placeholder="John Doe"
-            required
-            autoComplete="name"
-            aria-describedby={formErrors.name ? 'name-error' : undefined}
-            aria-invalid={formErrors.name ? 'true' : 'false'}
-            className={cn(
-              'flex h-touch w-full rounded-xl border bg-white px-3 text-sm flex-1',
-              'placeholder:text-neutral-400',
-              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600',
-              formErrors.name ? 'border-danger-500 focus-visible:ring-danger-500' : 'border-neutral-200',
-            )}
-          />
-          {formErrors.name && (
-            <p id="name-error" role="alert" className="mt-1.5 flex items-center gap-1 text-xs text-danger-600">
-              <span aria-hidden="true">⚠</span> {formErrors.name}
-            </p>
-          )}
-        </div>
+  const handleResend = async () => {
+    if (resendCooldown > 0) return;
+    setOtp(''); setOtpError('');
+    try {
+      await sendOtp(
+        email.trim().toLowerCase(),
+        name  || undefined,
+        phone || undefined,
+      );
+    } catch { /* ignore */ }
+  };
 
-        {/* Email Field */}
-        <div className="mb-4">
-          <label htmlFor="email" className="mb-1.5 block text-sm font-medium text-neutral-700">
-            Email Address
-          </label>
-          <input
-            id="email"
-            type="email"
-            value={email}
-            onChange={(e) => {
-              setEmail(e.target.value);
-              if (formErrors.email) setFormErrors({ ...formErrors, email: undefined });
-            }}
-            placeholder="john@example.com"
-            required
-            autoComplete="email"
-            aria-describedby={formErrors.email ? 'email-error' : undefined}
-            aria-invalid={formErrors.email ? 'true' : 'false'}
-            className={cn(
-              'flex h-touch w-full rounded-xl border bg-white px-3 text-sm flex-1',
-              'placeholder:text-neutral-400',
-              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600',
-              formErrors.email ? 'border-danger-500 focus-visible:ring-danger-500' : 'border-neutral-200',
-            )}
-          />
-          {formErrors.email && (
-            <p id="email-error" role="alert" className="mt-1.5 flex items-center gap-1 text-xs text-danger-600">
-              <span aria-hidden="true">⚠</span> {formErrors.email}
-            </p>
-          )}
-        </div>
+  // ═══════════════════════════════════════════════════════════════════════════
+  // RENDER
+  // ═══════════════════════════════════════════════════════════════════════════
 
-        {/* Phone Field */}
-        <div className="mb-4">
-          <label
-            htmlFor="phone"
-            className="mb-1.5 block text-sm font-medium text-neutral-700"
-          >
-            Mobile Number
-          </label>
-          <div className="flex gap-2">
-            <div className="flex h-touch items-center rounded-xl border border-neutral-200 bg-neutral-50 px-3 text-sm font-medium text-neutral-600">
-              🇮🇳 +91
-            </div>
-            <input
-              id="phone"
-              // Skill #31 — type="tel" inputmode="numeric" maxLength={10}
-              type="tel"
-              inputMode="numeric"
-              maxLength={10}
-              value={phone}
-              onChange={(e) => {
-                const val = e.target.value.replace(/\D/g, '');
-                setPhone(val);
-                if (formErrors.phone) setFormErrors({ ...formErrors, phone: undefined });
-              }}
-              placeholder="98765 43210"
-              required
-              autoComplete="tel-national"
-              aria-describedby={formErrors.phone ? 'phone-error' : 'phone-hint'}
-              aria-invalid={formErrors.phone ? 'true' : 'false'}
-              className={cn(
-                'flex h-touch flex-1 rounded-xl border bg-white px-3 text-sm',
-                'placeholder:text-neutral-400',
-                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600',
-                formErrors.phone
-                  ? 'border-danger-500 focus-visible:ring-danger-500'
-                  : 'border-neutral-200',
-              )}
-            />
-          </div>
-          {/* Error message — linked via aria-describedby (Skill #30) */}
-          {formErrors.phone ? (
-            <p id="phone-error" role="alert" className="mt-1.5 flex items-center gap-1 text-xs text-danger-600">
-              <span aria-hidden="true">⚠</span> {formErrors.phone}
-            </p>
-          ) : (
-            <p id="phone-hint" className="mt-1.5 text-xs text-neutral-500">
-              We&apos;ll send you a 6-digit OTP
-            </p>
-          )}
-        </div>
-
-        {formErrors.general && (
-          <div className="mb-4 rounded-xl bg-danger-50 p-3 text-sm text-danger-600 text-center">
-            {formErrors.general}
-          </div>
-        )}
-
-
-        <button
-          type="submit"
-          disabled={isLoading || phone.length < 10}
-          className={cn(
-            'flex h-touch w-full items-center justify-center gap-2 rounded-xl',
-            'bg-primary-600 text-sm font-semibold text-white',
-            'transition-colors hover:bg-primary-700',
-            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600 focus-visible:ring-offset-2',
-            'disabled:cursor-not-allowed disabled:opacity-60',
-          )}
-        >
-          {isLoading ? (
-            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-          ) : (
-            <>
-              Get OTP
-              <ArrowRight className="h-4 w-4" aria-hidden="true" />
-            </>
-          )}
-        </button>
-
-        <div className="mt-4 flex items-center gap-2 rounded-xl bg-neutral-50 p-3">
-          <Shield className="h-4 w-4 shrink-0 text-primary-600" aria-hidden="true" />
-          <p className="text-xs text-neutral-600">
-            Your number is safe. We never share it with anyone.
-          </p>
-        </div>
-      </form>
-    );
-  }
-
-  // OTP step
   return (
-    <form onSubmit={handleVerifyOtp} noValidate>
-      <div className="mb-4">
-        <div className="mb-3 rounded-xl bg-primary-50 p-3 text-center">
-          <Phone className="mx-auto mb-1 h-5 w-5 text-primary-600" aria-hidden="true" />
-          <p className="text-sm text-primary-700">
-            OTP sent to <strong>{email}</strong>
-          </p>
-          <button
-            type="button"
-            onClick={() => setStep('phone')}
-            className="mt-0.5 text-xs text-primary-600 underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600"
+    <div className="relative min-h-[350px]">
+      <AnimatePresence mode="wait">
+        {/* Step 1 — Email */}
+        {step === 'email' && (
+          <motion.div
+            key="email"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
           >
-            Change number
-          </button>
-        </div>
+            <form onSubmit={(e) => void handleEmailSubmit(e)} noValidate className="space-y-6">
+              <div className="space-y-2">
+                <label htmlFor="login-email" className="block text-[13px] font-bold uppercase tracking-wider text-neutral-500 ml-1">
+                  Email Address
+                </label>
+                <div className="relative group">
+                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-neutral-400 group-focus-within:text-primary-600 transition-all duration-300" />
+                  <input
+                    id="login-email"
+                    type="email"
+                    autoComplete="email"
+                    autoFocus
+                    value={email}
+                    onChange={(e) => { setEmail(e.target.value); setEmailError(''); }}
+                    placeholder="you@example.com"
+                    className={cn(
+                      'flex h-14 w-full items-center rounded-2xl border bg-white pl-12 pr-4 text-base transition-all duration-300',
+                      'placeholder:text-neutral-400 focus:outline-none',
+                      'focus:ring-4 focus:ring-primary-600/10 focus:border-primary-600',
+                      'shadow-[inset_0_1px_2px_rgba(0,0,0,0.02)]',
+                      emailError ? 'border-red-400 ring-4 ring-red-400/10' : 'border-neutral-200 hover:border-neutral-300',
+                    )}
+                  />
+                </div>
+                {emailError && (
+                  <motion.p 
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    className="flex items-center gap-1.5 text-xs font-bold text-red-600 px-1"
+                  >
+                    <span className="flex h-4 w-4 items-center justify-center rounded-full bg-red-100 text-[10px]">!</span>
+                    {emailError}
+                  </motion.p>
+                )}
+              </div>
 
-        {/* Skill #30 — label for OTP input */}
-        <label htmlFor="otp" className="mb-1.5 block text-sm font-medium text-neutral-700">
-          Enter OTP
-        </label>
-        <input
-          ref={otpInputRef}
-          id="otp"
-          // Skill #31 — type="tel" inputmode="numeric" for OTP too
-          type="tel"
-          inputMode="numeric"
-          maxLength={6}
-          value={otp}
-          onChange={(e) => {
-            const val = e.target.value.replace(/\D/g, '');
-            setOtp(val);
-            if (otpError) setOtpError('');
-          }}
-          placeholder="• • • • • •"
-          required
-          autoComplete="one-time-code"
-          aria-describedby={otpError ? 'otp-error' : 'otp-hint'}
-          aria-invalid={otpError ? 'true' : 'false'}
-          className={cn(
-            'h-touch w-full rounded-xl border bg-white px-4 text-center text-xl font-bold tracking-[0.5em]',
-            'placeholder:tracking-widest placeholder:text-neutral-300',
-            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600',
-            otpError
-              ? 'border-danger-500 focus-visible:ring-danger-500'
-              : 'border-neutral-200',
-          )}
-        />
-        {otpError ? (
-          <p id="otp-error" role="alert" className="mt-1.5 flex items-center gap-1 text-xs text-danger-600">
-            <span aria-hidden="true">⚠</span> {otpError}
-          </p>
-        ) : (
-          <p id="otp-hint" className="mt-1.5 text-xs text-neutral-500">
-            OTP is valid for 5 minutes
-          </p>
-        )}
-      </div>
+              <motion.button
+                whileHover={{ y: -2 }}
+                whileTap={{ scale: 0.98 }}
+                type="submit"
+                disabled={isLoading || email.length < 5}
+                className={cn(
+                  'group relative flex h-14 w-full items-center justify-center gap-2 overflow-hidden rounded-2xl',
+                  'bg-neutral-900 text-base font-bold text-white transition-all duration-300',
+                  'hover:bg-neutral-800 active:scale-[0.98] shadow-xl shadow-neutral-900/10',
+                  'disabled:cursor-not-allowed disabled:opacity-50 disabled:scale-100 disabled:shadow-none',
+                )}
+              >
+                {isLoading ? (
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                ) : (
+                  <>
+                    <span>Continue</span>
+                    <ArrowRight className="h-5 w-5 transition-transform duration-500 group-hover:translate-x-1" />
+                  </>
+                )}
+              </motion.button>
 
-      <button
-        type="submit"
-        disabled={isLoading || otp.length < 6}
-        className={cn(
-          'flex h-touch w-full items-center justify-center gap-2 rounded-xl',
-          'bg-primary-600 text-sm font-semibold text-white',
-          'transition-colors hover:bg-primary-700',
-          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600 focus-visible:ring-offset-2',
-          'disabled:cursor-not-allowed disabled:opacity-60',
-        )}
-      >
-        {isLoading ? (
-          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-        ) : (
-          'Verify & Sign In'
-        )}
-      </button>
+              <div className="flex items-center justify-center gap-2 px-1">
+                <div className="h-px flex-1 bg-neutral-100" />
+                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-neutral-300">Fast & Secure</span>
+                <div className="h-px flex-1 bg-neutral-100" />
+              </div>
 
-      <button
-        type="button"
-        onClick={handleResend}
-        disabled={resendCooldown > 0}
-        className={cn(
-          'mt-3 w-full text-center text-sm',
-          resendCooldown > 0
-            ? 'cursor-not-allowed text-neutral-400'
-            : 'text-primary-600 underline',
-          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600',
+              <div className="rounded-2xl bg-neutral-50/50 p-4 border border-neutral-100/50 backdrop-blur-sm">
+                <p className="text-[11px] leading-relaxed text-neutral-400 text-center">
+                  By continuing, you agree to our <span className="text-neutral-900 font-bold hover:underline cursor-pointer">Terms</span> and <span className="text-neutral-900 font-bold hover:underline cursor-pointer">Privacy Policy</span>.
+                </p>
+              </div>
+            </form>
+          </motion.div>
         )}
-        aria-disabled={resendCooldown > 0}
-      >
-        {resendCooldown > 0 ? `Resend OTP in ${resendCooldown}s` : 'Resend OTP'}
-      </button>
-    </form>
+
+        {/* Step 2 — Signup */}
+        {step === 'signup' && (
+          <motion.div
+            key="signup"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
+          >
+            <form onSubmit={(e) => void handleSignupSubmit(e)} noValidate className="space-y-6">
+              {/* Email chip (read-only) */}
+              <div className="flex items-center gap-3 rounded-2xl bg-neutral-50 p-2 pr-4 border border-neutral-100">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white shadow-sm border border-neutral-200">
+                  <Mail className="h-5 w-5 text-neutral-400" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="truncate text-sm font-bold text-neutral-900">{email}</p>
+                </div>
+                <button 
+                  type="button" 
+                  onClick={() => { setStep('email'); setName(''); setPhone(''); }}
+                  className="text-[11px] font-black uppercase tracking-wider text-primary-600 hover:text-primary-700 underline underline-offset-4"
+                >
+                  Edit
+                </button>
+              </div>
+
+              <div className="space-y-5">
+                <div className="space-y-1">
+                  <h3 className="text-xl font-black tracking-tight text-neutral-900">Create Profile</h3>
+                  <p className="text-sm text-neutral-500 font-medium">Just a few more details to get started.</p>
+                </div>
+                
+                {/* Name */}
+                <div className="space-y-2">
+                  <label htmlFor="signup-name" className="block text-[13px] font-bold uppercase tracking-wider text-neutral-500 ml-1">
+                    Full Name
+                  </label>
+                  <div className="relative group">
+                    <User className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-neutral-400 group-focus-within:text-primary-600 transition-all duration-300" />
+                    <input
+                      id="signup-name" type="text" autoComplete="name" autoFocus
+                      value={name}
+                      onChange={(e) => { setName(e.target.value); setSignupError(''); }}
+                      placeholder="e.g. John Doe"
+                      className="flex h-14 w-full items-center rounded-2xl border border-neutral-200 bg-white pl-12 pr-4 text-base focus:border-primary-600 focus:outline-none focus:ring-4 focus:ring-primary-600/10 transition-all duration-300 shadow-[inset_0_1px_2px_rgba(0,0,0,0.02)]"
+                    />
+                  </div>
+                </div>
+
+                {/* Phone */}
+                <div className="space-y-2">
+                  <label htmlFor="signup-phone" className="block text-[13px] font-bold uppercase tracking-wider text-neutral-500 ml-1">
+                    Mobile Number
+                  </label>
+                  <div className="flex gap-3">
+                    <div className="flex h-14 min-w-[70px] items-center justify-center rounded-2xl bg-neutral-50 text-sm font-black text-neutral-600 border border-neutral-200">
+                      +91
+                    </div>
+                    <div className="relative flex-1 group">
+                      <Phone className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-neutral-400 group-focus-within:text-primary-600 transition-all duration-300" />
+                      <input
+                        id="signup-phone" type="tel" inputMode="numeric" maxLength={10}
+                        value={phone}
+                        onChange={(e) => { setPhone(e.target.value.replace(/\D/g, '')); setSignupError(''); }}
+                        placeholder="98765 43210"
+                        className="flex h-14 w-full items-center rounded-2xl border border-neutral-200 bg-white pl-12 pr-4 text-base focus:border-primary-600 focus:outline-none focus:ring-4 focus:ring-primary-600/10 transition-all duration-300 shadow-[inset_0_1px_2px_rgba(0,0,0,0.02)]"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {signupError && (
+                <motion.p 
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="flex items-center gap-2 rounded-2xl bg-red-50 p-4 text-sm font-bold text-red-600 border border-red-100 shadow-sm shadow-red-600/5"
+                >
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-red-100 text-[10px]">!</span>
+                  {signupError}
+                </motion.p>
+              )}
+
+              <motion.button 
+                whileHover={{ y: -2 }}
+                whileTap={{ scale: 0.98 }}
+                type="submit" 
+                disabled={isLoading || name.length < 2 || phone.length < 10}
+                className="group relative flex h-14 w-full items-center justify-center gap-2 overflow-hidden rounded-2xl bg-neutral-900 text-base font-bold text-white transition-all duration-300 hover:bg-neutral-800 active:scale-[0.98] shadow-xl shadow-neutral-900/10 disabled:opacity-50 disabled:shadow-none"
+              >
+                {isLoading ? (
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                ) : (
+                  <>
+                    <span>Create Account</span>
+                    <ArrowRight className="h-5 w-5 transition-transform duration-500 group-hover:translate-x-1" />
+                  </>
+                )}
+              </motion.button>
+
+              <button 
+                type="button" 
+                onClick={() => setStep('email')}
+                className="flex w-full items-center justify-center gap-2 text-[13px] font-black uppercase tracking-wider text-neutral-400 hover:text-neutral-900 transition-colors"
+              >
+                <ChevronLeft className="h-4 w-4" />
+                Back to Email
+              </button>
+            </form>
+          </motion.div>
+        )}
+
+        {/* Step 3 — OTP */}
+        {step === 'otp' && (
+          <motion.div
+            key="otp"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
+          >
+            <form onSubmit={(e) => void handleVerifyOtp(e)} noValidate className="space-y-6">
+              {/* Info chip */}
+              <div className="flex items-center gap-3 rounded-2xl bg-neutral-50 p-2 pr-4 border border-neutral-100">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white shadow-sm border border-neutral-200">
+                  <Mail className="h-5 w-5 text-primary-600" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="truncate text-[10px] font-black uppercase tracking-widest text-neutral-400">Verifying Email</p>
+                  <p className="truncate text-sm font-bold text-neutral-900">{email}</p>
+                </div>
+                <button 
+                  type="button"
+                  onClick={() => { setStep(isExisting ? 'email' : 'signup'); setOtp(''); setOtpError(''); }}
+                  className="text-[11px] font-black uppercase tracking-wider text-primary-600 hover:text-primary-700 underline underline-offset-4"
+                >
+                  Change
+                </button>
+              </div>
+
+              {/* OTP field */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between ml-1">
+                  <label htmlFor="otp-input" className="block text-[13px] font-bold uppercase tracking-wider text-neutral-500">
+                    Enter Code
+                  </label>
+                  {resendCooldown > 0 && (
+                    <span className="text-[11px] font-bold text-neutral-400 uppercase tracking-wider">
+                      Resend in {resendCooldown}s
+                    </span>
+                  )}
+                </div>
+                <div className="relative">
+                  <input
+                    ref={otpInputRef}
+                    id="otp-input"
+                    type="tel"
+                    inputMode="numeric"
+                    maxLength={6}
+                    autoComplete="one-time-code"
+                    value={otp}
+                    onChange={(e) => { setOtp(e.target.value.replace(/\D/g, '')); setOtpError(''); }}
+                    placeholder="&bull;&bull;&bull;&bull;&bull;&bull;"
+                    className={cn(
+                      'h-20 w-full rounded-2xl border bg-white px-4 text-center text-4xl font-black tracking-[0.4em] transition-all duration-300',
+                      'placeholder:tracking-[0.2em] placeholder:text-neutral-200 placeholder:font-black',
+                      'focus:outline-none focus:ring-4 focus:ring-primary-600/10 focus:border-primary-600',
+                      'shadow-[inset_0_1px_3px_rgba(0,0,0,0.03)]',
+                      otpError ? 'border-red-400 bg-red-50/10 ring-4 ring-red-400/10' : 'border-neutral-200 hover:border-neutral-300',
+                    )}
+                  />
+                  {otp.length === 6 && !isLoading && (
+                    <motion.div 
+                      initial={{ opacity: 0, scale: 0.5 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 flex h-8 w-8 items-center justify-center rounded-full bg-primary-50 text-primary-600"
+                    >
+                      <Shield className="h-4 w-4" />
+                    </motion.div>
+                  )}
+                </div>
+                {otpError && (
+                  <motion.p 
+                    initial={{ opacity: 0, y: -4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="text-center text-[11px] font-bold uppercase tracking-wider text-red-600"
+                  >
+                    {otpError}
+                  </motion.p>
+                )}
+                {devOtp && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-2 text-center"
+                  >
+                    <p className="text-[10px] font-black uppercase tracking-wider text-amber-600">Dev Mode — Your OTP</p>
+                    <p className="text-2xl font-black tracking-[0.3em] text-amber-800">{devOtp}</p>
+                  </motion.div>
+                )}
+              </div>
+
+              <motion.button 
+                whileHover={{ y: -2 }}
+                whileTap={{ scale: 0.98 }}
+                type="submit" 
+                disabled={isLoading || otp.length !== 6}
+                className="group relative flex h-14 w-full items-center justify-center gap-2 overflow-hidden rounded-2xl bg-neutral-900 text-base font-bold text-white transition-all duration-300 hover:bg-neutral-800 active:scale-[0.98] shadow-xl shadow-neutral-900/10 disabled:opacity-50 disabled:shadow-none"
+              >
+                {isLoading ? (
+                  <Loader2 className="h-6 w-6 animate-spin" />
+                ) : (
+                  <>
+                    <span>Verify Identity</span>
+                    <ArrowRight className="h-5 w-5 transition-transform duration-500 group-hover:translate-x-1" />
+                  </>
+                )}
+              </motion.button>
+
+              {/* Resend */}
+              <div className="pt-2 text-center">
+                <button 
+                  type="button" 
+                  disabled={resendCooldown > 0}
+                  onClick={() => void handleResend()}
+                  className={cn(
+                    'text-[13px] font-black uppercase tracking-wider transition-all duration-300',
+                    resendCooldown > 0
+                      ? 'text-neutral-300 cursor-not-allowed'
+                      : 'text-neutral-900 hover:text-primary-600 hover:underline underline-offset-8 decoration-2'
+                  )}
+                >
+                  Resend Verification Code
+                </button>
+              </div>
+            </form>
+          </motion.div>
+        )}
+
+        {/* Step 4 — Success */}
+        {step === 'success' && (
+          <motion.div
+            key="success"
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
+            className="flex flex-col items-center justify-center gap-6 py-8 text-center"
+          >
+            <motion.div
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              transition={{ type: 'spring', damping: 15, stiffness: 200, delay: 0.1 }}
+              className="flex h-20 w-20 items-center justify-center rounded-full bg-green-50 border-2 border-green-200"
+            >
+              <span className="text-4xl">✓</span>
+            </motion.div>
+            <div className="space-y-2">
+              <h3 className="text-2xl font-black tracking-tight text-neutral-900">You&apos;re in!</h3>
+              <p className="text-sm font-medium text-neutral-500">
+                Welcome{name ? `, ${name.split(' ')[0]}` : ''}! Redirecting you now…
+              </p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   );
 }

@@ -3,254 +3,299 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-  <title>Farmers Factory — Farm Fresh Delivery</title>
-  <link rel="stylesheet" href="/css/app.css">
+  <title>Farmers Factory — Fresh from the Farm</title>
+  <link rel="stylesheet" href="css/app.css">
 </head>
 <body>
-<div class="app-wrap">
+<div id="toast-container"></div>
 
-  <!-- ── Header ── -->
+<!-- ── Location Modal ───────────────────────────────────── -->
+<div class="location-modal-backdrop" id="loc-modal">
+  <div class="location-modal">
+    <div class="modal-handle"></div>
+    <h3 class="modal-title">📍 Set Delivery Location</h3>
+
+    <button class="gps-btn" id="gps-btn">
+      <div class="gps-pulse"></div>
+      <div>
+        <div style="font-weight:700;color:var(--primary)">Use Live GPS Location</div>
+        <div style="font-size:12px;color:var(--text-3)">Detect my current location</div>
+      </div>
+    </button>
+
+    <div style="text-align:center;font-size:11px;color:var(--text-3);font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:12px">— or pick an area —</div>
+
+    <div class="area-grid" id="area-grid">
+      <button class="area-chip" data-area="Anna Nagar" data-pincode="600040">Anna Nagar</button>
+      <button class="area-chip" data-area="T. Nagar" data-pincode="600017">T. Nagar</button>
+      <button class="area-chip" data-area="Velachery" data-pincode="600042">Velachery</button>
+      <button class="area-chip" data-area="Adyar" data-pincode="600020">Adyar</button>
+      <button class="area-chip" data-area="Porur" data-pincode="600116">Porur</button>
+      <button class="area-chip" data-area="Tambaram" data-pincode="600045">Tambaram</button>
+      <button class="area-chip" data-area="Sholinganallur" data-pincode="600119">Sholinganallur</button>
+      <button class="area-chip" data-area="OMR" data-pincode="600097">OMR</button>
+      <button class="area-chip" data-area="Perambur" data-pincode="600011">Perambur</button>
+      <button class="area-chip" data-area="Mylapore" data-pincode="600004">Mylapore</button>
+      <button class="area-chip" data-area="Besant Nagar" data-pincode="600090">Besant Nagar</button>
+      <button class="area-chip" data-area="Nungambakkam" data-pincode="600034">Nungambakkam</button>
+    </div>
+
+    <div id="loc-status" style="margin-top:12px;font-size:13px;color:var(--text-3);text-align:center"></div>
+
+    <div style="padding-top:12px;font-size:11px;text-align:center;color:var(--text-3)">
+      🚚 All Chennai areas get <strong style="color:var(--primary)">24hr delivery</strong>
+    </div>
+  </div>
+</div>
+
+<!-- ── App Wrapper ───────────────────────────────────────── -->
+<div class="app-wrapper">
+
+  <!-- Header -->
   <header class="header">
     <div class="header-top">
-      <a href="/" class="header-logo">
-        <div class="logo-circle">F</div>
-        <div class="header-name">Farmers Factory<span>Farm Fresh · 24hr Delivery</span></div>
-      </a>
+      <div class="logo-wrap">
+        <div class="logo-icon">🌿</div>
+        <div class="logo-text">
+          Farmers Factory
+          <span>Farm Fresh Daily</span>
+        </div>
+      </div>
       <div class="header-actions">
-        <a href="/wishlist.html" class="icon-btn" aria-label="Wishlist">
-          ❤️
-          <span class="badge" data-wish-badge style="display:none">0</span>
+        <a href="wishlist.html" class="icon-btn" aria-label="Wishlist">
+          🤍
+          <span class="badge wishlist-badge" style="display:none">0</span>
         </a>
-        <a href="/cart.html" class="icon-btn" aria-label="Cart">
+        <a href="cart.html" class="icon-btn" aria-label="Cart">
           🛒
-          <span class="badge" data-cart-badge style="display:none">0</span>
+          <span class="badge cart-badge" style="display:none">0</span>
         </a>
+        <!-- Account / Login button — set by JS below -->
+        <a href="login.html" class="icon-btn" id="hdr-account-btn" aria-label="Account" style="font-size:13px;font-weight:700;color:var(--primary,#2E7D4F);text-decoration:none;padding:4px 8px;border:1.5px solid var(--primary,#2E7D4F);border-radius:20px;line-height:1;">Login</a>
       </div>
     </div>
+
     <!-- Location bar -->
-    <button class="location-bar" id="locationBar" aria-label="Set delivery location">
-      <span class="location-icon">📍</span>
-      <span class="location-text" id="locationText">Select delivery location</span>
-      <span class="location-chevron">▾</span>
-    </button>
+    <div class="location-bar" id="loc-bar">
+      <span class="loc-icon">📍</span>
+      <span class="loc-text" id="loc-text">Set delivery location</span>
+      <span class="loc-arrow">▼</span>
+    </div>
   </header>
 
-  <!-- ── Search ── -->
-  <div class="search-wrap" style="position:relative">
-    <input type="search" class="search-input" id="searchInput" placeholder="Search vegetables, fruits, dairy…" autocomplete="off">
+  <!-- Search -->
+  <div class="search-wrap">
     <span class="search-icon">🔍</span>
-    <div class="search-results" id="searchResults"></div>
+    <input type="text" id="search-input" placeholder="Search fresh vegetables, fruits…" autocomplete="off">
+    <div class="search-results hidden" id="search-results"></div>
   </div>
 
-  <!-- ── Delivery strip ── -->
+  <!-- Delivery Strip -->
   <div class="delivery-strip">
-    <div class="delivery-strip-inner">
-      🚚 24hr DELIVERY &nbsp;•&nbsp; 🌱 100% ORGANIC &nbsp;•&nbsp; 🌾 STRAIGHT FROM FARMS &nbsp;•&nbsp; 🥦 FRESH DAILY HARVEST &nbsp;•&nbsp; 🍎 FARM TO DOOR &nbsp;•&nbsp; 🥕 NO PESTICIDES &nbsp;•&nbsp; 🚚 24hr DELIVERY &nbsp;•&nbsp; 🌱 100% ORGANIC &nbsp;•&nbsp; 🌾 STRAIGHT FROM FARMS &nbsp;•&nbsp; 🥦 FRESH DAILY HARVEST &nbsp;•&nbsp; 🍎 FARM TO DOOR &nbsp;•&nbsp; 🥕 NO PESTICIDES &nbsp;&nbsp;
-    </div>
+    <span class="delivery-strip-inner">
+      🚚 24hr Delivery — Farm Fresh to Your Door &nbsp;•&nbsp;
+      🌱 100% Organic &nbsp;•&nbsp;
+      🌾 Straight from Farms &nbsp;•&nbsp;
+      🥦 Fresh Daily Harvest &nbsp;•&nbsp;
+      🚚 24hr Delivery — Farm Fresh to Your Door &nbsp;•&nbsp;
+      🌱 100% Organic &nbsp;•&nbsp;
+      🌾 Straight from Farms &nbsp;•&nbsp;
+      🥦 Fresh Daily Harvest &nbsp;&nbsp;
+    </span>
   </div>
 
-  <!-- ── Category chips ── -->
+  <!-- Categories -->
   <div class="categories" id="categories">
     <button class="chip active" data-cat="all">All</button>
-    <button class="chip" data-cat="vegetables">🥬 Veggies</button>
+    <button class="chip" data-cat="vegetables">🥦 Veggies</button>
     <button class="chip" data-cat="fruits">🍎 Fruits</button>
     <button class="chip" data-cat="dairy">🥛 Dairy</button>
     <button class="chip" data-cat="grains">🌾 Grains</button>
     <button class="chip" data-cat="herbs">🌿 Herbs</button>
   </div>
 
-  <!-- ── Hero banner ── -->
-  <div class="hero" id="heroBanner">
-    <span class="hero-tag">🌾 Farm Fresh Guarantee</span>
-    <h2>Fresh from Farm<br>to Your Door</h2>
-    <p>100% organic produce. Delivered within 24 hours.</p>
-    <button class="hero-btn" onclick="document.getElementById('productGrid').scrollIntoView({behavior:'smooth'})">
-      Shop Now →
-    </button>
+  <!-- Hero Banner -->
+  <div class="hero-banner">
+    <div class="hero-tag">🌟 Farm Fresh Guarantee</div>
+    <h2>Fresh From Farm<br>To Your Table</h2>
+    <a href="#products" class="btn-hero">Shop Now →</a>
   </div>
 
-  <!-- ── Products section ── -->
-  <div class="section-header">
-    <h3 id="sectionTitle">Fresh Products</h3>
+  <!-- Products -->
+  <div class="section-header" id="products">
+    <h3 id="products-title">Fresh Products</h3>
   </div>
-  <div class="product-grid" id="productGrid"></div>
 
-</div>
-
-<!-- ── Bottom nav ── -->
-<nav class="bottom-nav" aria-label="Main navigation">
-  <a href="/" class="nav-item active">
-    <span class="nav-icon">🏠</span>
-    <span>Home</span>
-  </a>
-  <a href="/wishlist.html" class="nav-item">
-    <span class="nav-icon">❤️</span>
-    <span>Wishlist</span>
-    <span class="nav-badge" data-wish-badge style="display:none">0</span>
-  </a>
-  <a href="/cart.html" class="nav-item">
-    <span class="nav-icon">🛒</span>
-    <span>Cart</span>
-    <span class="nav-badge" data-cart-badge style="display:none">0</span>
-  </a>
-  <a href="/orders.html" class="nav-item">
-    <span class="nav-icon">📋</span>
-    <span>Orders</span>
-  </a>
-  <a href="/account/profile.html" class="nav-item">
-    <span class="nav-icon">👤</span>
-    <span>Profile</span>
-  </a>
-</nav>
-
-<!-- ── Location Modal ── -->
-<div class="modal-overlay" id="locationModal">
-  <div class="modal-sheet">
-    <div class="modal-handle"></div>
-    <h2 class="modal-title">📍 Delivery Location</h2>
-    <p class="modal-subtitle">Choose your area or use GPS for precise location</p>
-
-    <button class="gps-btn" id="gpsBtn">
-      <div class="gps-icon-wrap"><span id="gpsIcon">📡</span></div>
-      <div class="gps-text">
-        <strong>Detect My Location</strong>
-        <span id="gpsStatus">Using GPS for precise address</span>
-      </div>
-    </button>
-
-    <div class="divider-or">Popular Chennai Areas</div>
-
-    <div class="area-grid" id="areaGrid">
-      <!-- Filled by JS -->
+  <div class="product-grid" id="product-grid">
+    <div class="loading-wrap" style="grid-column:span 2">
+      <div class="spinner"></div>
     </div>
   </div>
+
 </div>
 
-<div class="toast-container"></div>
+<!-- Bottom Nav -->
+<nav class="bottom-nav">
+  <a href="index.html"       class="nav-item active"><span class="nav-icon">🏠</span><span>Home</span></a>
+  <a href="wishlist.html"    class="nav-item"><span class="nav-icon">🤍</span><span>Wishlist</span></a>
+  <a href="cart.html"        class="nav-item"><span class="nav-icon">🛒</span><span>Cart</span></a>
+  <a href="orders.html"      class="nav-item"><span class="nav-icon">📦</span><span>Orders</span></a>
+  <a href="account.html"     class="nav-item" id="nav-account"><span class="nav-icon">👤</span><span>Account</span></a>
+</nav>
 
+<script>
+// ── Account header button ──────────────────────────────────
+(function(){
+  try {
+    var user = JSON.parse(localStorage.getItem('ff_user'));
+    var btn  = document.getElementById('hdr-account-btn');
+    if (!btn) return;
+    if (user && user.name) {
+      var initials = user.name.trim().split(' ').map(function(w){return w[0];}).join('').slice(0,2).toUpperCase();
+      btn.href = 'account.html';
+      btn.setAttribute('aria-label', 'My Account');
+      btn.style.cssText = 'display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:50%;background:#2E7D4F;color:#fff;font-weight:800;font-size:.8rem;border:none;text-decoration:none;flex-shrink:0;';
+      btn.textContent = initials;
+    }
+  } catch(e) {}
+})();
+</script>
 <script type="module">
-import { renderProductGrid, updateWishlistBadges } from '/js/products.js';
-import { initCartBadge } from '/js/cart.js';
-import { showToast, openModal, closeModal, detectLocation, getLocation, setLocation } from '/js/utils.js';
+import { syncBadges, addToCart } from './js/cart.js';
+import { fetchProducts, searchProducts, renderProductGrid, formatPrice, getCategoryEmoji } from './js/products.js';
 
-// ── Init ─────────────────────────────────────
-initCartBadge();
-updateWishlistBadges();
-renderProductGrid(document.getElementById('productGrid'));
-renderLocationDisplay();
+// Badges
+syncBadges();
 
-// ── Category filter ──────────────────────────
-document.getElementById('categories').addEventListener('click', (e) => {
-  const chip = e.target.closest('.chip');
-  if (!chip) return;
-  document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
-  chip.classList.add('active');
-  const cat = chip.dataset.cat;
-  const title = cat === 'all' ? 'Fresh Products' : chip.textContent.trim() + ' Products';
-  document.getElementById('sectionTitle').textContent = title;
-  renderProductGrid(document.getElementById('productGrid'), cat === 'all' ? null : cat);
+// Location
+const savedLoc = localStorage.getItem('ff_location');
+if (savedLoc) document.getElementById('loc-text').textContent = savedLoc;
+
+// Location modal
+const locModal = document.getElementById('loc-modal');
+document.getElementById('loc-bar').addEventListener('click', () => locModal.classList.add('open'));
+locModal.addEventListener('click', e => { if (e.target === locModal) locModal.classList.remove('open'); });
+
+// Area chips
+document.querySelectorAll('.area-chip').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const loc = btn.dataset.area + ', Chennai';
+    localStorage.setItem('ff_location', loc);
+    document.getElementById('loc-text').textContent = loc;
+    locModal.classList.remove('open');
+    showToast('📍 Location set to ' + btn.dataset.area, 'success');
+  });
 });
 
-// ── Live search ──────────────────────────────
-let searchTimer;
-const searchInput = document.getElementById('searchInput');
-const searchResults = document.getElementById('searchResults');
+// GPS detect
+document.getElementById('gps-btn').addEventListener('click', async () => {
+  const statusEl = document.getElementById('loc-status');
+  const btn = document.getElementById('gps-btn');
+  if (!navigator.geolocation) { statusEl.textContent = 'GPS not supported'; return; }
 
-searchInput.addEventListener('input', () => {
-  clearTimeout(searchTimer);
-  const q = searchInput.value.trim();
-  if (!q) { searchResults.classList.remove('show'); return; }
-  searchTimer = setTimeout(() => doSearch(q), 280);
-});
-searchInput.addEventListener('blur', () => {
-  setTimeout(() => searchResults.classList.remove('show'), 200);
+  btn.style.opacity = '0.6';
+  statusEl.textContent = '🔍 Detecting location…';
+
+  navigator.geolocation.getCurrentPosition(async pos => {
+    const { latitude: lat, longitude: lng } = pos.coords;
+    try {
+      const r = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1`,
+        { headers: { 'Accept-Language': 'en', 'User-Agent': 'FarmersFactory/1.0' } }
+      );
+      const d = await r.json();
+      const area = d.address?.suburb || d.address?.neighbourhood || d.address?.town || d.address?.city || 'Chennai';
+      const loc  = area + ', Chennai';
+      localStorage.setItem('ff_location', loc);
+      document.getElementById('loc-text').textContent = loc;
+      locModal.classList.remove('open');
+      showToast('📍 Location set to ' + area, 'success');
+    } catch {
+      const loc = `${lat.toFixed(3)}°N, ${lng.toFixed(3)}°E`;
+      localStorage.setItem('ff_location', loc);
+      document.getElementById('loc-text').textContent = loc;
+      locModal.classList.remove('open');
+    }
+    btn.style.opacity = '1';
+    statusEl.textContent = '';
+  }, err => {
+    btn.style.opacity = '1';
+    statusEl.textContent = err.code === 1 ? '⚠️ Location access denied' : '⚠️ Could not detect location';
+  }, { timeout: 12000, enableHighAccuracy: true });
 });
 
-async function doSearch(q) {
-  const { fetchProducts, getCategoryEmoji } = await import('/js/products.js');
-  const { formatPrice } = await import('/js/utils.js');
-  const results = await fetchProducts(null, q);
-  if (!results.length) { searchResults.innerHTML = '<div class="search-result-item"><span>No results for "' + q + '"</span></div>'; }
-  else {
-    searchResults.innerHTML = results.slice(0, 8).map(p => `
-      <a href="/product-detail.html?id=${p.id}" class="search-result-item">
-        <div class="search-result-emoji">${getCategoryEmoji(p.category)}</div>
-        <div class="search-result-info">
-          <div class="name">${p.name} <small style="color:#999;font-size:11px">${p.unit}</small></div>
-          <div class="price">${formatPrice(p.price)}</div>
-        </div>
-      </a>`).join('');
-  }
-  searchResults.classList.add('show');
+// Products
+let allProducts = [];
+let activeCategory = 'all';
+
+async function loadProducts(cat = 'all') {
+  const grid = document.getElementById('product-grid');
+  grid.innerHTML = '<div class="loading-wrap" style="grid-column:span 2"><div class="spinner"></div></div>';
+  allProducts = await fetchProducts(cat === 'all' ? null : cat);
+  renderProductGrid(grid, allProducts, product => {
+    addToCart(product);
+    syncBadges();
+  });
 }
 
-// ── Location modal ───────────────────────────
-const AREAS = [
-  { name: 'Anna Nagar', pincode: '600040' },
-  { name: 'T. Nagar',   pincode: '600017' },
-  { name: 'Velachery',  pincode: '600042' },
-  { name: 'Adyar',      pincode: '600020' },
-  { name: 'Porur',      pincode: '600116' },
-  { name: 'Tambaram',   pincode: '600045' },
-  { name: 'Sholinganallur', pincode: '600119' },
-  { name: 'OMR',        pincode: '600097' },
-  { name: 'Perambur',   pincode: '600011' },
-  { name: 'Mylapore',   pincode: '600004' },
-  { name: 'Besant Nagar', pincode: '600090' },
-  { name: 'Nungambakkam', pincode: '600034' },
-  { name: 'Thiruvanmiyur', pincode: '600041' },
-  { name: 'Chromepet',  pincode: '600044' },
-];
+loadProducts();
 
-const modal   = document.getElementById('locationModal');
-const areaGrid = document.getElementById('areaGrid');
-const currentLoc = getLocation();
-
-areaGrid.innerHTML = AREAS.map(a => `
-  <button class="area-btn ${currentLoc?.area === a.name ? 'selected' : ''}" data-area='${JSON.stringify(a)}'>
-    <div class="area-name">${a.name}</div>
-    <div class="area-pin">${a.pincode}</div>
-  </button>`).join('');
-
-document.getElementById('locationBar').addEventListener('click', () => openModal(modal));
-modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(modal); });
-
-areaGrid.addEventListener('click', (e) => {
-  const btn = e.target.closest('.area-btn');
-  if (!btn) return;
-  const area = JSON.parse(btn.dataset.area);
-  setLocation({ area: area.name, city: 'Chennai', pincode: area.pincode, address: `${area.name}, Chennai` });
-  renderLocationDisplay();
-  closeModal(modal);
-  showToast(`📍 Location set to ${area.name}`, 'success');
+// Category chips
+document.querySelectorAll('.chip').forEach(chip => {
+  chip.addEventListener('click', () => {
+    document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+    chip.classList.add('active');
+    activeCategory = chip.dataset.cat;
+    const title = chip.dataset.cat === 'all' ? 'Fresh Products' : chip.textContent.trim() + ' Products';
+    document.getElementById('products-title').textContent = title;
+    loadProducts(activeCategory);
+  });
 });
 
-document.getElementById('gpsBtn').addEventListener('click', async () => {
-  const btn = document.getElementById('gpsBtn');
-  const icon = document.getElementById('gpsIcon');
-  const status = document.getElementById('gpsStatus');
-  icon.classList.add('gps-pulsing');
-  status.textContent = 'Detecting location…';
-  btn.disabled = true;
-  try {
-    const loc = await detectLocation();
-    setLocation(loc);
-    renderLocationDisplay();
-    closeModal(modal);
-    showToast(`📍 Location: ${loc.area || loc.city}`, 'success');
-  } catch (err) {
-    showToast(err.message, 'error');
-    status.textContent = err.message;
-  } finally {
-    icon.classList.remove('gps-pulsing');
-    btn.disabled = false;
-    status.textContent = 'Using GPS for precise address';
-  }
+// Live search
+let searchTimeout;
+const searchInput   = document.getElementById('search-input');
+const searchResults = document.getElementById('search-results');
+
+searchInput.addEventListener('input', () => {
+  clearTimeout(searchTimeout);
+  const q = searchInput.value.trim();
+  if (!q) { searchResults.classList.add('hidden'); return; }
+  searchTimeout = setTimeout(async () => {
+    const results = await searchProducts(q);
+    if (!results.length) { searchResults.classList.add('hidden'); return; }
+    searchResults.classList.remove('hidden');
+    searchResults.innerHTML = results.map(p => `
+      <div class="search-result-item" data-id="${p.id}">
+        ${p.image_url
+          ? `<img src="${p.image_url}" alt="${p.name}" onerror="this.outerHTML='<div style=\'width:36px;height:36px;background:var(--primary-pale);border-radius:8px;display:flex;align-items:center;justify-content:center\'>${getCategoryEmoji(p.category)}</div>'">`
+          : `<div style="width:36px;height:36px;background:var(--primary-pale);border-radius:8px;display:flex;align-items:center;justify-content:center">${getCategoryEmoji(p.category)}</div>`}
+        <div>
+          <div class="sr-name">${p.name}</div>
+          <div class="sr-cat">${p.category} · ${formatPrice(p.price)}</div>
+        </div>
+      </div>`).join('');
+
+    searchResults.querySelectorAll('.search-result-item').forEach(item => {
+      item.addEventListener('click', () => {
+        window.location.href = `product-detail.html?id=${item.dataset.id}`;
+      });
+    });
+  }, 300);
 });
 
-function renderLocationDisplay() {
-  const loc = getLocation();
-  document.getElementById('locationText').textContent = loc ? loc.address || loc.area : 'Select delivery location';
+document.addEventListener('click', e => {
+  if (!e.target.closest('.search-wrap')) searchResults.classList.add('hidden');
+});
+
+// Toast
+function showToast(msg, type = 'success') {
+  const c = document.getElementById('toast-container');
+  const t = document.createElement('div');
+  t.className = `toast ${type}`;
+  t.textContent = msg;
+  c.appendChild(t);
+  setTimeout(() => t.remove(), 3200);
 }
 </script>
 </body>

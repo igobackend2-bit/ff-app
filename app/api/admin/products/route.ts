@@ -63,25 +63,37 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'name, slug, price, unit are required' }, { status: 400 });
     }
 
-    const category = await prisma.category.findUnique({ where: { slug: categorySlug } });
-    const brand = brandSlug
-      ? await prisma.brand.findUnique({ where: { slug: brandSlug } })
-      : null;
+    const [category, brand, firstCategory] = await Promise.all([
+      categorySlug ? prisma.category.findUnique({ where: { slug: categorySlug } }) : null,
+      brandSlug    ? prisma.brand.findUnique({    where: { slug: brandSlug    } }) : null,
+      // Fallback: grab the first category in case none is selected
+      prisma.category.findFirst({ orderBy: { sortOrder: 'asc' } }),
+    ]);
+
+    const sku = `FF-${Date.now()}`;
+
+    // Build a unique slug — if the requested slug already exists, append a suffix
+    const baseSlug = (slug || name.toLowerCase().replace(/[^a-z0-9]+/g, '-')).replace(/^-+|-+$/g, '');
+    let finalSlug  = baseSlug;
+    let attempt    = 0;
+    while (await prisma.product.findUnique({ where: { slug: finalSlug } })) {
+      attempt++;
+      finalSlug = `${baseSlug}-${attempt}`;
+    }
 
     const product = await prisma.product.create({
       data: {
-        name,
-        slug,
-        description,
-        categoryId: category?.id ?? '',
-        brandId: brand?.id ?? null,
-        price: Number(price),
-        mrp: Number(mrp ?? price),
-        sku: name.substring(0, 3).toUpperCase() + '-' + Date.now().toString().substring(8),
+        name, description: description ?? '',
+        slug: finalSlug,
+        sku,
+        categoryId: category?.id ?? firstCategory?.id ?? 'uncategorized',
+        brandId:    brand?.id   ?? null,
+        price:      Number(price),
+        mrp:        Number(mrp ?? price),
         unit,
-        tags: JSON.stringify(tags ?? []),
-        imageUrls: JSON.stringify(imageUrls ?? []),
-        blurDataUrls: JSON.stringify(blurDataUrls ?? []),
+        tags:        JSON.stringify(Array.isArray(tags) ? tags : []),
+        imageUrls:   JSON.stringify(Array.isArray(imageUrls) ? imageUrls : []),
+        blurDataUrls: JSON.stringify(Array.isArray(blurDataUrls) ? blurDataUrls : []),
         inStock,
         isFeatured,
       },
@@ -89,7 +101,18 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ product }, { status: 201 });
   } catch (err: unknown) {
+    // Prisma unique constraint violation (e.g. SKU collision — extremely rare)
+    if (
+      err instanceof Error &&
+      (err as { code?: string }).code === 'P2002'
+    ) {
+      return NextResponse.json(
+        { error: 'A product with this name already exists. Please use a different name.' },
+        { status: 409 },
+      );
+    }
     const msg = err instanceof Error ? err.message : 'Server error';
+    console.error('[admin/products POST]', err);
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

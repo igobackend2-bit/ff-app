@@ -1,0 +1,351 @@
+'use client';
+
+import React, { useState, useEffect, useCallback } from 'react';
+import { Search, RefreshCw, ChevronLeft, ChevronRight, Package, Clock, ChevronDown } from 'lucide-react';
+import { cn } from '@/lib/utils';
+
+interface OrderItem {
+  id: string;
+  quantity: number;
+  unitPrice: number;
+  product: { name: string; imageUrls: string };
+}
+
+interface Order {
+  id: string;
+  orderNumber: string;
+  status: string;
+  paymentStatus: string;
+  paymentMethod: string;
+  subtotal: number;
+  deliveryFee: number;
+  total: number;
+  createdAt: string;
+  user: { id: string; name: string | null; phone: string | null };
+  address: { fullName?: string; line1: string; city: string; state: string; pincode: string } | null;
+  items: OrderItem[];
+}
+
+const ALL_STATUSES = ['PLACED', 'CONFIRMED', 'PICKING', 'OUT_FOR_DELIVERY', 'DELIVERED', 'CANCELLED'];
+
+const STATUS_STYLES: Record<string, string> = {
+  PLACED:           'bg-yellow-100 text-yellow-700 border-yellow-200',
+  CONFIRMED:        'bg-blue-100  text-blue-700  border-blue-200',
+  PICKING:          'bg-purple-100 text-purple-700 border-purple-200',
+  OUT_FOR_DELIVERY: 'bg-orange-100 text-orange-700 border-orange-200',
+  DELIVERED:        'bg-green-100  text-green-700  border-green-200',
+  CANCELLED:        'bg-red-100    text-red-700    border-red-200',
+};
+
+const STATUS_LABELS: Record<string, string> = {
+  PLACED: 'Order Placed', CONFIRMED: 'Confirmed', PICKING: 'Picking Items',
+  OUT_FOR_DELIVERY: 'Out for Delivery', DELIVERED: 'Delivered', CANCELLED: 'Cancelled',
+};
+
+function StatusBadge({ status }: { status: string }) {
+  return (
+    <span className={cn('rounded-lg border px-2.5 py-1 text-xs font-bold', STATUS_STYLES[status] ?? 'bg-neutral-100 text-neutral-600 border-neutral-200')}>
+      {STATUS_LABELS[status] ?? status}
+    </span>
+  );
+}
+
+function StatusUpdater({ orderId, currentStatus, onUpdated }: { orderId: string; currentStatus: string; onUpdated: (newStatus: string) => void }) {
+  const [open, setOpen]       = useState(false);
+  const [saving, setSaving]   = useState(false);
+
+  const update = async (newStatus: string) => {
+    if (newStatus === currentStatus) { setOpen(false); return; }
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/admin/orders/${orderId}`, {
+        method:  'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ status: newStatus }),
+      });
+      if (res.ok) {
+        onUpdated(newStatus);
+      }
+    } finally {
+      setSaving(false);
+      setOpen(false);
+    }
+  };
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        disabled={saving}
+        className={cn(
+          'flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-bold transition-colors hover:opacity-80',
+          STATUS_STYLES[currentStatus] ?? 'bg-neutral-100 text-neutral-600 border-neutral-200',
+        )}
+      >
+        {saving ? '…' : (STATUS_LABELS[currentStatus] ?? currentStatus)}
+        <ChevronDown className="h-3 w-3 opacity-60" />
+      </button>
+
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div className="absolute left-0 top-full z-20 mt-1 w-48 overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-xl">
+            {ALL_STATUSES.map((s) => (
+              <button
+                key={s}
+                onClick={() => void update(s)}
+                className={cn(
+                  'flex w-full items-center gap-2 px-4 py-2.5 text-left text-xs font-bold transition-colors hover:bg-neutral-50',
+                  s === currentStatus ? 'bg-neutral-50 opacity-60' : '',
+                )}
+              >
+                <span className={cn('h-2 w-2 rounded-full border', STATUS_STYLES[s]?.split(' ')[0] ?? 'bg-neutral-300')} />
+                {STATUS_LABELS[s] ?? s}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+export default function AdminOrdersPage() {
+  const [orders, setOrders]     = useState<Order[]>([]);
+  const [total, setTotal]       = useState(0);
+  const [pages, setPages]       = useState(1);
+  const [page, setPage]         = useState(1);
+  const [search, setSearch]     = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [loading, setLoading]   = useState(true);
+  const [expanded, setExpanded] = useState<string | null>(null);
+
+  const fetchOrders = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({ page: String(page), limit: '20' });
+      if (search)       params.set('q', search);
+      if (statusFilter) params.set('status', statusFilter);
+      const res  = await fetch(`/api/admin/orders?${params}`);
+      const data = await res.json() as { orders: Order[]; total: number; pages: number };
+      setOrders(data.orders ?? []);
+      setTotal(data.total  ?? 0);
+      setPages(data.pages  ?? 1);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  }, [page, search, statusFilter]);
+
+  useEffect(() => { void fetchOrders(); }, [fetchOrders]);
+
+  const handleStatusUpdate = (orderId: string, newStatus: string) => {
+    setOrders((prev) => prev.map((o) => o.id === orderId ? { ...o, status: newStatus } : o));
+  };
+
+  const getImageSrc = (imageUrls: string) => {
+    try { return (JSON.parse(imageUrls) as string[])[0] ?? ''; }
+    catch { return imageUrls ?? ''; }
+  };
+
+  return (
+    <div>
+      {/* Header */}
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-black text-neutral-900">Orders</h1>
+          <p className="mt-0.5 text-sm text-neutral-500">{total} total orders</p>
+        </div>
+        <button onClick={() => void fetchOrders()} className="flex items-center gap-2 rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm font-semibold text-neutral-600 hover:bg-neutral-50">
+          <RefreshCw className="h-4 w-4" /> Refresh
+        </button>
+      </div>
+
+      {/* Filters */}
+      <div className="mb-5 flex flex-wrap gap-3">
+        <form onSubmit={(e) => { e.preventDefault(); setPage(1); void fetchOrders(); }} className="flex flex-1 min-w-[220px] gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
+            <input
+              value={search} onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search order # or customer…"
+              className="h-10 w-full rounded-xl border border-neutral-200 bg-white pl-9 pr-3 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100"
+            />
+          </div>
+          <button type="submit" className="h-10 rounded-xl bg-primary-600 px-4 text-sm font-bold text-white hover:bg-primary-700">Go</button>
+        </form>
+
+        <div className="flex gap-2 flex-wrap">
+          {(['', ...ALL_STATUSES] as string[]).map((s) => (
+            <button
+              key={s || 'all'}
+              onClick={() => { setStatusFilter(s); setPage(1); }}
+              className={cn(
+                'rounded-xl border px-3 py-2 text-xs font-bold transition-colors',
+                statusFilter === s
+                  ? 'border-primary-600 bg-primary-600 text-white'
+                  : 'border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50',
+              )}
+            >
+              {s ? (STATUS_LABELS[s] ?? s) : 'All'}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Table */}
+      <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm">
+        {loading ? (
+          <div className="flex items-center justify-center py-16 text-sm text-neutral-400">
+            <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> Loading orders…
+          </div>
+        ) : orders.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 text-neutral-400">
+            <Package className="mb-2 h-8 w-8 opacity-30" />
+            <p className="text-sm font-medium">No orders found</p>
+          </div>
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-neutral-100 bg-neutral-50 text-left text-xs font-bold uppercase tracking-wider text-neutral-500">
+                <th className="px-5 py-3">Order</th>
+                <th className="px-5 py-3">Customer</th>
+                <th className="px-5 py-3">Delivery Address</th>
+                <th className="px-5 py-3">Status — click to change</th>
+                <th className="px-5 py-3">Payment</th>
+                <th className="px-5 py-3 text-right">Amount</th>
+                <th className="px-5 py-3">Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              {orders.map((order) => (
+                <React.Fragment key={order.id}>
+                  <tr
+                    className="border-b border-neutral-50 transition-colors hover:bg-neutral-50/60 last:border-0"
+                  >
+                    <td className="px-5 py-4">
+                      <button
+                        onClick={() => setExpanded(expanded === order.id ? null : order.id)}
+                        className="font-mono text-xs font-bold text-primary-700 hover:underline"
+                      >
+                        #{order.orderNumber}
+                      </button>
+                    </td>
+                    <td className="px-5 py-4">
+                      <p className="font-semibold text-neutral-800">{order.user?.name || '—'}</p>
+                      <p className="text-xs text-neutral-400">{order.user?.phone || ''}</p>
+                    </td>
+                    <td className="px-5 py-4">
+                      {order.address ? (
+                        <div className="text-xs text-neutral-700 leading-relaxed">
+                          {order.address.fullName && (
+                            <p className="font-semibold text-neutral-800">{order.address.fullName}</p>
+                          )}
+                          <p className="text-neutral-600">{order.address.line1}</p>
+                          <p className="text-neutral-500">{order.address.city}, {order.address.state}</p>
+                          <p className="font-medium text-neutral-600">📍 {order.address.pincode}</p>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-neutral-400">—</span>
+                      )}
+                    </td>
+                    <td className="px-5 py-4">
+                      {/* Inline status updater dropdown */}
+                      <StatusUpdater
+                        orderId={order.id}
+                        currentStatus={order.status}
+                        onUpdated={(s) => handleStatusUpdate(order.id, s)}
+                      />
+                    </td>
+                    <td className="px-5 py-4">
+                      <div className="space-y-1">
+                        <span className="block text-xs font-semibold text-neutral-600">{order.paymentMethod}</span>
+                        <span className={cn('rounded-lg px-2 py-0.5 text-xs font-bold',
+                          order.paymentStatus === 'PAID' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700')}>
+                          {order.paymentStatus}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-5 py-4 text-right font-bold text-neutral-900">
+                      ₹{order.total?.toFixed(0) ?? (order.subtotal + order.deliveryFee).toFixed(0)}
+                    </td>
+                    <td className="px-5 py-4 text-xs text-neutral-400">
+                      <div className="flex items-center gap-1">
+                        <Clock className="h-3 w-3" />
+                        {new Date(order.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit' })}
+                      </div>
+                    </td>
+                  </tr>
+
+                  {/* Expanded row */}
+                  {expanded === order.id && (
+                    <tr className="bg-neutral-50/80">
+                      <td colSpan={7} className="px-5 py-4">
+                        <div className="grid gap-4 lg:grid-cols-2">
+                          {/* Items */}
+                          <div>
+                            <p className="mb-2 text-xs font-bold uppercase tracking-wider text-neutral-400">Order Items</p>
+                            <div className="flex flex-wrap gap-2">
+                              {order.items.map((item) => (
+                                <div key={item.id} className="flex items-center gap-2 rounded-xl border border-neutral-200 bg-white p-2.5 shadow-sm">
+                                  {getImageSrc(item.product.imageUrls) && (
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img
+                                      src={getImageSrc(item.product.imageUrls)}
+                                      alt={item.product.name}
+                                      className="h-10 w-10 rounded-lg object-cover"
+                                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                                    />
+                                  )}
+                                  <div>
+                                    <p className="text-xs font-semibold text-neutral-800">{item.product.name}</p>
+                                    <p className="text-[11px] text-neutral-500">Qty: {item.quantity} · ₹{item.unitPrice}</p>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Delivery address */}
+                          {order.address && (
+                            <div>
+                              <p className="mb-2 text-xs font-bold uppercase tracking-wider text-neutral-400">Delivery Address</p>
+                              <div className="rounded-xl border border-neutral-200 bg-white p-3 text-xs text-neutral-700 shadow-sm">
+                                <p className="font-bold">{order.address.fullName || order.user?.name}</p>
+                                <p className="mt-0.5 text-neutral-500">{order.address.line1}</p>
+                                <p className="text-neutral-500">{order.address.city}, {order.address.state} – {order.address.pincode}</p>
+                                {order.user?.phone && <p className="mt-1 font-semibold text-neutral-700">📞 {order.user.phone}</p>}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {/* Pagination */}
+      {pages > 1 && (
+        <div className="mt-4 flex items-center justify-between text-sm">
+          <p className="text-neutral-500">Page {page} of {pages}</p>
+          <div className="flex gap-2">
+            <button disabled={page <= 1} onClick={() => setPage((p) => p - 1)}
+              className="flex h-9 w-9 items-center justify-center rounded-xl border border-neutral-200 bg-white disabled:opacity-40 hover:bg-neutral-50">
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <button disabled={page >= pages} onClick={() => setPage((p) => p + 1)}
+              className="flex h-9 w-9 items-center justify-center rounded-xl border border-neutral-200 bg-white disabled:opacity-40 hover:bg-neutral-50">
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

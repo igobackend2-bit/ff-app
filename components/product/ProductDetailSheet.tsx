@@ -10,6 +10,12 @@ import { useWishlistStore } from '@/store/wishlistStore';
 import { cn, formatPrice, discountPercent } from '@/lib/utils';
 import { useUIStore } from '@/store/uiStore';
 
+/* ── helpers ── */
+function extractNumericUnit(unit: string): number {
+  const m = unit.match(/(\d+(?:\.\d+)?)/);
+  return m ? parseFloat(m[1] ?? '1') : 1;
+}
+
 export function ProductDetailSheet() {
   const { isOpen, product, closeSheet } = useProductDetailStore();
   const addItem = useCartStore((s) => s.addItem);
@@ -20,11 +26,14 @@ export function ProductDetailSheet() {
   const addToast = useUIStore((s) => s.addToast);
   const [currentImg, setCurrentImg] = useState(0);
 
+  // Weight / quantity selector state
+  const [selectedQty, setSelectedQty] = useState(1);
+
   const cartItem = product ? cartItems.find((item) => item.productId === product.id) : null;
   const quantity = cartItem?.quantity ?? 0;
 
-  // Reset image index when product changes
-  useEffect(() => { setCurrentImg(0); }, [product?.id]);
+  // Reset image index + qty when product changes
+  useEffect(() => { setCurrentImg(0); setSelectedQty(1); }, [product?.id]);
 
   // Auto-advance image slider every 3 seconds
   useEffect(() => {
@@ -44,12 +53,21 @@ export function ProductDetailSheet() {
 
   const handleAddToCart = useCallback(() => {
     if (!product) return;
-    addItem(product, 1);
-    addToast({ title: `🛒 ${product.name} added to cart!`, variant: 'success' });
-  }, [product, addItem, addToast]);
+    addItem(product, selectedQty);
+    addToast({ title: `🛒 ${product.name} ×${selectedQty} added to cart!`, variant: 'success' });
+  }, [product, addItem, addToast, selectedQty]);
 
   const discount = product ? discountPercent(product.mrp, product.price) : 0;
   const images = product?.imageUrls ?? [];
+
+  // Weight selector derived values
+  const unitNum = product ? extractNumericUnit(product.unit) : 1;
+  const isWeightUnit = product ? /kg|g\b|gm|gram|litre|ltr|ml|l\b/i.test(product.unit) : false;
+  const maxQty = 30;
+  const totalWeight = selectedQty * unitNum;
+  const unitLabel = product?.unit ?? '';
+  const totalPrice = product ? product.price * selectedQty : 0;
+  const totalMrp   = product ? product.mrp   * selectedQty : 0;
 
   return (
     <AnimatePresence>
@@ -230,13 +248,84 @@ export function ProductDetailSheet() {
                   {product.description || `Fresh ${product.name} sourced directly from verified partner farms. Harvested at peak ripeness for maximum nutrition and flavour.`}
                 </p>
               </div>
+
+              {/* ── Weight / Quantity Selector ── */}
+              <div className="mt-6 rounded-2xl border border-neutral-100 bg-neutral-50 p-4">
+                <div className="mb-3 flex items-center justify-between">
+                  <span className="text-sm font-bold text-neutral-800">
+                    {isWeightUnit ? 'Select Weight' : 'Select Quantity'}
+                  </span>
+                  <span className="rounded-xl bg-primary-600 px-3 py-1 text-sm font-black text-white">
+                    {isWeightUnit
+                      ? `${totalWeight % 1 === 0 ? totalWeight : totalWeight.toFixed(1)} ${unitLabel.replace(/\d+(?:\.\d+)?\s*/g, '').trim() || 'kg'}`
+                      : `${selectedQty} × ${unitLabel}`}
+                  </span>
+                </div>
+
+                {/* Slider */}
+                <div className="relative mt-1">
+                  <input
+                    type="range"
+                    min={1}
+                    max={maxQty}
+                    step={1}
+                    value={selectedQty}
+                    onChange={(e) => setSelectedQty(Number(e.target.value))}
+                    className="w-full accent-primary-600"
+                    style={{ accentColor: '#16a34a' }}
+                  />
+                  <div className="mt-1 flex justify-between text-[10px] font-semibold text-neutral-400">
+                    <span>{isWeightUnit ? `${unitNum} ${unitLabel.replace(/[\d.]+\s*/,'').trim() || 'kg'}` : '1'}</span>
+                    <span>{isWeightUnit ? `${maxQty * unitNum} ${unitLabel.replace(/[\d.]+\s*/,'').trim() || 'kg'}` : `${maxQty}`}</span>
+                  </div>
+                </div>
+
+                {/* Quick pick buttons */}
+                <div className="mt-3 flex gap-2 flex-wrap">
+                  {[1, 2, 5, 10, 15, 20].filter(q => q <= maxQty).map((q) => (
+                    <button
+                      key={q}
+                      onClick={() => setSelectedQty(q)}
+                      className={cn(
+                        'rounded-xl border px-3 py-1.5 text-xs font-bold transition-all',
+                        selectedQty === q
+                          ? 'border-primary-500 bg-primary-600 text-white'
+                          : 'border-neutral-200 bg-white text-neutral-600 hover:border-primary-300',
+                      )}
+                    >
+                      {isWeightUnit ? `${q * unitNum}${unitLabel.replace(/[\d.]+\s*/,'').trim() || 'kg'}` : `×${q}`}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Price breakdown */}
+                <div className="mt-4 rounded-xl border border-primary-100 bg-white p-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-neutral-500">
+                      {formatPrice(product.price)} × {selectedQty} {isWeightUnit ? (unitNum > 1 ? `packs` : `kg`) : 'unit(s)'}
+                    </span>
+                    <div className="text-right">
+                      <span className="text-lg font-black text-neutral-900">{formatPrice(totalPrice)}</span>
+                      {discount > 0 && (
+                        <span className="ml-2 text-xs text-neutral-400 line-through">{formatPrice(totalMrp)}</span>
+                      )}
+                    </div>
+                  </div>
+                  {discount > 0 && (
+                    <p className="mt-1 text-right text-[10px] font-bold text-green-600">
+                      You save {formatPrice(totalMrp - totalPrice)} ({discount}% OFF)
+                    </p>
+                  )}
+                </div>
+              </div>
             </div>
 
             {/* ── Sticky CTA ── */}
             <div className="fixed bottom-0 left-0 right-0 border-t border-neutral-100 bg-white/95 p-4 backdrop-blur-lg">
               {quantity > 0 ? (
-                <div className="flex items-center gap-4">
-                  <div className="flex items-center gap-5 rounded-2xl bg-green-50 px-5 py-3">
+                <div className="flex items-center gap-3">
+                  {/* Cart qty stepper */}
+                  <div className="flex items-center gap-4 rounded-2xl bg-green-50 px-4 py-3">
                     <button
                       onClick={() => updateQuantity(product.id, quantity - 1)}
                       className="text-primary-600 transition-transform active:scale-90"
@@ -255,11 +344,18 @@ export function ProductDetailSheet() {
                       <Plus className="h-5 w-5 stroke-[3]" />
                     </button>
                   </div>
+                  {/* Add more with selected qty */}
+                  <button
+                    onClick={handleAddToCart}
+                    className="flex-1 rounded-2xl bg-primary-600 py-3.5 text-sm font-bold text-white shadow-lg transition-all active:scale-[0.98]"
+                  >
+                    + {selectedQty} more · {formatPrice(totalPrice)}
+                  </button>
                   <button
                     onClick={closeSheet}
-                    className="flex-1 rounded-2xl bg-primary-600 py-4 text-sm font-bold text-white shadow-lg transition-all active:scale-[0.98]"
+                    className="rounded-2xl border border-neutral-200 px-4 py-3.5 text-sm font-semibold text-neutral-700 hover:bg-neutral-50"
                   >
-                    View Cart →
+                    View Cart
                   </button>
                 </div>
               ) : (
@@ -274,7 +370,9 @@ export function ProductDetailSheet() {
                   )}
                 >
                   <ShoppingCart className="h-5 w-5" />
-                  {product.inStock ? '🛒 Add to Cart' : 'Out of Stock'}
+                  {product.inStock
+                    ? `🛒 Add to Cart · ${formatPrice(totalPrice)}`
+                    : 'Out of Stock'}
                 </button>
               )}
             </div>

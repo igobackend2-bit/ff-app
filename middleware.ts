@@ -1,14 +1,10 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-// ── Middleware runs on edge — no Node.js APIs ──────────────────────────────
-
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // ── Canonical slug redirect ──────────────────────────────────────────────
-  // If a product is accessed at a wrong slug, the page itself will 301 redirect.
-  // Middleware handles the case where URL has uppercase characters in slug.
+  // Canonical slug redirect
   if (pathname.startsWith('/product/') || pathname.startsWith('/category/')) {
     const lowercasePath = pathname.toLowerCase();
     if (pathname !== lowercasePath) {
@@ -18,17 +14,39 @@ export function middleware(request: NextRequest) {
     }
   }
 
-  // ── Auth-gated routes ────────────────────────────────────────────────────
-  const protectedPaths = ['/account', '/checkout', '/orders'];
+  // Admin routes — skip login page and the login/me API endpoints
+  const isAdminRoute = pathname.startsWith('/admin') || pathname.startsWith('/api/admin');
+  const isAdminPublic =
+    pathname === '/admin/login' ||
+    pathname === '/api/admin/login' ||
+    pathname === '/api/admin/me';
+
+  if (isAdminRoute && !isAdminPublic) {
+    const adminAuth  = request.cookies.get('ff_adm_s');
+    const loginTime  = parseInt(adminAuth?.value ?? '0', 10);
+    const SESSION_MS = 60 * 60 * 2 * 1000; // 2 hours
+    const valid      = loginTime > 0 && (Date.now() - loginTime) < SESSION_MS;
+    if (!valid) {
+      const loginUrl = request.nextUrl.clone();
+      loginUrl.pathname = '/admin/login';
+      const redirectRes = NextResponse.redirect(loginUrl);
+      redirectRes.cookies.set('ff_admin',  '', { path: '/', maxAge: 0 }); // clear legacy
+      redirectRes.cookies.set('ff_adm_s', '', { path: '/', maxAge: 0 }); // clear expired
+      return redirectRes;
+    }
+  }
+
+  // Auth-gated user routes
+  const protectedPaths = ['/checkout', '/orders'];
   const isProtected = protectedPaths.some((p) => pathname.startsWith(p));
 
   if (isProtected) {
-    // Check session cookie presence (full validation is done in route handlers)
+    const ffAuth = request.cookies.get('ff_auth');
     const sessionToken =
       request.cookies.get('next-auth.session-token') ??
       request.cookies.get('__Secure-next-auth.session-token');
 
-    if (!sessionToken) {
+    if (!ffAuth && !sessionToken) {
       const loginUrl = request.nextUrl.clone();
       loginUrl.pathname = '/login';
       loginUrl.searchParams.set('callbackUrl', pathname);
@@ -41,14 +59,6 @@ export function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths EXCEPT:
-     * - _next/static (static files)
-     * - _next/image (image optimisation)
-     * - favicon.ico
-     * - public folder assets
-     * - API routes (handled individually)
-     */
-    '/((?!_next/static|_next/image|favicon.ico|icons/|screenshots/|sw.js|workbox-.*|.*\\.(?:png|jpg|jpeg|svg|gif|webp|ico|woff2?)).*)',
+    '/((?!_next/static|_next/image|favicon.ico|icons/|screenshots/|sw.js|workbox-.*|.*\\.html|.*\\.(?:png|jpg|jpeg|svg|gif|webp|jfif|ico|woff2?)).*)',
   ],
 };

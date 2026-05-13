@@ -5,11 +5,11 @@ import { X } from 'lucide-react';
 import { useUIStore } from '@/store/uiStore';
 import { OtpLoginForm } from './OtpLoginForm';
 import { useEffect } from 'react';
+import Image from 'next/image';
 
 export function AuthModal() {
   const { isAuthModalOpen, closeAuthModal } = useUIStore();
 
-  // Disable scroll when open
   useEffect(() => {
     if (isAuthModalOpen) {
       document.body.style.overflow = 'hidden';
@@ -19,7 +19,6 @@ export function AuthModal() {
     return () => { document.body.style.overflow = ''; };
   }, [isAuthModalOpen]);
 
-  // Close on Escape key
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
       if (e.key === 'Escape') closeAuthModal();
@@ -38,21 +37,21 @@ export function AuthModal() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={closeAuthModal}
-            className="absolute inset-0 bg-neutral-900/60 backdrop-blur-sm"
+            className="absolute inset-0 bg-neutral-900/40 backdrop-blur-md"
           />
 
-          {/* Modal Content */}
+          {/* Modal */}
           <motion.div
             initial={{ scale: 0.9, opacity: 0, y: 20 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
             exit={{ scale: 0.9, opacity: 0, y: 20 }}
             transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-            className="relative w-full max-w-md overflow-hidden rounded-3xl bg-white p-6 shadow-2xl shadow-neutral-900/10 md:p-8"
+            className="relative w-full max-w-md overflow-hidden rounded-[32px] border border-white/20 bg-white/95 p-6 shadow-[0_32px_64px_-16px_rgba(0,0,0,0.15)] backdrop-blur-xl md:p-8"
           >
-            {/* Close Button */}
+            {/* Close button */}
             <button
               onClick={closeAuthModal}
-              className="absolute right-4 top-4 rounded-full p-2 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600"
+              className="absolute right-6 top-6 z-10 flex h-10 w-10 items-center justify-center rounded-full border border-neutral-200/50 bg-white/50 text-neutral-400 transition-all hover:bg-white hover:text-neutral-900 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-primary-600/20 active:scale-95"
               aria-label="Close modal"
             >
               <X className="h-5 w-5" />
@@ -60,16 +59,30 @@ export function AuthModal() {
 
             {/* Header */}
             <div className="mb-8 text-center">
-              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary-50">
-                <span className="text-3xl">🧺</span>
+              <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center overflow-hidden rounded-2xl bg-neutral-50 shadow-inner">
+                <Image
+                  src="/logo.jpg"
+                  alt="Farmers Factory Logo"
+                  width={80}
+                  height={80}
+                  className="h-full w-full object-cover"
+                  priority
+                  onError={(e) => {
+                    const el = e.target as HTMLImageElement;
+                    el.style.display = 'none';
+                    el.parentElement!.innerHTML = '<span class="text-3xl font-black text-primary-600">F</span>';
+                  }}
+                />
               </div>
-              <h2 className="text-2xl font-bold text-neutral-900">Welcome Back</h2>
-              <p className="mt-2 text-neutral-500">
-                Sign in to manage orders, tracks and more
+              <h2 className="text-2xl font-black tracking-tight text-neutral-900">
+                Welcome to Farmers<span className="text-primary-600">Factory</span>
+              </h2>
+              <p className="mt-2 text-sm font-medium text-neutral-500">
+                Fresh from farms to your doorstep
               </p>
             </div>
 
-            <OtpLoginForm />
+            <OtpLoginForm onSuccess={closeAuthModal} />
           </motion.div>
         </div>
       )}

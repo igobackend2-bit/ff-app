@@ -44,6 +44,7 @@ export interface CartItem {
   productId: string;
   product: Product;
   quantity: number;
+  weight?: number;
 }
 
 export interface Address {
@@ -79,10 +80,17 @@ export interface Order {
 export interface OrderItem {
   id: string;
   productId: string;
+  /** Flat fields returned by /api/orders */
+  name: string;
+  unit: string;
+  slug: string;
+  imageUrls: string[];
   quantity: number;
   unitPrice: number;
-  total: number;
-  product: Pick<Product, 'name' | 'imageUrls' | 'unit' | 'slug'>;
+  weight?: number;
+  total?: number;
+  /** Legacy nested shape – kept for mock/static pages only */
+  product?: Pick<Product, 'name' | 'imageUrls' | 'unit' | 'slug'>;
 }
 
 export type OrderStatus =
@@ -104,6 +112,7 @@ export interface User {
   avatarUrl: string | null;
   referralCode: string | null;
   loyaltyPoints: number;
+  walletBalance: number;
 }
 
 export interface Toast {

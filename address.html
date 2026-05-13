@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Saved Addresses — Farmers Factory</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700&family=Poppins:wght@600;700;800&display=swap"/>
+  <link rel="stylesheet" href="css/app.css"/>
+  <style>
+    *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+    body{background:#F5FAF6;font-family:'Nunito',sans-serif;margin:0;padding:0;max-width:390px;margin:0 auto;}
+    .page-header{position:sticky;top:0;z-index:50;background:#F5FAF6;display:flex;align-items:center;padding:14px 16px;border-bottom:1px solid #E8F0EB;}
+    .back-btn{background:none;border:none;font-size:1.4rem;cursor:pointer;color:#1A2E1F;padding:4px 8px 4px 0;}
+    .page-title{flex:1;text-align:center;font-family:'Poppins',sans-serif;font-size:1.05rem;font-weight:700;color:#1A2E1F;margin:0;}
+    .page-header-spacer{width:36px;}
+    .page-content{padding:16px 16px 140px;}
+    /* Address cards */
+    .addr-card{background:#fff;border-radius:16px;border:1px solid #E8F0EB;padding:16px;margin-bottom:12px;position:relative;}
+    .addr-label-badge{display:inline-block;font-size:.7rem;font-weight:700;border-radius:6px;padding:3px 9px;margin-bottom:8px;letter-spacing:.3px;}
+    .badge-home{background:#E8F5EE;color:#2E7D4F;}
+    .badge-work{background:#E3F2FD;color:#1565C0;}
+    .badge-other{background:#F5F5F5;color:#616161;}
+    .addr-text{font-size:.9rem;color:#1A2E1F;font-weight:600;line-height:1.4;margin-bottom:4px;}
+    .addr-city{font-size:.8rem;color:#6B8A73;}
+    .addr-actions{position:absolute;top:12px;right:12px;display:flex;gap:8px;}
+    .addr-act-btn{background:none;border:none;cursor:pointer;font-size:1rem;padding:4px;line-height:1;}
+    /* Empty state */
+    .empty-state{text-align:center;padding:56px 24px;}
+    .empty-icon{font-size:3rem;margin-bottom:12px;}
+    .empty-title{font-family:'Poppins',sans-serif;font-size:1rem;font-weight:700;color:#1A2E1F;margin-bottom:6px;}
+    .empty-sub{font-size:.85rem;color:#6B8A73;}
+    /* Add button */
+    .add-btn-wrap{position:fixed;bottom:72px;left:0;right:0;max-width:390px;margin:0 auto;padding:0 16px;}
+    .add-btn{width:100%;padding:15px;background:#2E7D4F;color:#fff;border:none;border-radius:14px;font-size:1rem;font-weight:700;font-family:'Poppins',sans-serif;cursor:pointer;box-shadow:0 4px 16px rgba(46,125,79,.25);}
+    /* Bottom sheet */
+    .sheet-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:100;display:none;align-items:flex-end;justify-content:center;}
+    .sheet-backdrop.open{display:flex;}
+    .sheet{background:#fff;border-radius:20px 20px 0 0;padding:20px 20px 40px;width:100%;max-width:390px;animation:slideUp .28s ease;}
+    @keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+    .sheet-handle{width:40px;height:4px;background:#D4E8DA;border-radius:4px;margin:0 auto 18px;}
+    .sheet-title{font-family:'Poppins',sans-serif;font-size:1rem;font-weight:700;color:#1A2E1F;margin-bottom:16px;}
+    /* Label toggle */
+    .label-toggle{display:flex;gap:8px;margin-bottom:16px;}
+    .label-pill{flex:1;text-align:center;padding:9px;border-radius:20px;border:1.5px solid #D4E8DA;font-size:.82rem;font-weight:700;cursor:pointer;transition:all .15s;color:#6B8A73;background:#fff;}
+    .label-pill.active{background:#2E7D4F;border-color:#2E7D4F;color:#fff;}
+    /* Form */
+    .form-group{margin-bottom:12px;}
+    .form-label{display:block;font-size:.78rem;font-weight:700;color:#1A2E1F;margin-bottom:4px;}
+    .form-input,.form-textarea{width:100%;border:1.5px solid #D4E8DA;border-radius:10px;padding:11px 13px;font-size:.9rem;font-family:'Nunito',sans-serif;color:#1A2E1F;outline:none;transition:border-color .2s;}
+    .form-input:focus,.form-textarea:focus{border-color:#2E7D4F;}
+    .form-textarea{resize:none;}
+    .gps-btn{width:100%;padding:11px;background:#E8F5EE;border:1.5px solid #C8E6D4;border-radius:10px;color:#2E7D4F;font-size:.85rem;font-weight:700;cursor:pointer;margin-bottom:14px;font-family:'Nunito',sans-serif;}
+    .gps-btn:disabled{opacity:.6;cursor:not-allowed;}
+    .sheet-save-btn{width:100%;padding:14px;background:#2E7D4F;color:#fff;border:none;border-radius:12px;font-size:1rem;font-weight:700;font-family:'Poppins',sans-serif;cursor:pointer;margin-top:4px;}
+    .sheet-save-btn:disabled{opacity:.6;cursor:not-allowed;}
+    /* Bottom nav */
+    .bottom-nav{position:fixed;bottom:0;left:0;right:0;max-width:390px;margin:0 auto;background:#fff;border-top:1px solid #E8F0EB;display:flex;height:60px;z-index:40;}
+    .nav-item{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;text-decoration:none;color:#6B8A73;font-size:.62rem;font-weight:600;}
+    .nav-item.active,.nav-item:active{color:#2E7D4F;}
+    .nav-icon{font-size:1.2rem;}
+    /* Toast */
+    #toast-container{position:fixed;bottom:74px;left:50%;transform:translateX(-50%);z-index:9999;display:flex;flex-direction:column;align-items:center;gap:8px;pointer-events:none;width:max-content;max-width:90vw;}
+    .toast{background:#2E7D4F;color:#fff;padding:10px 22px;border-radius:20px;font-size:.88rem;font-weight:600;animation:tIn .3s ease;}
+    .toast.error{background:#E53935;}
+    .toast.out{animation:tOut .3s ease forwards;}
+    @keyframes tIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+    @keyframes tOut{to{opacity:0;transform:translateY(8px)}}
+    .spinner{text-align:center;padding:48px;font-size:2rem;}
+    .hidden{display:none!important;}
+  </style>
+</head>
+<body>
+<div id="toast-container"></div>
+
+<!-- Header -->
+<div class="page-header">
+  <button class="back-btn" onclick="history.back()">←</button>
+  <h1 class="page-title">Saved Addresses</h1>
+  <div class="page-header-spacer"></div>
+</div>
+
+<!-- Content -->
+<div class="page-content">
+  <div id="addr-list"><div class="spinner">🌿</div></div>
+</div>
+
+<!-- Add Button -->
+<div class="add-btn-wrap">
+  <button class="add-btn" onclick="openSheet()">+ Add New Address</button>
+</div>
+
+<!-- Bottom Sheet -->
+<div class="sheet-backdrop" id="sheet-backdrop" onclick="onBackdropClick(event)">
+  <div class="sheet" id="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title" id="sheet-title">Add New Address</div>
+
+    <!-- Label picker -->
+    <div class="label-toggle">
+      <div class="label-pill active" data-label="Home" onclick="selectLabel(this)">🏠 Home</div>
+      <div class="label-pill" data-label="Work" onclick="selectLabel(this)">💼 Work</div>
+      <div class="label-pill" data-label="Other" onclick="selectLabel(this)">📌 Other</div>
+    </div>
+
+    <!-- GPS -->
+    <button class="gps-btn" id="gps-btn" onclick="detectGPS()">📡 Use GPS Location</button>
+
+    <div class="form-group">
+      <label class="form-label">Full Address</label>
+      <textarea class="form-textarea" id="f-address" rows="3" placeholder="Door no., Street, Area…"></textarea>
+    </div>
+    <div class="form-group">
+      <label class="form-label">City</label>
+      <input class="form-input" id="f-city" type="text" placeholder="City"/>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Pincode</label>
+      <input class="form-input" id="f-pincode" type="tel" inputmode="numeric" maxlength="6" placeholder="6-digit pincode"/>
+    </div>
+
+    <button class="sheet-save-btn" id="sheet-save-btn" onclick="saveAddress()">Save Address</button>
+  </div>
+</div>
+
+<!-- Bottom Nav -->
+<nav class="bottom-nav">
+  <a href="index.html"   class="nav-item"><span class="nav-icon">🏠</span><span>Home</span></a>
+  <a href="wishlist.html"class="nav-item"><span class="nav-icon">❤️</span><span>Wishlist</span></a>
+  <a href="cart.html"    class="nav-item"><span class="nav-icon">🛒</span><span>Cart</span></a>
+  <a href="orders.html"  class="nav-item"><span class="nav-icon">📋</span><span>Orders</span></a>
+  <a href="account.html" class="nav-item active"><span class="nav-icon" style="color:#2E7D4F">👤</span><span style="color:#2E7D4F">Account</span></a>
+</nav>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/supabase.js"></script>
+<script src="js/auth.js"></script>
+<script>
+var _user = null;
+var _editId = null;
+var _selectedLabel = 'Home';
+var _addresses = [];
+
+function showToast(msg,type){
+  type=type||'success';
+  var c=document.getElementById('toast-container');
+  var t=document.createElement('div');
+  t.className='toast '+(type||'');
+  t.textContent=msg;
+  c.appendChild(t);
+  setTimeout(function(){t.classList.add('out');setTimeout(function(){t.remove();},300);},2800);
+}
+
+function labelClass(l){return l==='Home'?'badge-home':l==='Work'?'badge-work':'badge-other';}
+
+function renderAddresses(){
+  var list=document.getElementById('addr-list');
+  if(!_addresses||_addresses.length===0){
+    list.innerHTML='<div class="empty-state"><div class="empty-icon">📍</div><div class="empty-title">No saved addresses yet</div><div class="empty-sub">Add an address to get started</div></div>';
+    return;
+  }
+  list.innerHTML=_addresses.map(function(a){
+    return '<div class="addr-card" id="card-'+a.id+'">' +
+      '<div class="addr-actions">' +
+        '<button class="addr-act-btn" onclick="editAddress(\''+a.id+'\')" title="Edit">✏️</button>' +
+        '<button class="addr-act-btn" onclick="deleteAddress(\''+a.id+'\')" title="Delete">🗑️</button>' +
+      '</div>' +
+      '<span class="addr-label-badge '+labelClass(a.label)+'">'+(a.label||'Other')+'</span>' +
+      '<div class="addr-text">'+(a.full_address||'')+'</div>' +
+      '<div class="addr-city">'+(a.city||'')+' '+(a.pincode?'– '+a.pincode:'')+'</div>' +
+    '</div>';
+  }).join('');
+}
+
+async function loadAddresses(){
+  if(!_user)return;
+  try{
+    var r=await window.db.from('addresses').select('*').eq('user_id',_user.id).order('created_at',{ascending:true});
+    _addresses=r.data||[];
+    renderAddresses();
+  }catch(e){
+    document.getElementById('addr-list').innerHTML='<div class="empty-state"><div class="empty-title">Could not load addresses</div></div>';
+  }
+}
+
+function selectLabel(el){
+  document.querySelectorAll('.label-pill').forEach(function(p){p.classList.remove('active');});
+  el.classList.add('active');
+  _selectedLabel=el.dataset.label;
+}
+
+function openSheet(){
+  _editId=null;
+  _selectedLabel='Home';
+  document.getElementById('sheet-title').textContent='Add New Address';
+  document.getElementById('sheet-save-btn').textContent='Save Address';
+  document.querySelectorAll('.label-pill').forEach(function(p,i){p.classList.toggle('active',i===0);});
+  document.getElementById('f-address').value='';
+  document.getElementById('f-city').value='';
+  document.getElementById('f-pincode').value='';
+  document.getElementById('sheet-backdrop').classList.add('open');
+}
+
+function closeSheet(){document.getElementById('sheet-backdrop').classList.remove('open');}
+
+function onBackdropClick(e){if(e.target===document.getElementById('sheet-backdrop'))closeSheet();}
+
+function editAddress(id){
+  var a=_addresses.find(function(x){return x.id===id;});
+  if(!a)return;
+  _editId=id;
+  _selectedLabel=a.label||'Home';
+  document.getElementById('sheet-title').textContent='Edit Address';
+  document.getElementById('sheet-save-btn').textContent='Update Address';
+  document.querySelectorAll('.label-pill').forEach(function(p){
+    p.classList.toggle('active',p.dataset.label===_selectedLabel);
+  });
+  document.getElementById('f-address').value=a.full_address||'';
+  document.getElementById('f-city').value=a.city||'';
+  document.getElementById('f-pincode').value=a.pincode||'';
+  document.getElementById('sheet-backdrop').classList.add('open');
+}
+
+async function deleteAddress(id){
+  if(!confirm('Delete this address?'))return;
+  try{
+    await window.db.from('addresses').delete().eq('id',id);
+    _addresses=_addresses.filter(function(a){return a.id!==id;});
+    renderAddresses();
+    showToast('Address deleted','success');
+  }catch(e){showToast('Could not delete address','error');}
+}
+
+async function saveAddress(){
+  var addr=document.getElementById('f-address').value.trim();
+  var city=document.getElementById('f-city').value.trim();
+  var pin =document.getElementById('f-pincode').value.trim();
+  if(!addr){showToast('Enter full address','error');return;}
+  if(!city){showToast('Enter city','error');return;}
+  if(!/^\d{6}$/.test(pin)){showToast('Enter a valid 6-digit pincode','error');return;}
+  var btn=document.getElementById('sheet-save-btn');
+  btn.disabled=true; btn.textContent='Saving…';
+  try{
+    if(_editId){
+      var r=await window.db.from('addresses').update({label:_selectedLabel,full_address:addr,city:city,pincode:pin}).eq('id',_editId).select().single();
+      if(r.error)throw r.error;
+      var idx=_addresses.findIndex(function(a){return a.id===_editId;});
+      if(idx>=0)_addresses[idx]=r.data;
+    }else{
+      var r=await window.db.from('addresses').insert([{user_id:_user.id,label:_selectedLabel,full_address:addr,city:city,pincode:pin}]).select().single();
+      if(r.error)throw r.error;
+      _addresses.push(r.data);
+    }
+    renderAddresses();
+    closeSheet();
+    showToast('Address saved ✅','success');
+  }catch(e){showToast('Could not save address. Try again.','error');}
+  btn.disabled=false; btn.textContent=(_editId?'Update':'Save')+' Address';
+}
+
+async function detectGPS(){
+  if(!navigator.geolocation){showToast('GPS not supported on this device','error');return;}
+  var btn=document.getElementById('gps-btn');
+  btn.disabled=true; btn.textContent='📡 Detecting…';
+  navigator.geolocation.getCurrentPosition(async function(pos){
+    try{
+      var lat=pos.coords.latitude, lon=pos.coords.longitude;
+      var r=await fetch('https://nominatim.openstreetmap.org/reverse?format=json&lat='+lat+'&lon='+lon,{headers:{'Accept-Language':'en','User-Agent':'FarmersFactory/1.0'}});
+      var d=await r.json();
+      var a=d.address||{};
+      var street=[a.house_number,a.road,a.neighbourhood||a.suburb].filter(Boolean).join(', ');
+      var city=a.city||a.town||a.village||a.county||'';
+      var pin=a.postcode||'';
+      document.getElementById('f-address').value=street;
+      document.getElementById('f-city').value=city;
+      document.getElementById('f-pincode').value=pin.replace(/\D/g,'').slice(0,6);
+      showToast('Location detected ✅','success');
+    }catch(e){showToast('Could not fetch address. Fill manually.','error');}
+    btn.disabled=false; btn.textContent='📡 Use GPS Location';
+  },function(){
+    showToast('Location access denied','error');
+    btn.disabled=false; btn.textContent='📡 Use GPS Location';
+  });
+}
+
+window.addEventListener('load',function(){
+  var cached=null;
+  try{cached=JSON.parse(localStorage.getItem('ff_user'));}catch(e){}
+  if(!cached){window.location.replace('login.html');return;}
+  _user=cached;
+  loadAddresses();
+});
+</script>
+</body>
+</html>

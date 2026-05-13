@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin Login — Farmers Factory</title>
+  <link rel="stylesheet" href="../css/app.css" />
+</head>
+<body>
+<div id="toast-container"></div>
+
+<div class="auth-page">
+  <div class="auth-card">
+    <div class="auth-header">
+      <div class="auth-logo">⚙️</div>
+      <h1>Admin Panel</h1>
+      <p>Farmers Factory</p>
+    </div>
+
+    <div class="input-group">
+      <label class="input-label" for="username">Username</label>
+      <input class="input-field" id="username" type="text" placeholder="Admin username" autocomplete="username" onkeydown="if(event.key==='Enter')doLogin()" />
+    </div>
+    <div class="input-group">
+      <label class="input-label" for="password">Password</label>
+      <input class="input-field" id="password" type="password" placeholder="Admin password" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()" />
+    </div>
+
+    <div class="error-msg" id="error-msg">Invalid username or password</div>
+
+    <button class="btn-primary" id="login-btn" onclick="doLogin()">Log In</button>
+  </div>
+</div>
+
+<script>
+  var ADMIN_USER = 'ffadmin';
+  var ADMIN_PASS = 'FF@admin2024';
+
+  // Already logged in?
+  if (localStorage.getItem('ff_admin') === 'true') {
+    window.location.replace('dashboard.html');
+  }
+
+  function doLogin() {
+    var user = document.getElementById('username').value.trim();
+    var pass = document.getElementById('password').value;
+    var errEl = document.getElementById('error-msg');
+    var card  = document.querySelector('.auth-card');
+    var btn   = document.getElementById('login-btn');
+
+    errEl.classList.remove('show');
+
+    if (user === ADMIN_USER && pass === ADMIN_PASS) {
+      btn.disabled = true;
+      btn.textContent = 'Logging in…';
+      localStorage.setItem('ff_admin', 'true');
+      window.location.href = 'dashboard.html';
+    } else {
+      errEl.classList.add('show');
+      card.classList.add('shake');
+      setTimeout(function() { card.classList.remove('shake'); }, 600);
+      document.getElementById('password').value = '';
+      document.getElementById('password').focus();
+    }
+  }
+</script>
+</body>
+</html>

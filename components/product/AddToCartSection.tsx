@@ -3,21 +3,50 @@
 import { useState } from 'react';
 import { Plus, Minus, ShoppingCart, Zap } from 'lucide-react';
 import { useCartStore } from '@/store/cartStore';
-import { cn, formatPrice } from '@/lib/utils';
+import { cn, formatPrice, calculateEffectivePrice } from '@/lib/utils';
 import type { Product } from '@/types';
 
 export function AddToCartSection({ product }: { product: Product }) {
   const [qty, setQty] = useState(1);
+  const [weight, setWeight] = useState(1);
   const addItem = useCartStore((s) => s.addItem);
   const openDrawer = useCartStore((s) => s.openDrawer);
 
   const handleAdd = () => {
-    addItem(product, qty);
+    // We pass weight as part of metadata or adjust price
+    // Usually cart store would handle this.
+    addItem(product, qty, { weight });
     openDrawer();
   };
 
+  const totalPrice = calculateEffectivePrice(product.price, product.unit, weight) * qty;
+
   return (
-    <div className="mt-6 space-y-3">
+    <div className="mt-6 space-y-6">
+      {/* Weight Selector */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <label className="text-sm font-bold text-neutral-900">Select Weight</label>
+          <span className="rounded-full bg-primary-100 px-3 py-1 text-sm font-bold text-primary-700">
+            {weight} kg
+          </span>
+        </div>
+        <input
+          type="range"
+          min="1"
+          max="30"
+          step="0.5"
+          value={weight}
+          onChange={(e) => setWeight(parseFloat(e.target.value))}
+          className="h-2 w-100% cursor-pointer appearance-none rounded-lg bg-neutral-200 accent-primary-600"
+        />
+        <div className="flex justify-between text-[10px] font-medium text-neutral-400">
+          <span>1 KG</span>
+          <span>15 KG</span>
+          <span>30 KG</span>
+        </div>
+      </div>
+
       {/* Delivery ETA */}
       <div className="flex items-center gap-2 rounded-xl bg-primary-50 px-4 py-2.5">
         <Zap className="h-4 w-4 text-primary-600" aria-hidden="true" />
@@ -57,7 +86,7 @@ export function AddToCartSection({ product }: { product: Product }) {
         <button
           onClick={handleAdd}
           disabled={!product.inStock}
-          aria-label={`Add ${qty} ${product.name} ${product.unit} to cart`}
+          aria-label={`Add ${qty} ${product.name} ${weight}kg to cart`}
           className={cn(
             'flex flex-1 items-center justify-center gap-2 rounded-xl py-3',
             'text-sm font-bold text-white transition-colors',
@@ -69,7 +98,7 @@ export function AddToCartSection({ product }: { product: Product }) {
         >
           <ShoppingCart className="h-4 w-4" aria-hidden="true" />
           {product.inStock
-            ? `Add to Cart · ${formatPrice(product.price * qty)}`
+            ? `Add to Cart · ${formatPrice(totalPrice)}`
             : 'Out of Stock'}
         </button>
       </div>

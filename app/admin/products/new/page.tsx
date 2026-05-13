@@ -1,12 +1,21 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Save, Loader2 } from 'lucide-react';
+import { ArrowLeft, Save, Loader2, Upload, X, ImageIcon } from 'lucide-react';
 import Link from 'next/link';
 
 interface Category { id: string; name: string; slug: string; }
 interface Brand { id: string; name: string; slug: string; }
+
+const Field = ({ label, children }: { label: string; children: React.ReactNode }) => (
+  <div>
+    <label className="mb-1.5 block text-sm font-semibold text-neutral-700">{label}</label>
+    {children}
+  </div>
+);
+
+const inputCls = 'w-full rounded-xl border border-neutral-200 bg-white px-3 py-2.5 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100';
 
 export default function NewProductPage() {
   const router = useRouter();
@@ -15,18 +24,23 @@ export default function NewProductPage() {
   const [brands, setBrands] = useState<Brand[]>([]);
   const [error, setError] = useState('');
 
+  // Image state — base64 data URL stored and sent to server
+  const [imagePreview, setImagePreview] = useState<string>('');
+  const [imageBase64, setImageBase64] = useState<string>('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const [form, setForm] = useState({
     name: '', slug: '', description: '', categorySlug: '',
     brandSlug: '', price: '', mrp: '', unit: '',
-    tags: '', imageUrl: '', inStock: true, isFeatured: false,
+    tags: '', inStock: true, isFeatured: false,
   });
 
   useEffect(() => {
     Promise.all([
       fetch('/api/categories').then((r) => r.json()),
-      fetch('/api/admin/products?limit=1').then(() => []), // just to warm up; brands come from separate endpoint
+      fetch('/api/admin/products?limit=1').then(() => []), // just to warm up
     ]).then(([catData]) => {
-      setCategories((catData as { categories: Category[] }).categories ?? []);
+      setCategories((catData as { data: Category[] }).data ?? []);
     }).catch(console.error);
 
     // Also fetch brands directly from products list
@@ -35,6 +49,25 @@ export default function NewProductPage() {
 
   const slugify = (s: string) =>
     s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+
+  const handleImageChange = (file: File | null) => {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { setError('Please select a valid image file.'); return; }
+    if (file.size > 5 * 1024 * 1024) { setError('Image must be under 5 MB.'); return; }
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const result = ev.target?.result as string;
+      setImagePreview(result);
+      setImageBase64(result);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    const file = e.dataTransfer.files[0] ?? null;
+    handleImageChange(file);
+  };
 
   const handleNameChange = (name: string) => {
     setForm((f) => ({ ...f, name, slug: slugify(name) }));
@@ -57,7 +90,7 @@ export default function NewProductPage() {
           price: Number(form.price),
           mrp: form.mrp ? Number(form.mrp) : Number(form.price),
           tags: form.tags.split(',').map((t) => t.trim()).filter(Boolean),
-          imageUrls: form.imageUrl ? [form.imageUrl] : [],
+          imageUrls: imageBase64 ? [imageBase64] : [],
           blurDataUrls: [],
         }),
       });
@@ -73,14 +106,6 @@ export default function NewProductPage() {
     }
   };
 
-  const Field = ({ label, children }: { label: string; children: React.ReactNode }) => (
-    <div>
-      <label className="mb-1.5 block text-sm font-semibold text-neutral-700">{label}</label>
-      {children}
-    </div>
-  );
-
-  const inputCls = 'w-full rounded-xl border border-neutral-200 bg-white px-3 py-2.5 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100';
 
   return (
     <div className="mx-auto max-w-2xl">
@@ -160,11 +185,59 @@ export default function NewProductPage() {
         <div className="rounded-2xl border border-neutral-100 bg-white p-6 shadow-sm">
           <h2 className="mb-4 text-sm font-bold text-neutral-700">Image & Tags</h2>
           <div className="space-y-4">
-            <Field label="Image URL">
-              <input type="url" value={form.imageUrl}
-                onChange={(e) => setForm((f) => ({ ...f, imageUrl: e.target.value }))}
-                placeholder="https://..." className={inputCls} />
-            </Field>
+            {/* File Upload */}
+            <div>
+              <label className="mb-1.5 block text-sm font-semibold text-neutral-700">Product Image</label>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => handleImageChange(e.target.files?.[0] ?? null)}
+              />
+              {imagePreview ? (
+                <div className="relative inline-block">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={imagePreview}
+                    alt="Preview"
+                    className="h-40 w-40 rounded-2xl object-cover border-2 border-neutral-200 shadow-sm"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => { setImagePreview(''); setImageBase64(''); if (fileInputRef.current) fileInputRef.current.value = ''; }}
+                    className="absolute -right-2 -top-2 flex h-7 w-7 items-center justify-center rounded-full bg-red-500 text-white shadow-md hover:bg-red-600"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="mt-2 block w-40 rounded-xl border border-neutral-200 bg-white py-1.5 text-center text-xs font-semibold text-neutral-600 hover:bg-neutral-50"
+                  >
+                    Change Image
+                  </button>
+                </div>
+              ) : (
+                <div
+                  onDrop={handleDrop}
+                  onDragOver={(e) => e.preventDefault()}
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex cursor-pointer flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-neutral-200 bg-neutral-50 p-8 transition-colors hover:border-primary-400 hover:bg-primary-50/30"
+                >
+                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white shadow-sm border border-neutral-200">
+                    <ImageIcon className="h-6 w-6 text-neutral-400" />
+                  </div>
+                  <div className="text-center">
+                    <p className="text-sm font-semibold text-neutral-700">
+                      <Upload className="mr-1 inline h-3.5 w-3.5" />Click to upload or drag & drop
+                    </p>
+                    <p className="mt-0.5 text-xs text-neutral-400">PNG, JPG, WebP up to 5 MB</p>
+                  </div>
+                </div>
+              )}
+            </div>
+
             <Field label="Tags (comma separated)">
               <input type="text" value={form.tags}
                 onChange={(e) => setForm((f) => ({ ...f, tags: e.target.value }))}

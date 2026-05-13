@@ -1,6 +1,7 @@
 // Cart Store (Skill #6 — Zustand with persistence, Skill #49 — state before UI)
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
+import { calculateEffectivePrice } from '@/lib/utils';
 import type { CartItem, Product } from '@/types';
 
 interface CartState {
@@ -9,9 +10,9 @@ interface CartState {
   isDrawerOpen: boolean;
 
   // Actions
-  addItem: (product: Product, quantity?: number) => void;
-  removeItem: (productId: string) => void;
-  updateQuantity: (productId: string, quantity: number) => void;
+  addItem: (product: Product, quantity?: number, options?: { weight?: number }) => void;
+  removeItem: (productId: string, weight?: number) => void;
+  updateQuantity: (productId: string, quantity: number, weight?: number) => void;
   clearCart: () => void;
   openDrawer: () => void;
   closeDrawer: () => void;
@@ -33,14 +34,18 @@ export const useCartStore = create<CartState>()(
       items: [],
       isDrawerOpen: false,
 
-      addItem: (product, quantity = 1) => {
+      addItem: (product, quantity = 1, options = {}) => {
+        const weight = options.weight || 1;
         set((state) => {
-          const existing = state.items.find((i) => i.productId === product.id);
+          // Identify unique item by ID AND weight
+          const existing = state.items.find(
+            (i) => i.productId === product.id && i.weight === weight
+          );
 
           if (existing) {
             return {
               items: state.items.map((i) =>
-                i.productId === product.id
+                i.productId === product.id && i.weight === weight
                   ? { ...i, quantity: i.quantity + quantity }
                   : i,
               ),
@@ -50,26 +55,28 @@ export const useCartStore = create<CartState>()(
           return {
             items: [
               ...state.items,
-              { productId: product.id, product, quantity },
+              { productId: product.id, product, quantity, weight },
             ],
           };
         });
       },
 
-      removeItem: (productId) => {
+      removeItem: (productId, weight = 1) => {
         set((state) => ({
-          items: state.items.filter((i) => i.productId !== productId),
+          items: state.items.filter(
+            (i) => !(i.productId === productId && (i.weight === weight || !i.weight && weight === 1))
+          ),
         }));
       },
 
-      updateQuantity: (productId, quantity) => {
+      updateQuantity: (productId, quantity, weight = 1) => {
         if (quantity <= 0) {
-          get().removeItem(productId);
+          get().removeItem(productId, weight);
           return;
         }
         set((state) => ({
           items: state.items.map((i) =>
-            i.productId === productId ? { ...i, quantity } : i,
+            i.productId === productId && (i.weight === weight || !i.weight && weight === 1) ? { ...i, quantity } : i,
           ),
         }));
       },
@@ -104,13 +111,18 @@ export const useCartStore = create<CartState>()(
       totalItems: () => get().items.reduce((sum, i) => sum + i.quantity, 0),
 
       subtotal: () =>
-        get().items.reduce((sum, i) => sum + i.product.price * i.quantity, 0),
-
-      totalSavings: () =>
         get().items.reduce(
-          (sum, i) => sum + (i.product.mrp - i.product.price) * i.quantity,
+          (sum, i) =>
+            sum + calculateEffectivePrice(i.product.price, i.product.unit, i.weight) * i.quantity,
           0,
         ),
+
+      totalSavings: () =>
+        get().items.reduce((sum, i) => {
+          const savingsPerUnit = i.product.mrp - i.product.price;
+          const effectiveSavings = calculateEffectivePrice(savingsPerUnit, i.product.unit, i.weight);
+          return sum + effectiveSavings * i.quantity;
+        }, 0),
 
       isEmpty: () => get().items.length === 0,
     }),

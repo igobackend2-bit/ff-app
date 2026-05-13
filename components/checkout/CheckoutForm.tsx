@@ -1,231 +1,328 @@
 'use client';
 
-// Skill #16 — Razorpay loaded dynamically at checkout ONLY
-// Skill #30 — All inputs have <label>
-// Skill #17 — Zod validation
-// Skill #39 — CSRF double-submit cookie
-
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import dynamic from 'next/dynamic';
+import { useRouter } from 'next/navigation';
 import { useCartStore } from '@/store/cartStore';
-import { formatPrice } from '@/lib/utils';
-import { cn } from '@/lib/utils';
-import { Loader2, Truck } from 'lucide-react';
+import { useUIStore } from '@/store/uiStore';
+import { useAddressStore } from '@/store/addressStore';
+import { formatPrice, cn } from '@/lib/utils';
+import {
+  Loader2, Truck, MapPin, CreditCard, Banknote,
+  CheckCircle2, ChevronDown, ChevronUp, AlertTriangle,
+} from 'lucide-react';
 
-// Skill #16 — Razorpay is ONLY imported here at checkout — never on other pages
-// This keeps the payment SDK out of the main bundle
 const RazorpayCheckout = dynamic(
   () => import('./RazorpayCheckout').then((m) => m.RazorpayCheckout),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="flex h-12 items-center justify-center gap-2 rounded-xl bg-neutral-100">
-        <Loader2 className="h-4 w-4 animate-spin text-neutral-400" />
-        <span className="text-sm text-neutral-500">Loading payment…</span>
-      </div>
-    ),
-  },
+  { ssr: false, loading: () => <div className="h-14 animate-pulse rounded-2xl bg-neutral-100" /> },
 );
 
-export function CheckoutForm() {
-  const items = useCartStore((s) => s.items);
-  const subtotal = useCartStore((s) => s.subtotal());
-  const totalSavings = useCartStore((s) => s.totalSavings());
-  const isEmpty = useCartStore((s) => s.isEmpty());
+interface AddressForm {
+  fullName: string; phone: string; line1: string;
+  city: string; state: string; pincode: string;
+}
 
-  const [couponCode, setCouponCode] = useState('');
-  const [couponError, setCouponError] = useState('');
-  const [couponLoading, setCouponLoading] = useState(false);
-  const [appliedDiscount, setAppliedDiscount] = useState(0);
+const inputCls =
+  'h-11 w-full rounded-xl border border-neutral-200 bg-white px-3 text-sm text-neutral-900 ' +
+  'placeholder:text-neutral-400 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100';
+
+export function CheckoutForm() {
+  const router      = useRouter();
+  const items       = useCartStore((s) => s.items);
+  const subtotal    = useCartStore((s) => s.subtotal());
+  const isEmpty     = useCartStore((s) => s.isEmpty());
+  const clearCart   = useCartStore((s) => s.clearCart);
+  const addToast    = useUIStore((s) => s.addToast);
+  const savedAddr   = useAddressStore((s) => s.address);
+  const saveAddress = useAddressStore((s) => s.setAddress);
 
   const deliveryFee = subtotal >= 199 ? 0 : 25;
-  const total = subtotal + deliveryFee - appliedDiscount;
+  const total       = subtotal + deliveryFee;
 
-  const handleApplyCoupon = useCallback(async () => {
-    if (!couponCode.trim()) return;
-    setCouponError('');
-    setCouponLoading(true);
+  const [payMethod,   setPayMethod]   = useState<'COD' | 'RAZORPAY'>('COD');
+  const [placingCod,  setPlacingCod]  = useState(false);
+  const [orderError,  setOrderError]  = useState('');
+  const [addrOpen,    setAddrOpen]    = useState(true);
+  const [addrSaved,   setAddrSaved]   = useState(false);
+  const [addrErrors,  setAddrErrors]  = useState<Partial<AddressForm>>({});
+  const [addr, setAddr] = useState<AddressForm>({
+    fullName: '', phone: '', line1: '', city: '', state: '', pincode: '',
+  });
 
-    try {
-      const res = await fetch('/api/coupons/validate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code: couponCode.trim(), subtotal }),
+  // Pre-fill from saved address store
+  useEffect(() => {
+    if (savedAddr && !addrSaved) {
+      setAddr({
+        fullName: savedAddr.fullName,
+        phone:    savedAddr.phone,
+        line1:    savedAddr.line1,
+        city:     savedAddr.city,
+        state:    savedAddr.state,
+        pincode:  savedAddr.pincode,
       });
+    }
+  }, [savedAddr, addrSaved]);
 
-      const data = (await res.json()) as { discount?: number; error?: string };
+  const setField = (k: keyof AddressForm) => (e: React.ChangeEvent<HTMLInputElement>) => {
+    setAddr((p) => ({ ...p, [k]: e.target.value }));
+    setAddrErrors((p) => ({ ...p, [k]: '' }));
+  };
 
-      if (!res.ok || !data.discount) {
-        setCouponError(data.error ?? 'Invalid coupon code');
+  const validateAddr = useCallback((): boolean => {
+    const errs: Partial<AddressForm> = {};
+    if (addr.fullName.trim().length < 2)       errs.fullName = 'Enter your full name';
+    if (!/^\d{10}$/.test(addr.phone.trim()))   errs.phone    = 'Enter valid 10-digit number';
+    if (addr.line1.trim().length < 5)          errs.line1    = 'Enter full address';
+    if (addr.city.trim().length < 2)           errs.city     = 'Enter city';
+    if (addr.state.trim().length < 2)          errs.state    = 'Enter state';
+    if (!/^\d{6}$/.test(addr.pincode.trim()))  errs.pincode  = 'Enter 6-digit pincode';
+    setAddrErrors(errs);
+    return Object.keys(errs).length === 0;
+  }, [addr]);
+
+  const handleSaveAddr = () => {
+    if (!validateAddr()) return;
+    setAddrSaved(true);
+    setAddrOpen(false);
+    saveAddress({
+      fullName: addr.fullName.trim(), phone: addr.phone.trim(),
+      line1:    addr.line1.trim(),    city:  addr.city.trim(),
+      state:    addr.state.trim(),    pincode: addr.pincode.trim(),
+    });
+    addToast({ variant: 'success', title: 'Address saved' });
+  };
+
+  const addressPayload = {
+    fullName: addr.fullName.trim(), phone:   addr.phone.trim(),
+    line1:    addr.line1.trim(),    city:    addr.city.trim(),
+    state:    addr.state.trim(),    pincode: addr.pincode.trim(),
+  };
+
+  const handleCodOrder = useCallback(async () => {
+    if (!validateAddr()) { setAddrOpen(true); return; }
+    setOrderError('');
+    setPlacingCod(true);
+    try {
+      const res  = await fetch('/api/orders', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({
+          items:         items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
+          paymentMethod: 'COD',
+          address:       addressPayload,
+        }),
+      });
+      const data = await res.json() as { order?: { id: string }; error?: string };
+      if (!res.ok) {
+        setOrderError(data.error ?? 'Order failed. Please try again.');
         return;
       }
-
-      setAppliedDiscount(data.discount);
-    } catch {
-      setCouponError('Could not apply coupon. Try again.');
+      clearCart();
+      addToast({ variant: 'success', title: 'Order placed! Pay on delivery.' });
+      router.replace('/checkout/success?orderId=' + (data.order?.id ?? ''));
+    } catch (err) {
+      setOrderError(err instanceof Error ? err.message : 'Order failed. Please try again.');
     } finally {
-      setCouponLoading(false);
+      setPlacingCod(false);
     }
-  }, [couponCode, subtotal]);
+  }, [validateAddr, items, addressPayload, clearCart, addToast, router]); // eslint-disable-line
 
   if (isEmpty) {
     return (
       <div className="rounded-2xl border border-neutral-200 bg-white p-8 text-center">
-        <p className="text-neutral-600">Your cart is empty.</p>
+        <p className="text-neutral-500">Your cart is empty.</p>
       </div>
     );
   }
 
   return (
-    <div className="grid gap-6 md:grid-cols-3">
-      {/* ── Order summary ─────────────────────────────────────── */}
-      <div className="md:col-span-2 space-y-4">
-        {/* Items */}
-        <section
-          aria-labelledby="items-heading"
-          className="rounded-2xl border border-neutral-200 bg-white p-4"
-        >
-          <h2 id="items-heading" className="mb-3 text-base font-bold text-neutral-900">
-            Order Items ({items.length})
-          </h2>
-          <ul aria-label="Order items" className="divide-y divide-neutral-50">
-            {items.map((item) => (
-              <li key={item.productId} className="flex items-center gap-3 py-3">
-                <span className="min-w-0 flex-1 text-sm font-medium text-neutral-800">
-                  {item.product.name} {item.product.unit}
+    <div className="grid gap-6 lg:grid-cols-3">
+
+      {/* ── Left — Address + Payment ── */}
+      <div className="space-y-4 lg:col-span-2">
+
+        {/* Address section */}
+        <section className="overflow-hidden rounded-2xl border border-neutral-200 bg-white">
+          <button
+            type="button"
+            onClick={() => setAddrOpen((v) => !v)}
+            className="flex w-full items-center justify-between px-5 py-4 text-left"
+          >
+            <div className="flex items-center gap-2">
+              <MapPin className="h-5 w-5 text-primary-600" />
+              <span className="font-bold text-neutral-900">Delivery Address</span>
+              {addrSaved && (
+                <span className="ml-2 flex items-center gap-1 rounded-full bg-primary-50 px-2 py-0.5 text-xs font-semibold text-primary-700">
+                  <CheckCircle2 className="h-3 w-3" /> Saved
                 </span>
-                <span className="text-xs text-neutral-500">×{item.quantity}</span>
-                <span className="text-sm font-semibold text-neutral-900">
-                  {formatPrice(item.product.price * item.quantity)}
-                </span>
-              </li>
-            ))}
-          </ul>
+              )}
+            </div>
+            {addrOpen
+              ? <ChevronUp className="h-4 w-4 text-neutral-400" />
+              : <ChevronDown className="h-4 w-4 text-neutral-400" />}
+          </button>
+
+          {addrOpen && (
+            <div className="border-t border-neutral-100 px-5 pb-5 pt-4">
+              {addrSaved && (
+                <div className="mb-4 rounded-xl bg-neutral-50 p-3 text-sm">
+                  <p className="font-semibold text-neutral-800">{addr.fullName} &middot; {addr.phone}</p>
+                  <p className="text-neutral-500">{addr.line1}, {addr.city}, {addr.state} - {addr.pincode}</p>
+                </div>
+              )}
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="sm:col-span-2">
+                  <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-neutral-500">Full Name *</label>
+                  <input className={inputCls} placeholder="John Doe" value={addr.fullName} onChange={setField('fullName')} />
+                  {addrErrors.fullName && <p className="mt-1 text-xs text-red-500">{addrErrors.fullName}</p>}
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-neutral-500">Mobile *</label>
+                  <input className={inputCls} placeholder="9876543210" inputMode="numeric" maxLength={10} value={addr.phone} onChange={setField('phone')} />
+                  {addrErrors.phone && <p className="mt-1 text-xs text-red-500">{addrErrors.phone}</p>}
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-neutral-500">Address *</label>
+                  <input className={inputCls} placeholder="Flat/House No, Street, Area" value={addr.line1} onChange={setField('line1')} />
+                  {addrErrors.line1 && <p className="mt-1 text-xs text-red-500">{addrErrors.line1}</p>}
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-neutral-500">City *</label>
+                  <input className={inputCls} placeholder="Chennai" value={addr.city} onChange={setField('city')} />
+                  {addrErrors.city && <p className="mt-1 text-xs text-red-500">{addrErrors.city}</p>}
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-neutral-500">State *</label>
+                  <input className={inputCls} placeholder="Tamil Nadu" value={addr.state} onChange={setField('state')} />
+                  {addrErrors.state && <p className="mt-1 text-xs text-red-500">{addrErrors.state}</p>}
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-neutral-500">Pincode *</label>
+                  <input className={inputCls} placeholder="600001" inputMode="numeric" maxLength={6} value={addr.pincode} onChange={setField('pincode')} />
+                  {addrErrors.pincode && <p className="mt-1 text-xs text-red-500">{addrErrors.pincode}</p>}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleSaveAddr}
+                className="mt-4 w-full rounded-xl bg-primary-600 py-2.5 text-sm font-bold text-white transition-colors hover:bg-primary-700"
+              >
+                Save Address &amp; Continue
+              </button>
+            </div>
+          )}
         </section>
 
-        {/* Coupon — Skill #30: label for input */}
-        <section
-          aria-labelledby="coupon-heading"
-          className="rounded-2xl border border-neutral-200 bg-white p-4"
-        >
-          <h2 id="coupon-heading" className="mb-3 text-base font-bold text-neutral-900">
-            Coupon Code
-          </h2>
-          <div className="flex gap-2">
-            {/* Skill #30 — label for coupon input */}
-            <label htmlFor="coupon" className="sr-only">
-              Coupon code
-            </label>
-            <input
-              id="coupon"
-              type="text"
-              value={couponCode}
-              onChange={(e) => {
-                setCouponCode(e.target.value.toUpperCase());
-                if (couponError) setCouponError('');
-              }}
-              placeholder="ENTER CODE"
-              aria-describedby={couponError ? 'coupon-error' : undefined}
-              aria-invalid={couponError ? 'true' : 'false'}
-              disabled={appliedDiscount > 0}
-              className={cn(
-                'flex-1 rounded-xl border bg-white px-3 py-2.5 text-sm font-mono uppercase',
-                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600',
-                couponError ? 'border-danger-500' : 'border-neutral-200',
-                appliedDiscount > 0 && 'bg-neutral-50 text-neutral-400',
-              )}
-            />
-            <button
-              onClick={handleApplyCoupon}
-              disabled={couponLoading || appliedDiscount > 0 || !couponCode.trim()}
-              className={cn(
-                'rounded-xl px-4 py-2.5 text-sm font-semibold',
-                'transition-colors',
-                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600 focus-visible:ring-offset-1',
-                'disabled:cursor-not-allowed disabled:opacity-50',
-                appliedDiscount > 0
-                  ? 'bg-primary-50 text-primary-700'
-                  : 'bg-primary-600 text-white hover:bg-primary-700',
-              )}
-            >
-              {couponLoading ? (
-                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-              ) : appliedDiscount > 0 ? (
-                '✓ Applied'
-              ) : (
-                'Apply'
-              )}
-            </button>
+        {/* Payment method */}
+        <section className="rounded-2xl border border-neutral-200 bg-white p-5">
+          <div className="mb-4 flex items-center gap-2">
+            <CreditCard className="h-5 w-5 text-primary-600" />
+            <span className="font-bold text-neutral-900">Payment Method</span>
           </div>
-          {couponError && (
-            <p id="coupon-error" role="alert" className="mt-1.5 text-xs text-danger-600">
-              ⚠ {couponError}
-            </p>
-          )}
-          {appliedDiscount > 0 && (
-            <p className="mt-1.5 text-xs text-primary-600" role="status">
-              ✓ Saved {formatPrice(appliedDiscount)} with coupon
-            </p>
-          )}
+          <div className="grid gap-3 sm:grid-cols-2">
+            {([
+              { id: 'COD',      label: 'Cash on Delivery', icon: Banknote,    desc: 'Pay when you receive'    },
+              { id: 'RAZORPAY', label: 'Pay Online',        icon: CreditCard,  desc: 'Cards, UPI, Wallets'    },
+            ] as const).map(({ id, label, icon: Icon, desc }) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setPayMethod(id)}
+                className={cn(
+                  'flex items-center gap-3 rounded-xl border-2 p-4 text-left transition-all',
+                  payMethod === id
+                    ? 'border-primary-500 bg-primary-50'
+                    : 'border-neutral-100 hover:border-neutral-200',
+                )}
+              >
+                <Icon className={cn('h-5 w-5', payMethod === id ? 'text-primary-600' : 'text-neutral-400')} />
+                <div>
+                  <p className={cn('text-sm font-bold', payMethod === id ? 'text-primary-700' : 'text-neutral-700')}>{label}</p>
+                  <p className="text-xs text-neutral-400">{desc}</p>
+                </div>
+                {payMethod === id && <CheckCircle2 className="ml-auto h-4 w-4 text-primary-600" />}
+              </button>
+            ))}
+          </div>
         </section>
+
+        {/* Error banner */}
+        {orderError && (
+          <div className="flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 p-4">
+            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-red-500" />
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-red-700">{orderError}</p>
+              <button
+                onClick={() => { clearCart(); setOrderError(''); router.push('/'); }}
+                className="mt-2 text-xs font-bold text-red-600 underline underline-offset-2"
+              >
+                Clear Cart &amp; Shop Again
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Place Order / Razorpay */}
+        {payMethod === 'COD' ? (
+          <button
+            type="button"
+            onClick={() => void handleCodOrder()}
+            disabled={placingCod}
+            className="flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-primary-600 text-base font-black text-white shadow-lg shadow-primary-200 transition-all hover:bg-primary-700 active:scale-[0.98] disabled:opacity-60"
+          >
+            {placingCod
+              ? <><Loader2 className="h-5 w-5 animate-spin" /> Placing Order...</>
+              : <><Truck className="h-5 w-5" /> Place Order — Pay on Delivery</>}
+          </button>
+        ) : (
+          <RazorpayCheckout
+            amount={total}
+            address={addressPayload}
+            items={items}
+            onValidateAddress={validateAddr}
+          />
+        )}
       </div>
 
-      {/* ── Price summary + payment ───────────────────────────── */}
+      {/* ── Right — Order Summary ── */}
       <div className="space-y-4">
-        <section
-          aria-labelledby="price-heading"
-          className="rounded-2xl border border-neutral-200 bg-white p-4"
-        >
-          <h2 id="price-heading" className="mb-3 text-base font-bold text-neutral-900">
-            Price Details
-          </h2>
-          <div className="space-y-2 text-sm">
-            <div className="flex justify-between text-neutral-600">
-              <span>Subtotal</span>
-              <span>{formatPrice(subtotal)}</span>
+        <div className="rounded-2xl border border-neutral-200 bg-white p-5">
+          <h3 className="mb-4 font-black text-neutral-900">Order Summary</h3>
+          <div className="space-y-3">
+            {items.map((item) => {
+              const imgSrc = item.product.imageUrls[0] ?? '';
+              return (
+                <div key={item.productId} className="flex items-center gap-3">
+                  <div className="h-12 w-12 shrink-0 overflow-hidden rounded-xl bg-neutral-100">
+                    {imgSrc && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={imgSrc} alt={item.product.name} className="h-full w-full object-cover" />
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold text-neutral-800">{item.product.name}</p>
+                    <p className="text-xs text-neutral-400">Qty: {item.quantity}</p>
+                  </div>
+                  <span className="text-sm font-bold text-neutral-900">{formatPrice(item.product.price * item.quantity)}</span>
+                </div>
+              );
+            })}
+          </div>
+          <div className="mt-4 space-y-2 border-t border-neutral-100 pt-4">
+            <div className="flex justify-between text-sm text-neutral-600">
+              <span>Subtotal</span><span>{formatPrice(subtotal)}</span>
             </div>
-            {totalSavings > 0 && (
-              <div className="flex justify-between text-primary-600">
-                <span>You save</span>
-                <span>−{formatPrice(totalSavings)}</span>
-              </div>
-            )}
-            <div className="flex justify-between text-neutral-600">
+            <div className="flex justify-between text-sm text-neutral-600">
               <span>Delivery</span>
-              <span className={deliveryFee === 0 ? 'font-semibold text-primary-600' : ''}>
+              <span className={deliveryFee === 0 ? 'font-semibold text-emerald-600' : ''}>
                 {deliveryFee === 0 ? 'FREE' : formatPrice(deliveryFee)}
               </span>
             </div>
-            {appliedDiscount > 0 && (
-              <div className="flex justify-between text-primary-600">
-                <span>Coupon discount</span>
-                <span>−{formatPrice(appliedDiscount)}</span>
-              </div>
-            )}
-            <div className="flex justify-between border-t border-neutral-100 pt-2 text-base font-bold text-neutral-900">
-              <span>Total</span>
-              <span>{formatPrice(total)}</span>
+            <div className="flex justify-between border-t border-neutral-100 pt-2 text-base font-black text-neutral-900">
+              <span>Total</span><span>{formatPrice(total)}</span>
             </div>
           </div>
-        </section>
-
-        {/* ETA card */}
-        <div className="flex items-center gap-2 rounded-2xl bg-primary-50 p-3">
-          <Truck className="h-5 w-5 shrink-0 text-primary-600" aria-hidden="true" />
-          <div>
-            <p className="text-sm font-bold text-primary-700">🚚 24hr Delivery</p>
-            <p className="text-xs text-primary-600">Delivered within 24 hours of order</p>
-          </div>
         </div>
-
-        {/* Skill #16 — Razorpay loaded ONLY here, dynamically */}
-        <RazorpayCheckout
-          amount={total}
-          items={items}
-          appliedDiscount={appliedDiscount}
-          couponCode={couponCode}
-          deliveryFee={deliveryFee}
-        />
       </div>
     </div>
   );

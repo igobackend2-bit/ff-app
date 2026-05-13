@@ -64,3 +64,12 @@ export function timeAgo(date: Date | string): string {
   if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
   return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
 }
+// Calculate effective price based on unit and weight
+export function calculateEffectivePrice(basePrice: number, unit: string, weight: number = 1): number {
+  const unitStr = unit.toLowerCase();
+  let perKgMultiplier = 1;
+  if (unitStr.includes('250g')) perKgMultiplier = 4;
+  else if (unitStr.includes('500g')) perKgMultiplier = 2;
+
+  return basePrice * perKgMultiplier * weight;
+}

@@ -1,41 +1,10 @@
-// ============================================================
-// supabase.js — Supabase client initialisation
-// Replace YOUR_SUPABASE_URL and YOUR_SUPABASE_ANON_KEY with
-// your actual project values from supabase.com → Settings → API
-// ============================================================
+/* supabase.js — Farmers Factory
+ * Requires: <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+ * loaded BEFORE this file.
+ *
+ * ⚠ PASTE YOUR FULL SUPABASE ANON KEY BELOW (from Supabase → Settings → API)
+ */
+var SUPABASE_URL = 'https://slfxozmbwogpisxeltty.supabase.co';
+var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNsZnhvem1id29ncGlzeGVsdHR5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY1NjkwMjMsImV4cCI6MjA4MjE0NTAyM30.GYBRJ64ImMLIlV9Er6jU-VmMBdNrgA-VU0H3yYIy8Tg';
 
-import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
-
-const SUPABASE_URL      = 'YOUR_SUPABASE_URL';
-const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
-
-export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-// ── Session helpers ──────────────────────────────────────────
-/** Returns parsed ff_user object from localStorage, or null */
-export function getSession() {
-  try { return JSON.parse(localStorage.getItem('ff_user')); }
-  catch { return null; }
-}
-
-/** Saves user session to localStorage */
-export function saveSession(user) {
-  localStorage.setItem('ff_user', JSON.stringify(user));
-}
-
-/** Clears user session */
-export function clearSession() {
-  localStorage.removeItem('ff_user');
-}
-
-/** Redirects to login if no session */
-export function requireAuth(redirectTo = '/login.html') {
-  if (!getSession()) {
-    window.location.href = redirectTo;
-  }
-}
-
-/** Returns true if admin session is active */
-export function isAdmin() {
-  return localStorage.getItem('ff_admin') === 'true';
-}
+window.db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);

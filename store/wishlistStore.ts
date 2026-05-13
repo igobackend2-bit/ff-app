@@ -1,4 +1,4 @@
-// Wishlist Store — persists locally, syncs to Supabase when user is logged in
+// Wishlist Store — user-isolated: clears when a different user logs in
 'use client';
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
@@ -6,12 +6,14 @@ import type { Product } from '@/types';
 
 interface WishlistState {
   items: Product[];
+  userId: string | null;
   isDrawerOpen: boolean;
   addItem: (product: Product) => void;
   removeItem: (productId: string) => void;
   toggleItem: (product: Product) => void;
   isWishlisted: (productId: string) => boolean;
   clearWishlist: () => void;
+  initForUser: (uid: string) => void;
   openDrawer: () => void;
   closeDrawer: () => void;
   toggleDrawer: () => void;
@@ -22,7 +24,16 @@ export const useWishlistStore = create<WishlistState>()(
   persist(
     (set, get) => ({
       items: [],
+      userId: null,
       isDrawerOpen: false,
+
+      initForUser: (uid) => {
+        if (get().userId && get().userId !== uid) {
+          set({ items: [], userId: uid });
+        } else {
+          set({ userId: uid });
+        }
+      },
 
       addItem: (product) => {
         set((state) => {
@@ -43,21 +54,19 @@ export const useWishlistStore = create<WishlistState>()(
 
       isWishlisted: (productId) => get().items.some((i) => i.id === productId),
 
-      clearWishlist: () => set({ items: [] }),
+      clearWishlist: () => set({ items: [], userId: null }),
 
-      openDrawer: () => set({ isDrawerOpen: true }),
-      closeDrawer: () => set({ isDrawerOpen: false }),
+      openDrawer:   () => set({ isDrawerOpen: true  }),
+      closeDrawer:  () => set({ isDrawerOpen: false }),
       toggleDrawer: () => set((s) => ({ isDrawerOpen: !s.isDrawerOpen })),
-
-      count: () => get().items.length,
+      count:        () => get().items.length,
     }),
     {
       name: 'ff-wishlist',
       storage: createJSONStorage(() =>
         typeof window !== 'undefined' ? localStorage : (null as unknown as Storage),
       ),
-      // Only persist items
-      partialize: (state) => ({ items: state.items }),
+      partialize: (state) => ({ items: state.items, userId: state.userId }),
     },
   ),
 );

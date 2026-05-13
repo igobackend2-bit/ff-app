@@ -4,6 +4,7 @@ import { OrganizationJsonLd } from '@/components/seo/OrganizationJsonLd';
 import { CategoryScroll } from '@/components/category/CategoryScroll';
 import { ProductSection } from '@/components/product/ProductSection';
 import { HeroSlider } from '@/components/home/HeroSlider';
+import { PromoBanners } from '@/components/home/PromoBanners';
 import { DeliveryStrip } from '@/components/home/DeliveryStrip';
 import { SkeletonGrid } from '@/components/product/SkeletonCard';
 
@@ -39,7 +40,7 @@ export default function HomePage() {
           <HeroSlider />
         </section>
 
-        {/* Category Grid */}
+        {/* Category Scroll */}
         <section aria-labelledby="categories-heading" className="mb-8">
           <div className="mb-4 flex items-center justify-between">
             <h2 id="categories-heading" className="text-lg font-extrabold tracking-tight text-neutral-900 md:text-xl">
@@ -60,6 +61,9 @@ export default function HomePage() {
           </Suspense>
         </section>
 
+        {/* Promo Banners */}
+        <PromoBanners />
+
         {/* Flash Deals */}
         <Suspense fallback={<SkeletonGrid count={6} />}>
           <ProductSection
@@ -76,8 +80,8 @@ export default function HomePage() {
           <ProductSection
             title="🥦 Farm Fresh Vegetables"
             subtitle="Harvested daily, delivered tomorrow"
-            categorySlug="farm-fresh"
-            limit={6}
+            categorySlug="vegetables"
+            limit={8}
           />
         </Suspense>
 
@@ -87,47 +91,87 @@ export default function HomePage() {
             title="🍎 Fresh Fruits"
             subtitle="Straight from the orchards"
             categorySlug="fruits"
-            limit={6}
+            limit={8}
+          />
+        </Suspense>
+
+        {/* Valluvam Products */}
+        <Suspense fallback={<SkeletonGrid count={6} />}>
+          <ProductSection
+            title="🏺 Valluvam Products"
+            subtitle="Authentic traditional products — honey, ghee, jaggery & oils"
+            categorySlug="valluvam"
+            limit={8}
           />
         </Suspense>
 
         {/* Cold-Pressed Oils */}
-        <Suspense fallback={<SkeletonGrid count={4} />}>
+        <Suspense fallback={<SkeletonGrid count={6} />}>
           <ProductSection
             title="🫙 Cold-Pressed Oils"
             subtitle="Traditional wooden churner extraction"
             categorySlug="cold-pressed-oils"
-            limit={4}
-          />
-        </Suspense>
-
-        {/* Traditional Rice */}
-        <Suspense fallback={<SkeletonGrid count={4} />}>
-          <ProductSection
-            title="🌾 Traditional Rice"
-            subtitle="Heritage varieties from Tamil Nadu"
-            categorySlug="traditional-rice"
-            limit={4}
+            limit={6}
           />
         </Suspense>
 
         {/* Dairy & Ghee */}
         <Suspense fallback={<SkeletonGrid count={4} />}>
           <ProductSection
-            title="🥛 Dairy & Ghee"
-            subtitle="A2 cow ghee & farm-fresh dairy"
+            title="🧈 Dairy & Ghee"
+            subtitle="Pure buffalo ghee & cow ghee"
             categorySlug="dairy-ghee"
             limit={4}
           />
         </Suspense>
 
-        {/* Raw Honey & Jaggery */}
+        {/* Honey */}
         <Suspense fallback={<SkeletonGrid count={4} />}>
           <ProductSection
-            title="🍯 A2 Ghee & Honey"
-            subtitle="No added sugar, no processing"
+            title="🍯 Honey"
+            subtitle="Raw natural honey, no added sugar"
             categorySlug="honey"
             limit={4}
+          />
+        </Suspense>
+
+        {/* Millets */}
+        <Suspense fallback={<SkeletonGrid count={6} />}>
+          <ProductSection
+            title="🌾 Millets"
+            subtitle="Barnyard, foxtail, pearl & more ancient grains"
+            categorySlug="millets"
+            limit={8}
+          />
+        </Suspense>
+
+        {/* Spices & Masala */}
+        <Suspense fallback={<SkeletonGrid count={6} />}>
+          <ProductSection
+            title="🌶️ Spices & Masala"
+            subtitle="Pure hand-ground spices straight from the source"
+            categorySlug="spices"
+            limit={8}
+          />
+        </Suspense>
+
+        {/* Dry Fruits */}
+        <Suspense fallback={<SkeletonGrid count={6} />}>
+          <ProductSection
+            title="🌰 Dry Fruits"
+            subtitle="Dates, figs, raisins & more"
+            categorySlug="dry-fruits"
+            limit={6}
+          />
+        </Suspense>
+
+        {/* Nuts & Seeds */}
+        <Suspense fallback={<SkeletonGrid count={6} />}>
+          <ProductSection
+            title="🥜 Nuts & Seeds"
+            subtitle="Cashews, pista, chia, flax & more"
+            categorySlug="nuts"
+            limit={6}
           />
         </Suspense>
       </div>

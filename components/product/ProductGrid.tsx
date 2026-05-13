@@ -6,26 +6,33 @@ import { SkeletonGrid } from './SkeletonCard';
 import type { Product } from '@/types';
 
 interface ProductGridProps {
-  categoryId: string;
-  sort?: string;
+  categoryId:   string;
+  categorySlug?: string;
+  sort?:  string;
   brand?: string;
-  tags?: string;
-  page?: number;
+  tags?:  string;
+  page?:  number;
 }
 
-export function ProductGrid({ categoryId, sort, brand, tags, page = 1 }: ProductGridProps) {
-  const [products, setProducts] = useState<Product[]>([]);
+export function ProductGrid({ categoryId, categorySlug, sort, brand, tags, page = 1 }: ProductGridProps) {
+  const [products, setProducts]   = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [error, setError]         = useState('');
 
   useEffect(() => {
     async function load() {
       setIsLoading(true);
+      setError('');
       try {
-        const params = new URLSearchParams({ limit: '20', page: String(page) });
-        if (sort) params.set('sort', sort);
+        const params = new URLSearchParams({ limit: '100', page: String(page) });
+
+        // Filter by category slug — required so only this category's products show
+        const slug = categorySlug ?? categoryId;
+        if (slug) params.set('category', slug);
+
+        if (sort && sort !== 'relevance') params.set('sort', sort);
         if (brand) params.set('brand', brand);
-        if (tags) params.set('tags', tags);
+        if (tags)  params.set('tags', tags);
 
         const res = await fetch(`/api/products?${params}`);
         if (!res.ok) throw new Error('Failed');
@@ -38,12 +45,12 @@ export function ProductGrid({ categoryId, sort, brand, tags, page = 1 }: Product
       }
     }
     void load();
-  }, [categoryId, sort, brand, tags, page]);
+  }, [categoryId, categorySlug, sort, brand, tags, page]);
 
   if (isLoading) return <SkeletonGrid count={12} />;
 
   if (error) return (
-    <div role="alert" className="rounded-2xl bg-danger-50 p-6 text-center text-sm text-danger-600">
+    <div role="alert" className="rounded-2xl bg-red-50 p-6 text-center text-sm text-red-600">
       {error}
     </div>
   );

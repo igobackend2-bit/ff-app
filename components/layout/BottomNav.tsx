@@ -1,11 +1,14 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import type { MouseEvent } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Home, Heart, ShoppingCart, ClipboardList, User } from 'lucide-react';
 import { useCartStore } from '@/store/cartStore';
 import { useWishlistStore } from '@/store/wishlistStore';
+import { useUserStore } from '@/store/userStore';
+import { useUIStore } from '@/store/uiStore';
 import { cn } from '@/lib/utils';
 
 export function BottomNav() {
@@ -16,8 +19,17 @@ export function BottomNav() {
   const totalItems    = useCartStore((s) => s.totalItems());
   const openDrawer    = useCartStore((s) => s.openDrawer);
   const wishlistCount = useWishlistStore((s) => s.count());
+  const isLoggedIn    = useUserStore((s) => s.isLoggedIn);
+  const openAuthModal = useUIStore((s) => s.openAuthModal);
   const cartCount     = mounted ? totalItems : 0;
   const wCount        = mounted ? wishlistCount : 0;
+
+  const requireLogin = (event: MouseEvent<HTMLAnchorElement>, href: string) => {
+    if (isLoggedIn()) return;
+
+    event.preventDefault();
+    openAuthModal(href);
+  };
 
   // Static nav tabs (no cart — cart is a special button)
   const NAV_ITEMS = [
@@ -37,7 +49,7 @@ export function BottomNav() {
         'md:hidden',
       )}
     >
-      <ul className="flex items-stretch" role="list">
+      <ul className="flex items-stretch">
         {/* Home */}
         {NAV_ITEMS.slice(0, 1).map(({ href, label, icon: Icon }) => {
           const isActive = pathname === href;
@@ -133,6 +145,7 @@ export function BottomNav() {
         <li className="flex-1">
           <Link
             href="/account/orders"
+            onClick={(event) => requireLogin(event, '/account/orders')}
             aria-current={pathname.startsWith('/account/orders') ? 'page' : undefined}
             className={cn(
               'relative flex min-h-touch flex-col items-center justify-center gap-0.5 px-1 py-2',
@@ -156,21 +169,22 @@ export function BottomNav() {
         {/* Profile */}
         <li className="flex-1">
           <Link
-            href="/account/profile"
-            aria-current={pathname.startsWith('/account/profile') ? 'page' : undefined}
+            href="/account"
+            onClick={(event) => requireLogin(event, '/account')}
+            aria-current={pathname.startsWith('/account') && !pathname.startsWith('/account/orders') ? 'page' : undefined}
             className={cn(
               'relative flex min-h-touch flex-col items-center justify-center gap-0.5 px-1 py-2',
               'text-xs font-semibold transition-colors',
               'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-600',
-              pathname.startsWith('/account/profile') ? 'text-primary-700' : 'text-neutral-400 hover:text-neutral-600',
+              pathname.startsWith('/account') && !pathname.startsWith('/account/orders') ? 'text-primary-700' : 'text-neutral-400 hover:text-neutral-600',
             )}
           >
             <User
               className={cn(
                 'h-5 w-5',
-                pathname.startsWith('/account/profile') ? 'text-primary-600' : 'text-neutral-400',
+                pathname.startsWith('/account') && !pathname.startsWith('/account/orders') ? 'text-primary-600' : 'text-neutral-400',
               )}
-              strokeWidth={pathname.startsWith('/account/profile') ? 2.5 : 2}
+              strokeWidth={pathname.startsWith('/account') && !pathname.startsWith('/account/orders') ? 2.5 : 2}
               aria-hidden="true"
             />
             <span>Profile</span>

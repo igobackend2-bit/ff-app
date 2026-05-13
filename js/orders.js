@@ -1,117 +1,137 @@
-// ============================================================
-// orders.js — Order placement and real-time tracking
-// ============================================================
+/**
+ * orders.js — Farmers Factory
+ * Order placement and tracking via Supabase.
+ */
 
 import { supabase } from './supabase.js';
-import { getSession } from './supabase.js';
-import { formatPrice, formatDate, showToast } from './utils.js';
+import { getSession } from './auth.js';
+import { getCart, clearCart } from './cart.js';
 
 /**
  * Place a new order.
- * @param {Array} cartItems — from cart.js getCart()
- * @param {string} location — delivery address
- * @param {string} phone — delivery phone
- * @returns { success, orderId, error }
+ * Inserts into orders + order_items tables.
+ * @param {{location: string, phone: string}} delivery
+ * @returns {Promise<{orderId?: string, error?: string}>}
  */
-export async function placeOrder(cartItems, location, phone) {
+export async function placeOrder({ location, phone }) {
   const user = getSession();
-  if (!user) return { success: false, error: 'Please login to place an order.' };
-  if (!cartItems.length) return { success: false, error: 'Cart is empty.' };
+  const cart = getCart();
 
-  const totalPrice = cartItems.reduce((s, i) => s + i.price * i.quantity, 0);
-  const productName = cartItems.map(i => `${i.name} x${i.quantity}`).join(', ');
-  const category = cartItems[0].category || 'Mixed';
+  if (!cart.length) return { error: 'Your cart is empty.' };
 
-  // Insert main order
-  const { data: order, error: orderErr } = await supabase.from('orders').insert({
-    user_id:      user.id,
-    product_name: productName,
-    category,
-    quantity:     cartItems.reduce((s, i) => s + i.quantity, 0),
-    location:     location.trim(),
-    phone:        phone.trim(),
-    total_price:  totalPrice,
-    status:       'placed',
-    delivery_time: '24 hours',
-  }).select().single();
+  const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
+  const total    = subtotal; // free delivery
 
-  if (orderErr) return { success: false, error: 'Failed to place order. Please try again.' };
+  // Build a combined product name for the orders table summary column
+  const productName  = cart.map(i => i.name).join(', ');
+  const categoryName = cart[0]?.category || 'Mixed';
+
+  // Insert into orders
+  const { data: order, error: orderErr } = await supabase
+    .from('orders')
+    .insert({
+      user_id:      user?.id || null,
+      product_name: productName,
+      category:     categoryName,
+      quantity:     cart.reduce((s, i) => s + i.qty, 0),
+      location,
+      phone,
+      total_price:  total,
+      status:       'placed',
+      delivery_time: null,
+    })
+    .select()
+    .single();
+
+  if (orderErr) {
+    console.error('Order insert error:', orderErr);
+    return { error: 'Could not place order. Please try again.' };
+  }
 
   // Insert order_items
-  const orderItems = cartItems.map(i => ({
+  const items = cart.map(i => ({
     order_id:     order.id,
     product_id:   i.id,
     product_name: i.name,
-    quantity:     i.quantity,
+    quantity:     i.qty,
     price:        i.price,
   }));
-  await supabase.from('order_items').insert(orderItems);
 
-  return { success: true, orderId: order.id };
+  const { error: itemsErr } = await supabase.from('order_items').insert(items);
+  if (itemsErr) console.warn('order_items insert partial error:', itemsErr);
+
+  // Clear cart after successful order
+  clearCart();
+
+  return { orderId: order.id };
 }
 
 /**
- * Fetch orders for the current user
+ * Fetch all orders for the logged-in user.
+ * @returns {Promise<Array>}
  */
-export async function fetchUserOrders() {
+export async function fetchMyOrders() {
   const user = getSession();
   if (!user) return [];
+
   const { data, error } = await supabase
     .from('orders')
     .select('*')
     .eq('user_id', user.id)
     .order('created_at', { ascending: false });
-  if (error) return [];
+
+  if (error) { console.error('fetchMyOrders:', error); return []; }
   return data || [];
 }
 
 /**
- * Subscribe to real-time order status updates for a user
+ * Subscribe to realtime updates for a user's orders.
  * @param {string} userId
- * @param {Function} onUpdate — called with updated order row
- * @returns unsubscribe function
+ * @param {Function} callback - called on any change
+ * @returns Supabase realtime channel (call .unsubscribe() to stop)
  */
-export function subscribeToOrders(userId, onUpdate) {
-  const channel = supabase
+export function subscribeToOrders(userId, callback) {
+  return supabase
     .channel('user-orders-' + userId)
     .on('postgres_changes', {
-      event: 'UPDATE',
+      event:  '*',
       schema: 'public',
-      table: 'orders',
+      table:  'orders',
       filter: `user_id=eq.${userId}`,
-    }, (payload) => onUpdate(payload.new))
+    }, callback)
     .subscribe();
-
-  return () => supabase.removeChannel(channel);
 }
 
-/** Render an order card element */
-export function renderOrderCard(order) {
-  const statusConfig = {
-    placed:            { label: 'Order Placed',       icon: '📋', cls: 'status-placed' },
-    packing:           { label: 'Packing',             icon: '📦', cls: 'status-packing' },
-    out_for_delivery:  { label: 'Out for Delivery',    icon: '🚚', cls: 'status-out_for_delivery' },
-    delivered:         { label: 'Delivered',           icon: '✅', cls: 'status-delivered' },
+/**
+ * Build an order status badge HTML string.
+ */
+export function statusBadge(status) {
+  const labels = {
+    placed:            '📦 Placed',
+    packing:           '🧺 Packing',
+    out_for_delivery:  '🚚 Out for Delivery',
+    delivered:         '✅ Delivered',
   };
-  const s = statusConfig[order.status] || statusConfig.placed;
+  return `<span class="status-badge status-${status}">${labels[status] || status}</span>`;
+}
 
-  const card = document.createElement('div');
-  card.className = 'order-card';
-  card.dataset.orderId = order.id;
-  card.innerHTML = `
-    <div class="order-card-top">
-      <div>
-        <div class="order-id">#${order.id.slice(0, 8).toUpperCase()}</div>
-        <div class="order-name">${order.product_name}</div>
-        <div class="order-qty">Qty: ${order.quantity} item${order.quantity !== 1 ? 's' : ''} • ${order.location}</div>
-      </div>
-      <div class="order-date">${formatDate(order.created_at)}</div>
-    </div>
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px;">
-      <span class="status-badge ${s.cls}">${s.icon} ${s.label}</span>
-      <span class="order-total">${formatPrice(order.total_price)}</span>
-    </div>
-    ${order.delivery_time ? `<div class="order-eta">🕐 Estimated delivery: ${order.delivery_time}</div>` : ''}
-  `;
-  return card;
+/**
+ * Format an ISO timestamp as a friendly date string.
+ */
+export function formatDate(iso) {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleDateString('en-IN', {
+    day: 'numeric', month: 'short', year: 'numeric',
+  });
+}
+
+/**
+ * Format an ISO timestamp with time.
+ */
+export function formatDateTime(iso) {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleString('en-IN', {
+    day: 'numeric', month: 'short', year: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+  });
 }

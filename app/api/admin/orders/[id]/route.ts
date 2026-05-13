@@ -3,12 +3,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 
 const VALID_STATUSES = [
-  'PENDING',
+  'PLACED',
   'CONFIRMED',
   'PICKING',
   'OUT_FOR_DELIVERY',
   'DELIVERED',
   'CANCELLED',
+  'REFUNDED',
 ];
 
 export async function GET(

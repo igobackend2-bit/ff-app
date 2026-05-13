@@ -5,7 +5,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { Package, ChevronRight, RotateCcw } from 'lucide-react';
+import { Package, ChevronRight, RotateCcw, MapPin } from 'lucide-react';
 import { useCartStore } from '@/store/cartStore';
 import { useUIStore } from '@/store/uiStore';
 import { cn, formatPrice, timeAgo } from '@/lib/utils';
@@ -34,6 +34,10 @@ export function OrderList() {
     async function fetchOrders() {
       try {
         const res = await fetch('/api/orders');
+        if (res.status === 401) {
+          setError('login_required');
+          return;
+        }
         if (!res.ok) throw new Error('Failed to load orders');
         const data = (await res.json()) as { data: Order[] };
         setOrders(data.data ?? []);
@@ -49,17 +53,19 @@ export function OrderList() {
 
   const handleReorder = (order: Order) => {
     order.items.forEach((item) => {
-      // Reorder adds items back to cart
+      // API returns flat items: name, unit, slug, imageUrls are top-level
       addItem(
         {
-          ...item.product,
           id: item.productId,
-          imageUrls: item.product.imageUrls,
+          name: item.name,
+          slug: item.slug,
+          unit: item.unit,
+          imageUrls: item.imageUrls ?? [],
           blurDataUrls: [],
           categoryId: '',
           brandId: null,
           sku: '',
-          description: '',
+          description: null,
           mrp: item.unitPrice,
           price: item.unitPrice,
           tags: [],
@@ -88,17 +94,27 @@ export function OrderList() {
   }
 
   // Skill #51 — Error state
+  if (error === 'login_required') {
+    return (
+      <div className="rounded-2xl border border-neutral-200 bg-white p-10 text-center">
+        <Package className="mx-auto mb-3 h-10 w-10 text-neutral-200" />
+        <p className="font-semibold text-neutral-700">Please log in to view your orders</p>
+        <p className="mt-1 text-sm text-neutral-500">Sign in to see your order history.</p>
+        <a
+          href="/login"
+          className="mt-4 inline-block rounded-xl bg-primary-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-primary-700"
+        >
+          Sign In
+        </a>
+      </div>
+    );
+  }
+
   if (error) {
     return (
-      <div
-        role="alert"
-        className="rounded-2xl border border-danger-100 bg-danger-50 p-6 text-center"
-      >
+      <div role="alert" className="rounded-2xl border border-danger-100 bg-danger-50 p-6 text-center">
         <p className="text-sm text-danger-600">{error}</p>
-        <button
-          onClick={() => window.location.reload()}
-          className="mt-3 text-sm font-medium text-danger-700 underline"
-        >
+        <button onClick={() => window.location.reload()} className="mt-3 text-sm font-medium text-danger-700 underline">
           Try again
         </button>
       </div>
@@ -155,18 +171,17 @@ export function OrderList() {
                 </span>
               </div>
 
-              {/* Product thumbnails */}
+              {/* Product thumbnails — API returns flat items */}
               <div className="mt-3 flex items-center gap-2">
                 {order.items.slice(0, 4).map((item) => (
                   <div
                     key={item.id}
                     className="relative h-10 w-10 overflow-hidden rounded-lg border border-neutral-100 bg-neutral-50"
                   >
-                    {item.product.imageUrls[0] && (
+                    {item.imageUrls?.[0] && (
                       <Image
-                        src={item.product.imageUrls[0]}
-                        // Skill #8: alt = product name + unit
-                        alt={`${item.product.name} ${item.product.unit}`}
+                        src={item.imageUrls[0]}
+                        alt={`${item.name} ${item.unit}`}
                         fill
                         sizes="40px"
                         className="object-contain p-0.5"
@@ -202,6 +217,23 @@ export function OrderList() {
                     <RotateCcw className="h-3 w-3" aria-hidden="true" />
                     Reorder
                   </button>
+
+                  {/* Track button — shown for active orders */}
+                  {!['DELIVERED', 'CANCELLED', 'REFUNDED'].includes(order.status) && (
+                    <Link
+                      href={`/account/orders/${order.id}/track`}
+                      aria-label={`Track order #${order.orderNumber}`}
+                      className={cn(
+                        'flex items-center gap-1 rounded-lg bg-primary-50 px-3 py-1.5',
+                        'text-xs font-semibold text-primary-700',
+                        'transition-colors hover:bg-primary-100',
+                        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600',
+                      )}
+                    >
+                      <MapPin className="h-3 w-3" aria-hidden="true" />
+                      Track
+                    </Link>
+                  )}
 
                   <Link
                     href={`/account/orders/${order.id}`}

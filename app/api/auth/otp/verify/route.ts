@@ -1,6 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
 import { otpVerifySchema } from '@/lib/validations';
 import { signIn } from '@/lib/auth';
+import { prisma } from '@/lib/db';
 
 export async function POST(req: NextRequest) {
   try {
@@ -14,7 +16,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { name, email, phone, otp } = result.data;
+    const { name, phone, otp } = result.data;
+    const email = result.data.email.trim().toLowerCase();
 
     // Use NextAuth signIn to verify and create session
     // Note: Since we are in a Route Handler, calling the server-side signIn 
@@ -32,10 +35,48 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Invalid OTP or expired' }, { status: 401 });
       }
 
-      return NextResponse.json({ message: 'Logged in successfully' });
-    } catch (error: any) {
+      // 3. fetch fresh user data (ensuring Name and Email are included)
+      // Use findUnique on phone first as it's the primary way we identify users
+      let user = await prisma.user.findUnique({
+        where: { phone },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          phone: true,
+          avatarUrl: true,
+          referralCode: true,
+          loyaltyPoints: true,
+        },
+      });
+
+      // fallback to email if phone not found (though phone should be there)
+      if (!user && email) {
+        user = await prisma.user.findUnique({
+          where: { email },
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phone: true,
+            avatarUrl: true,
+            referralCode: true,
+            loyaltyPoints: true,
+          },
+        });
+      }
+
+      console.log('[Auth API] Returning user data:', user);
+
+      return NextResponse.json({ message: 'Logged in successfully', user });
+    } catch (error: unknown) {
       // Auth.js v5 throws specific errors
-      if (error.type === 'CredentialsSignin') {
+      if (
+        typeof error === 'object' &&
+        error !== null &&
+        'type' in error &&
+        error.type === 'CredentialsSignin'
+      ) {
         return NextResponse.json({ error: 'Invalid OTP' }, { status: 401 });
       }
       console.error('SignIn error:', error);

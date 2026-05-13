@@ -8,23 +8,35 @@ import {
   User, Mail, Phone, MapPin, Edit2, Shield, Bell,
   CreditCard, LogOut, ChevronRight, Check, X, Loader2,
 } from 'lucide-react';
+import { BackButton } from '@/components/common/BackButton';
 
 export default function ProfilePage() {
   const router = useRouter();
-  const { user, logout, updateProfile, isLoggedIn } = useUserStore();
-  const [mounted, setMounted] = useState(false);
+  const { user, logout, updateProfile } = useUserStore();
+  const [hydrated, setHydrated] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [newName, setNewName] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
 
+  // Wait for Zustand to finish hydrating from localStorage
   useEffect(() => {
-    setMounted(true);
+    if (useUserStore.persist.hasHydrated()) {
+      setHydrated(true);
+      return undefined;
+    } else {
+      const unsub = useUserStore.persist.onFinishHydration(() => setHydrated(true));
+      return unsub;
+    }
+  }, []);
+
+  useEffect(() => {
     if (user?.name) setNewName(user.name);
   }, [user]);
 
+  // Redirect only after hydration confirms no user
   useEffect(() => {
-    if (mounted && !isLoggedIn()) router.replace('/');
-  }, [mounted, isLoggedIn, router]);
+    if (hydrated && !user) router.replace('/login?callbackUrl=/account/profile');
+  }, [hydrated, user, router]);
 
   const handleUpdateName = async () => {
     if (!newName.trim() || newName === user?.name) { setIsEditing(false); return; }
@@ -36,13 +48,27 @@ export default function ProfilePage() {
 
   const handleLogout = async () => { logout(); router.push('/'); };
 
-  if (!mounted || !user) return null;
+  if (!hydrated || !user) return (
+    <div className="mx-auto max-w-screen-xl px-4 py-8 animate-pulse">
+      <div className="h-8 w-24 rounded-xl bg-neutral-100 mb-6" />
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
+        <div className="lg:col-span-4 h-96 rounded-3xl bg-neutral-100" />
+        <div className="lg:col-span-8 space-y-6">
+          <div className="h-64 rounded-3xl bg-neutral-100" />
+          <div className="h-32 rounded-3xl bg-neutral-100" />
+        </div>
+      </div>
+    </div>
+  );
 
   const phone = user.phone ?? '';
   const initial = user.name?.charAt(0) || phone.charAt(phone.length - 1) || 'U';
 
   return (
     <div className="mx-auto max-w-screen-xl px-4 py-8 md:px-6 lg:py-12">
+      <div className="mb-6">
+        <BackButton />
+      </div>
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
 
         {/* Sidebar */}
@@ -74,6 +100,17 @@ export default function ProfilePage() {
                 </div>
               </div>
               <div className="mt-8 space-y-2">
+                <button 
+                  onClick={() => router.push('/account')}
+                  className="flex w-full items-center justify-between rounded-xl p-3 text-sm font-medium text-neutral-600 hover:bg-neutral-50"
+                >
+                  <span className="flex items-center gap-3"><User className="h-4 w-4" /> Dashboard</span>
+                  <ChevronRight className="h-4 w-4 opacity-40" />
+                </button>
+                <button className="flex w-full items-center justify-between rounded-xl p-3 text-sm font-medium text-primary-600 bg-primary-50">
+                  <span className="flex items-center gap-3"><Edit2 className="h-4 w-4" /> Profile Details</span>
+                  <ChevronRight className="h-4 w-4 opacity-40" />
+                </button>
                 <button className="flex w-full items-center justify-between rounded-xl p-3 text-sm font-medium text-neutral-600 hover:bg-neutral-50">
                   <span className="flex items-center gap-3"><Bell className="h-4 w-4" /> Notifications</span>
                   <ChevronRight className="h-4 w-4 opacity-40" />
@@ -82,7 +119,7 @@ export default function ProfilePage() {
                   <span className="flex items-center gap-3"><CreditCard className="h-4 w-4" /> Payments</span>
                   <ChevronRight className="h-4 w-4 opacity-40" />
                 </button>
-                <button onClick={handleLogout} className="flex w-full items-center justify-between rounded-xl p-3 text-sm font-medium text-red-600 hover:bg-red-50">
+                <button onClick={handleLogout} className="flex w-full items-center justify-between rounded-xl p-3 text-sm font-medium text-red-600 hover:bg-red-50 text-left">
                   <span className="flex items-center gap-3"><LogOut className="h-4 w-4" /> Sign Out</span>
                 </button>
               </div>
@@ -125,29 +162,34 @@ export default function ProfilePage() {
               </div>
               <div className="grid gap-6 md:grid-cols-2">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold uppercase tracking-wider text-neutral-400">Full Name</label>
                   {isEditing ? (
-                    <input autoFocus value={newName} onChange={(e) => setNewName(e.target.value)}
-                      className="w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm focus:border-primary-600 focus:outline-none"
-                      placeholder="Enter your name" />
+                    <>
+                      <label htmlFor="profile-name" className="text-xs font-semibold uppercase tracking-wider text-neutral-400">Full Name</label>
+                      <input id="profile-name" value={newName} onChange={(e) => setNewName(e.target.value)}
+                        className="w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm focus:border-primary-600 focus:outline-none"
+                        placeholder="Enter your name" />
+                    </>
                   ) : (
-                    <p className="font-medium text-neutral-900">{user.name || 'Not set'}</p>
+                    <>
+                      <p className="text-xs font-semibold uppercase tracking-wider text-neutral-400">Full Name</p>
+                      <p className="font-medium text-neutral-900">{user.name || 'Not set'}</p>
+                    </>
                   )}
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold uppercase tracking-wider text-neutral-400">Email Address</label>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-neutral-400">Email Address</p>
                   <p className="flex items-center gap-2 font-medium text-neutral-900">
                     <Mail className="h-4 w-4 text-neutral-300" />{user.email || 'Not verified'}
                   </p>
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold uppercase tracking-wider text-neutral-400">Phone Number</label>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-neutral-400">Phone Number</p>
                   <p className="flex items-center gap-2 font-medium text-neutral-900">
                     <Phone className="h-4 w-4 text-neutral-300" />{phone || '—'}
                   </p>
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold uppercase tracking-wider text-neutral-400">Default Address</label>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-neutral-400">Default Address</p>
                   <p className="flex items-center gap-2 font-medium text-neutral-900">
                     <MapPin className="h-4 w-4 text-neutral-300" />Not set
                   </p>
