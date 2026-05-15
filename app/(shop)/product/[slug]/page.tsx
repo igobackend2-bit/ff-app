@@ -6,6 +6,7 @@
 import type { Metadata } from 'next';
 import { notFound, redirect } from 'next/navigation';
 import Image from 'next/image';
+import { ProductGallery } from '@/components/product/ProductGallery';
 import { Suspense } from 'react';
 import { ProductJsonLd } from '@/components/seo/ProductJsonLd';
 import { BreadcrumbJsonLd, BreadcrumbNav } from '@/components/seo/BreadcrumbJsonLd';
@@ -119,30 +120,14 @@ export default async function ProductDetailPage({
         <BreadcrumbNav items={breadcrumbs} />
 
         <div className="grid gap-8 md:grid-cols-2">
-          {/* ── Product images ─────────────────────────────────── */}
-          <div className="relative">
-            {discount > 0 && (
-              <div
-                className="absolute left-3 top-3 z-10 rounded-full bg-accent-700 px-3 py-1 text-xs font-bold text-white"
-                aria-label={`${discount}% off`}
-              >
-                {discount}% OFF
-              </div>
-            )}
-            <div className="relative aspect-square overflow-hidden rounded-2xl border border-neutral-100 bg-neutral-50">
-              {/* Skill #8: alt = product name + unit */}
-              <Image
-                src={product.imageUrls[0]}
-                alt={`${product.name} ${product.unit}`}
-                fill
-                sizes="(max-width: 768px) 100vw, 50vw"
-                className="object-contain p-4"
-                priority // Above the fold — eager load (Skill #34 principle)
-                placeholder={product.blurDataUrls?.[0] ? 'blur' : 'empty'}
-                blurDataURL={product.blurDataUrls?.[0] ?? undefined}
-              />
-            </div>
-          </div>
+          {/* ── Product images / gallery ───────────────────────── */}
+          <ProductGallery
+            imageUrls={product.imageUrls}
+            blurDataUrls={product.blurDataUrls}
+            productName={product.name}
+            productUnit={product.unit}
+            discount={discount}
+          />
 
           {/* ── Product details ─────────────────────────────────── */}
           <div className="flex flex-col">

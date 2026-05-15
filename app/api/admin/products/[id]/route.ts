@@ -36,6 +36,7 @@ export async function PATCH(
     const {
       name, description, price, mrp, unit, tags,
       imageUrls, blurDataUrls, inStock, isFeatured,
+      averageRating, reviewCount,
     } = body;
 
     const data: Record<string, unknown> = {};
@@ -49,11 +50,26 @@ export async function PATCH(
     if (blurDataUrls !== undefined) data['blurDataUrls'] = JSON.stringify(blurDataUrls);
     if (inStock !== undefined) data['inStock'] = Boolean(inStock);
     if (isFeatured !== undefined) data['isFeatured'] = Boolean(isFeatured);
+    if (averageRating !== undefined) data['averageRating'] = Math.min(5, Math.max(0, Number(averageRating)));
+    if (reviewCount !== undefined) data['reviewCount'] = Math.max(0, Math.round(Number(reviewCount)));
 
     const product = await prisma.product.update({
       where: { id: resolvedParams.id },
       data,
     });
+
+    // sortOrder is not in Prisma schema → update via raw SQL if provided
+    if (body.sortOrder !== undefined) {
+      try {
+        await prisma.$executeRawUnsafe(
+          `UPDATE "Product" SET "sortOrder" = ? WHERE id = ?`,
+          Number(body.sortOrder), resolvedParams.id,
+        );
+      } catch {
+        // column may not exist yet; caller should run /api/admin/setup-sort once
+        // to add the column, then this will start working
+      }
+    }
 
     return NextResponse.json({ product });
   } catch (err) {

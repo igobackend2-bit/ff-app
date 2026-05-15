@@ -1,8 +1,7 @@
 'use client';
-// Admin Dashboard — with inline product search
+// Admin Dashboard — with inline product search + most liked products
 import { useState, useEffect, useRef, useCallback } from 'react';
-import type { Metadata } from 'next';
-import { Package, ShoppingBag, Users, TrendingUp, AlertTriangle, CheckCircle, Search, X, Loader2 } from 'lucide-react';
+import { Package, ShoppingBag, Users, TrendingUp, AlertTriangle, CheckCircle, Search, X, Loader2, Star } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
@@ -26,14 +25,34 @@ interface Product {
   price: number;
   mrp: number;
   inStock: boolean;
-  imageUrls: string;
+  imageUrls: string | string[];
   category: { name: string } | null;
   brand: { name: string } | null;
+  averageRating?: number;
+  reviewCount?: number;
 }
 
-function getFirstImage(imageUrls: string): string {
+function StarRating({ rating }: { rating: number }) {
+  return (
+    <div className="flex items-center gap-0.5">
+      {[1, 2, 3, 4, 5].map((s) => (
+        <Star
+          key={s}
+          className={cn(
+            'h-3 w-3',
+            s <= Math.round(rating) ? 'fill-yellow-400 text-yellow-400' : 'fill-neutral-200 text-neutral-200',
+          )}
+        />
+      ))}
+      <span className="ml-1 text-[10px] font-semibold text-neutral-500">{rating.toFixed(1)}</span>
+    </div>
+  );
+}
+
+function getFirstImage(imageUrls: string | string[]): string {
+  if (Array.isArray(imageUrls)) return imageUrls[0] ?? '';
   try { return (JSON.parse(imageUrls) as string[])[0] ?? ''; }
-  catch { return ''; }
+  catch { return imageUrls || ''; }
 }
 
 export default function AdminDashboard() {
@@ -47,6 +66,10 @@ export default function AdminDashboard() {
   const [searched, setSearched] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Most liked / top rated products
+  const [topProducts, setTopProducts] = useState<Product[]>([]);
+  const [topLoading, setTopLoading] = useState(true);
+
   // Load stats on mount
   useEffect(() => {
     fetch('/api/admin/stats')
@@ -54,6 +77,15 @@ export default function AdminDashboard() {
       .then((d: { data: Stats }) => setStats(d.data))
       .catch(() => setStats(null))
       .finally(() => setStatsLoading(false));
+  }, []);
+
+  // Load top rated products
+  useEffect(() => {
+    fetch('/api/admin/products?sort=rating&limit=8')
+      .then((r) => r.json())
+      .then((d: { products: Product[] }) => setTopProducts(d.products ?? []))
+      .catch(() => setTopProducts([]))
+      .finally(() => setTopLoading(false));
   }, []);
 
   // Debounced search
@@ -236,6 +268,84 @@ export default function AdminDashboard() {
             View Store →
           </Link>
         </div>
+      </div>
+
+      {/* ── Most Liked / Top Rated Products ── */}
+      <div className="rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm">
+        <div className="mb-5 flex items-center justify-between">
+          <div>
+            <h2 className="text-base font-bold text-neutral-900 flex items-center gap-2">
+              <Star className="h-5 w-5 fill-yellow-400 text-yellow-400" />
+              Most Liked Products
+            </h2>
+            <p className="text-xs text-neutral-400 mt-0.5">Top products by customer ratings</p>
+          </div>
+          <Link
+            href="/admin/products"
+            className="text-xs font-semibold text-primary-600 hover:underline"
+          >
+            View all →
+          </Link>
+        </div>
+
+        {topLoading ? (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="h-36 animate-pulse rounded-xl bg-neutral-100" />
+            ))}
+          </div>
+        ) : topProducts.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-10 text-neutral-400">
+            <Star className="mb-2 h-8 w-8" />
+            <p className="text-sm">No rated products yet</p>
+            <p className="text-xs mt-1 text-neutral-300">Ratings appear after customers review products</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-4 xl:grid-cols-8">
+            {topProducts.map((p, idx) => {
+              const img = getFirstImage(p.imageUrls);
+              const rating = p.averageRating ?? 0;
+              return (
+                <Link
+                  key={p.id}
+                  href={`/admin/products/${p.id}/edit`}
+                  className="group relative flex flex-col overflow-hidden rounded-xl border border-neutral-100 bg-neutral-50 transition-shadow hover:shadow-md"
+                >
+                  {/* Rank badge */}
+                  <div className={cn(
+                    'absolute left-2 top-2 z-10 flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-black text-white shadow',
+                    idx === 0 ? 'bg-yellow-400' : idx === 1 ? 'bg-neutral-400' : idx === 2 ? 'bg-amber-600' : 'bg-primary-500',
+                  )}>
+                    {idx + 1}
+                  </div>
+                  {/* Image */}
+                  <div className="relative h-24 w-full bg-white">
+                    {img ? (
+                      <Image src={img} alt={p.name} fill sizes="160px" className="object-contain p-2" />
+                    ) : (
+                      <Package className="m-auto mt-8 h-8 w-8 text-neutral-200" />
+                    )}
+                  </div>
+                  {/* Info */}
+                  <div className="flex flex-col gap-1 p-2">
+                    <p className="line-clamp-2 text-[11px] font-semibold leading-tight text-neutral-800 group-hover:text-primary-700">
+                      {p.name}
+                    </p>
+                    {rating > 0 ? (
+                      <StarRating rating={rating} />
+                    ) : (
+                      <span className="text-[10px] text-neutral-300">No ratings</span>
+                    )}
+                    {(p.reviewCount ?? 0) > 0 && (
+                      <span className="text-[10px] text-neutral-400">{p.reviewCount} review{p.reviewCount !== 1 ? 's' : ''}</span>
+                    )}
+                    <p className="text-[11px] font-bold text-neutral-900">₹{p.price}</p>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );

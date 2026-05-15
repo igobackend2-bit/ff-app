@@ -1,26 +1,29 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
-import { LayoutDashboard, Package, ShoppingBag, Users, BarChart3, LogOut, Store, MapPin, Navigation, Image as ImageIcon } from 'lucide-react';
+import { LayoutDashboard, Package, ShoppingBag, Users, BarChart3, LogOut, Store, MapPin, Navigation, Image as ImageIcon, Bell, Upload } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useLocation } from '@/hooks/useLocation';
 
-const NAV = [
-  { href: '/admin',           icon: LayoutDashboard, label: 'Dashboard'  },
-  { href: '/admin/products',  icon: Package,          label: 'Products'   },
-  { href: '/admin/orders',    icon: ShoppingBag,      label: 'Orders'     },
-  { href: '/admin/banners',   icon: ImageIcon,        label: 'Banners & Ads' },
-  { href: '/admin/users',     icon: Users,            label: 'Users'      },
-  { href: '/admin/inventory', icon: BarChart3,         label: 'Inventory'  },
+const NAV: { href: string; icon: React.ComponentType<{ className?: string }>; label: string; badge?: boolean }[] = [
+  { href: '/admin',                      icon: LayoutDashboard, label: 'Dashboard'     },
+  { href: '/admin/products',             icon: Package,          label: 'Products'      },
+  { href: '/admin/orders',               icon: ShoppingBag,      label: 'Orders'        },
+  { href: '/admin/banners',              icon: ImageIcon,        label: 'Banners & Ads' },
+  { href: '/admin/users',                icon: Users,            label: 'Users'         },
+  { href: '/admin/inventory',            icon: BarChart3,        label: 'Inventory'     },
+  { href: '/admin/notifications',        icon: Bell,             label: 'Notifications', badge: true },
+  { href: '/admin/products/bulk-upload', icon: Upload,           label: 'Bulk Upload'   },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const router   = useRouter();
   const pathname = usePathname();
   const location = useLocation();
-  const [sessionOk, setSessionOk] = useState(false);
+  const [sessionOk, setSessionOk]       = useState(false);
+  const [unreadNotifs, setUnreadNotifs] = useState(0);
 
   useEffect(() => {
     // Login page renders itself — no auth check needed
@@ -38,6 +41,20 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       })
       .catch(() => router.replace('/admin/login'));
   }, [pathname, router]);
+
+  // Poll unread notification count every 30 s
+  useEffect(() => {
+    if (!sessionOk || pathname === '/admin/login') return;
+    const poll = () => {
+      fetch('/api/admin/notifications?limit=1')
+        .then((r) => r.json())
+        .then((d: { unreadCount?: number }) => setUnreadNotifs(d.unreadCount ?? 0))
+        .catch(() => null);
+    };
+    poll();
+    const timer = setInterval(poll, 30_000);
+    return () => clearInterval(timer);
+  }, [sessionOk, pathname]);
 
   const handleLogout = () => {
     void fetch('/api/admin/login', { method: 'DELETE' }).finally(() => {
@@ -95,8 +112,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
         {/* Nav */}
         <nav className="flex-1 space-y-0.5 overflow-y-auto p-3 mt-2" aria-label="Admin navigation">
-          {NAV.map(({ href, icon: Icon, label }) => {
+          {NAV.map(({ href, icon: Icon, label, badge }) => {
             const active = pathname === href || (href !== '/admin' && pathname.startsWith(href));
+            const showBadge = badge && unreadNotifs > 0;
             return (
               <Link
                 key={href}
@@ -108,8 +126,20 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                     : 'text-neutral-600 hover:bg-neutral-50 hover:text-primary-700',
                 )}
               >
-                <Icon className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
+                <div className="relative flex-shrink-0">
+                  <Icon className="h-4 w-4" aria-hidden="true" />
+                  {showBadge && (
+                    <span className="absolute -right-1.5 -top-1.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-red-500 text-[8px] font-black text-white">
+                      {unreadNotifs > 9 ? '9+' : unreadNotifs}
+                    </span>
+                  )}
+                </div>
                 {label}
+                {showBadge && (
+                  <span className="ml-auto flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-black text-white">
+                    {unreadNotifs > 9 ? '9+' : unreadNotifs}
+                  </span>
+                )}
               </Link>
             );
           })}

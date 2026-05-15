@@ -1,22 +1,48 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Search, ShoppingCart, User, LogOut, Package, UserCircle, ChevronDown, MapPin } from 'lucide-react';
+import { Search, ShoppingCart, User, LogOut, Package, UserCircle, ChevronDown, MapPin, Bell } from 'lucide-react';
 import { useCartStore } from '@/store/cartStore';
 import { useLocationStore } from '@/store/locationStore';
 import { useUIStore } from '@/store/uiStore';
 import { useUserStore } from '@/store/userStore';
 import { cn } from '@/lib/utils';
 
+interface UserNotif {
+  id: string; type: string; title: string; message: string;
+  orderId: string | null; isRead: boolean; createdAt: string;
+}
+
+function timeAgo(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const m = Math.floor(diff / 60000);
+  if (m < 1)  return 'just now';
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  return `${Math.floor(h / 24)}d ago`;
+}
+
+function typeIcon(type: string): string {
+  if (type === 'ORDER_STATUS')  return '📦';
+  if (type === 'ORDER_PLACED')  return '🛒';
+  if (type === 'PROMO')         return '🎉';
+  return 'ℹ️';
+}
+
 export function Header() {
   const router   = useRouter();
   const pathname = usePathname();
 
-  const [mounted, setMounted]           = useState(false);
-  const [userHydrated, setUserHydrated]   = useState(false);
+  const [mounted, setMounted]               = useState(false);
+  const [userHydrated, setUserHydrated]     = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [notifOpen, setNotifOpen]           = useState(false);
+  const [notifs, setNotifs]                 = useState<UserNotif[]>([]);
+  const [unreadCount, setUnreadCount]       = useState(0);
+  const notifRef                            = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -65,6 +91,31 @@ export function Header() {
 
   const { openLocationModal, openSearch, openAuthModal } = useUIStore();
   const { user, isLoggedIn } = useUserStore();
+
+  // Fetch user notifications when logged in
+  useEffect(() => {
+    if (!mounted || !userHydrated) return;
+    if (!isLoggedIn()) return;
+    const fetchNotifs = () => {
+      fetch('/api/notifications/user')
+        .then((r) => r.json())
+        .then((d: { notifications: UserNotif[]; unreadCount: number }) => {
+          setNotifs(d.notifications ?? []);
+          setUnreadCount(d.unreadCount ?? 0);
+        })
+        .catch(() => null);
+    };
+    fetchNotifs();
+    const timer = setInterval(fetchNotifs, 30_000);
+    return () => clearInterval(timer);
+  }, [mounted, userHydrated, isLoggedIn]);
+
+  const openNotifications = () => {
+    setNotifOpen(true);
+    setUnreadCount(0);
+    // Mark all as read
+    fetch('/api/notifications/user/mark-read', { method: 'POST' }).catch(() => null);
+  };
 
   // Delayed Login Popup logic
   useEffect(() => {
@@ -249,42 +300,101 @@ export function Header() {
                     My Orders
                   </Link>
 
-                  <div className="my-1 border-t border-neutral-50" />
+                  <div className="my-1 border-t border-neutral-100" />
 
                   <button
                     onClick={handleLogout}
                     className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-medium text-red-600 transition-colors hover:bg-red-50"
                   >
                     <LogOut className="h-4 w-4" />
-                    Logout
+                    Sign Out
                   </button>
                 </div>
               </>
             )}
           </div>
 
-          {/* Cart */}
+          {/* Notification Bell */}
+          {mounted && userHydrated && isLoggedIn() && (
+            <div className="relative" ref={notifRef}>
+              <button
+                onClick={() => notifOpen ? setNotifOpen(false) : openNotifications()}
+                aria-label="Notifications"
+                className={cn(
+                  'flex h-touch w-touch items-center justify-center rounded-xl',
+                  'text-neutral-600 transition-colors hover:bg-neutral-100',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600',
+                  notifOpen && 'bg-neutral-100',
+                )}
+              >
+                <Bell className="h-5 w-5" aria-hidden="true" />
+                {unreadCount > 0 && (
+                  <span className="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-black text-white">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
+              </button>
+
+              {notifOpen && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setNotifOpen(false)} />
+                  <div className="absolute right-0 mt-2 z-50 w-80 origin-top-right rounded-2xl border border-neutral-100 bg-white shadow-xl ring-1 ring-black/5 animate-in fade-in zoom-in duration-200">
+                    <div className="flex items-center justify-between border-b border-neutral-50 px-4 py-3">
+                      <p className="text-sm font-bold text-neutral-900">Notifications</p>
+                      <button onClick={() => setNotifOpen(false)} className="text-neutral-400 hover:text-neutral-600">
+                        <span className="text-xs">✕</span>
+                      </button>
+                    </div>
+                    <div className="max-h-80 overflow-y-auto">
+                      {notifs.length === 0 ? (
+                        <div className="px-4 py-8 text-center text-sm text-neutral-400">
+                          <Bell className="mx-auto mb-2 h-6 w-6 opacity-30" />
+                          No notifications yet
+                        </div>
+                      ) : (
+                        notifs.map((n) => (
+                          <div
+                            key={n.id}
+                            className={cn(
+                              'flex gap-3 px-4 py-3 border-b border-neutral-50 last:border-0',
+                              !n.isRead && 'bg-primary-50/60',
+                            )}
+                          >
+                            <span className="mt-0.5 text-base shrink-0">{typeIcon(n.type)}</span>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-xs font-bold text-neutral-900 leading-snug">{n.title}</p>
+                              <p className="text-xs text-neutral-500 leading-snug mt-0.5">{n.message}</p>
+                              <p className="text-[10px] text-neutral-400 mt-1">{timeAgo(n.createdAt)}</p>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* Cart button */}
           <button
             onClick={openDrawer}
-            aria-label={
-              cartCount > 0
-                ? `Open cart — ${cartCount} item${cartCount > 1 ? 's' : ''}`
-                : 'Open cart — empty'
-            }
+            aria-label={`Shopping cart, ${cartCount} item${cartCount !== 1 ? 's' : ''}`}
             className={cn(
-              'relative flex h-11 items-center gap-1.5 rounded-xl px-3',
-              'bg-primary-600 text-white',
-              'transition-colors hover:bg-primary-700 active:bg-primary-800',
-              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600 focus-visible:ring-offset-2',
+              'relative flex h-touch min-w-touch items-center justify-center gap-1.5 rounded-xl px-3',
+              'text-sm font-medium text-neutral-600',
+              'transition-colors hover:bg-neutral-100',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600',
             )}
           >
-            <ShoppingCart className="h-[18px] w-[18px]" aria-hidden="true" />
-            {cartCount > 0 ? (
-              <span className="min-w-[18px] rounded-full bg-white px-1 text-[11px] font-black text-primary-600">
-                {cartCount > 9 ? '9+' : cartCount}
+            <ShoppingCart className="h-5 w-5 shrink-0" aria-hidden="true" />
+            {mounted && cartCount > 0 && (
+              <span
+                className="absolute right-0.5 top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-primary-600 text-[11px] font-black text-white ring-2 ring-white"
+                aria-hidden="true"
+              >
+                {cartCount > 99 ? '99+' : cartCount}
               </span>
-            ) : (
-              <span className="hidden text-xs font-bold sm:inline">Cart</span>
             )}
           </button>
         </div>

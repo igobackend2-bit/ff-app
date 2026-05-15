@@ -47,3 +47,9 @@ public/worker-*.js
 public/fallback-*.js
 public/sw.js.map
 public/workbox-*.js.map
+
+# Large files
+public/images.zip
+
+# GitHub workflows (needs special PAT scope)
+.github/
