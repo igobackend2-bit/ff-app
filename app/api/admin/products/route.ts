@@ -20,30 +20,11 @@ export async function GET(req: NextRequest) {
     if (stockFilter === 'in') where['inStock'] = true;
     if (stockFilter === 'out') where['inStock'] = false;
 
-    const sortParam = searchParams.get('sort') ?? '';
-
-    // For 'order' sort we need raw SQL (CASE WHEN sortOrder=0 THEN 9999 ELSE sortOrder END ASC)
-    // For other sorts we use Prisma ORM
-    type OrderBy = Record<string, 'asc' | 'desc'> | Array<Record<string, 'asc' | 'desc'>>;
-    const orderBy: OrderBy =
-      sortParam === 'rating'
-        ? { averageRating: 'desc' }
-        : sortParam === 'popular'
-        ? { reviewCount: 'desc' }
-        : sortParam === 'order'
-        ? [{ sortOrder: 'asc' }, { createdAt: 'desc' }]
-        : { createdAt: 'desc' };
-
-    // Try to add sortOrder column if missing (safe no-op if exists)
-    try {
-      await prisma.$executeRawUnsafe(`ALTER TABLE "Product" ADD COLUMN "sortOrder" INTEGER NOT NULL DEFAULT 0`);
-    } catch { /* already exists */ }
-
     const [products, total] = await Promise.all([
       prisma.product.findMany({
         where,
         include: { brand: true, category: true },
-        orderBy,
+        orderBy: { createdAt: 'desc' },
         skip: (page - 1) * limit,
         take: limit,
       }),

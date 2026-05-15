@@ -83,25 +83,73 @@ export async function GET(req: NextRequest) {
     if (sort === 'price-asc')  orderBy = [{ price: 'asc' }];
     if (sort === 'price-desc') orderBy = [{ price: 'desc' }];
     if (sort === 'name-asc')   orderBy = [{ name: 'asc' }];
-    // When browsing a category with no explicit sort: sort by sortOrder ASC first (0 = top), then name
-    if (category && !sort) orderBy = [{ name: 'asc' }]; // fallback if sortOrder col doesn't exist
-    if (featured)          orderBy = [{ createdAt: 'desc' }];
+    if (featured)              orderBy = [{ createdAt: 'desc' }];
 
-    const [products, total] = await Promise.all([
+    // For default/relevance sort: use custom sortOrder (set in admin) — honey=1, onion=2, etc.
+    // sortOrder=0 means unset → sorts last
+    const useCustomOrder = (sort === 'relevance' || !sort) && !featured;
+
+    // Ensure sortOrder column exists (safe no-op if already present)
+    try {
+      await prisma.$executeRawUnsafe(`ALTER TABLE "Product" ADD COLUMN "sortOrder" INTEGER NOT NULL DEFAULT 0`);
+    } catch { /* already exists */ }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let products: any[];
+    let total: number;
+
+    if (useCustomOrder) {
+      // Build dynamic WHERE for raw SQL
+      const conditions: string[] = [`"isActive" = 1`];
+      const rawArgs: unknown[] = [];
+      if (!search) conditions.push(`"inStock" = 1`);
+      if (category) { conditions.push(`"categoryId" = (SELECT id FROM "Category" WHERE slug = ?)`); rawArgs.push(category); }
+      if (search) {
+        conditions.push(`("name" LIKE ? OR "description" LIKE ? OR "tags" LIKE ?)`);
+        rawArgs.push(`%${search}%`, `%${search}%`, `%${search}%`);
+      }
+      if (featured) { conditions.push(`"isFeatured" = 1`); }
+      const whereClause = conditions.join(' AND ');
+
+      const countRows = await prisma.$queryRawUnsafe<{ cnt: number }[]>(
+        `SELECT COUNT(*) AS cnt FROM "Product" WHERE ${whereClause}`,
+        ...rawArgs,
+      );
+      total = Number(countRows[0]?.cnt ?? 0);
+
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (prisma.product.findMany as any)({
-        where,
-        include: {
-          category: { select: { name: true, slug: true } },
-          brand:    { select: { name: true } },
-        },
-        orderBy,
-        skip: offset,
-        take: limit,
-      }),
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (prisma.product.count as any)({ where }),
-    ]);
+      const rawRows = await prisma.$queryRawUnsafe<any[]>(
+        `SELECT p.*, c.name AS catName, c.slug AS catSlug, b.name AS brandName
+         FROM "Product" p
+         LEFT JOIN "Category" c ON p."categoryId" = c.id
+         LEFT JOIN "Brand" b ON p."brandId" = b.id
+         WHERE ${whereClause}
+         ORDER BY CASE WHEN "sortOrder" = 0 THEN 9999 ELSE "sortOrder" END ASC, p."createdAt" DESC
+         LIMIT ? OFFSET ?`,
+        ...rawArgs, limit, offset,
+      );
+      products = rawRows.map((r: any) => ({
+        ...r,
+        category: r.catName ? { name: r.catName, slug: r.catSlug } : null,
+        brand: r.brandName ? { name: r.brandName } : null,
+      }));
+    } else {
+      [products, total] = await Promise.all([
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (prisma.product.findMany as any)({
+          where,
+          include: {
+            category: { select: { name: true, slug: true } },
+            brand:    { select: { name: true } },
+          },
+          orderBy,
+          skip: offset,
+          take: limit,
+        }),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (prisma.product.count as any)({ where }),
+      ]);
+    }
 
     const formatted = products.map(formatProduct);
 

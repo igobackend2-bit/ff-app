@@ -141,7 +141,7 @@ export default function AdminLoginPage() {
               className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary-600 text-sm font-bold text-white transition-colors hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {loading
-                ? <span className="flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Signing in...</span>
+                ? <><Loader2 className="h-4 w-4 animate-spin" /> Signing in...</>
                 : 'Sign In to Admin'}
             </button>
           </form>

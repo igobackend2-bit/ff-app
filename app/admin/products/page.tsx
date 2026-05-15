@@ -21,7 +21,6 @@ interface Product {
   brand: { name: string } | null;
   averageRating?: number;
   reviewCount?: number;
-  sortOrder?: number;
 }
 
 interface ApiResponse {
@@ -41,7 +40,7 @@ export default function AdminProductsPage() {
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
-  const [sortBy, setSortBy]     = useState<'newest' | 'order' | 'rating'>('order');
+  const [sortBy, setSortBy]     = useState<'newest' | 'rating'>('newest');
 
   const fetchProducts = useCallback(async () => {
     setLoading(true);
@@ -112,11 +111,6 @@ export default function AdminProductsPage() {
         <div className="flex items-center gap-2">
           {/* Sort order */}
           <div className="flex overflow-hidden rounded-xl border border-neutral-200 bg-white">
-            <button onClick={() => { setSortBy('order'); setPage(1); }} title="Sort by custom order"
-              className={cn('flex items-center gap-1 px-3 py-2 text-xs font-semibold transition-colors',
-                sortBy === 'order' ? 'bg-neutral-900 text-white' : 'text-neutral-500 hover:bg-neutral-50')}>
-              # Order
-            </button>
             <button onClick={() => { setSortBy('newest'); setPage(1); }} title="Sort by newest"
               className={cn('flex items-center gap-1 px-3 py-2 text-xs font-semibold transition-colors',
                 sortBy === 'newest' ? 'bg-neutral-900 text-white' : 'text-neutral-500 hover:bg-neutral-50')}>
@@ -365,7 +359,6 @@ export default function AdminProductsPage() {
               <thead>
                 <tr className="border-b border-neutral-100 bg-neutral-50 text-left text-xs font-semibold uppercase tracking-wider text-neutral-500">
                   <th className="px-4 py-3">#</th>
-                  <th className="px-4 py-3 text-center">Order</th>
                   <th className="px-4 py-3">Product</th>
                   <th className="px-4 py-3">Category</th>
                   <th className="px-4 py-3">Brand</th>
@@ -401,23 +394,6 @@ export default function AdminProductsPage() {
                           </span>
                         </td>
 
-                        {/* Sort Order — inline editable */}
-                        <td className="px-4 py-3 text-center">
-                          <input
-                            type="number" min="0"
-                            defaultValue={product.sortOrder ?? 0}
-                            title="Set display order (0 = auto)"
-                            onBlur={async (e) => {
-                              const val = Math.max(0, Number(e.target.value));
-                              await fetch('/api/admin/setup-sort', {
-                                method: 'PATCH',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ productId: product.id, sortOrder: val }),
-                              });
-                            }}
-                            className="w-14 rounded-lg border border-neutral-200 py-1 text-center text-xs font-bold text-neutral-700 focus:border-primary-400 focus:outline-none"
-                          />
-                        </td>
 
                         {/* Product */}
                         <td className="px-4 py-3">
