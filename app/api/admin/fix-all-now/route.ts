@@ -86,7 +86,7 @@ export async function GET() {
   let oilCleared = 0;
   for (const namePart of BAD_OIL_NAMES) {
     const products = await prisma.product.findMany({
-      where: { name: { contains: namePart, mode: 'insensitive' } },
+      where: { name: { contains: namePart } },
     });
     for (const p of products) {
       const isBeetroot = p.name.toLowerCase().includes('beetroot');

@@ -79,11 +79,13 @@ export async function GET(req: NextRequest) {
 
     // Build orderBy
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let orderBy: Record<string, any> = { createdAt: 'desc' };
-    if (sort === 'price-asc')  orderBy = { price: 'asc' };
-    if (sort === 'price-desc') orderBy = { price: 'desc' };
-    if (sort === 'name-asc')   orderBy = { name: 'asc' };
-    if (featured)              orderBy = { createdAt: 'desc' }; // featured shown by recency
+    let orderBy: Record<string, any> = [{ createdAt: 'desc' }];
+    if (sort === 'price-asc')  orderBy = [{ price: 'asc' }];
+    if (sort === 'price-desc') orderBy = [{ price: 'desc' }];
+    if (sort === 'name-asc')   orderBy = [{ name: 'asc' }];
+    // When browsing a category with no explicit sort: sort by sortOrder ASC first (0 = top), then name
+    if (category && !sort) orderBy = [{ name: 'asc' }]; // fallback if sortOrder col doesn't exist
+    if (featured)          orderBy = [{ createdAt: 'desc' }];
 
     const [products, total] = await Promise.all([
       // eslint-disable-next-line @typescript-eslint/no-explicit-any

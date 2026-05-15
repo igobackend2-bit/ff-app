@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Search, RefreshCw, ChevronLeft, ChevronRight, Package, Clock, ChevronDown } from 'lucide-react';
+import { Search, RefreshCw, ChevronLeft, ChevronRight, Package, Clock, ChevronDown, Download, FileText, BarChart2 } from 'lucide-react';
+import Link from 'next/link';
 import { cn } from '@/lib/utils';
 
 interface OrderItem {
@@ -110,6 +111,96 @@ function StatusUpdater({ orderId, currentStatus, onUpdated }: { orderId: string;
   );
 }
 
+// ── Export helpers ────────────────────────────────────────────────────────────
+function escapeCSV(val: string | number | null | undefined): string {
+  const s = String(val ?? '');
+  if (s.includes(',') || s.includes('"') || s.includes('\n')) return `"${s.replace(/"/g, '""')}"`;
+  return s;
+}
+
+function exportCSV(orders: Order[]) {
+  const headers = ['Order #','Customer','Phone','Status','Payment Method','Payment Status','Subtotal','Delivery Fee','Total','Address','Date'];
+  const rows = orders.map((o) => [
+    o.orderNumber,
+    o.user?.name ?? '',
+    o.user?.phone ?? '',
+    o.status,
+    o.paymentMethod,
+    o.paymentStatus,
+    o.subtotal?.toFixed(2),
+    o.deliveryFee?.toFixed(2),
+    o.total?.toFixed(2),
+    o.address ? `${o.address.line1}, ${o.address.city}, ${o.address.state} ${o.address.pincode}` : '',
+    new Date(o.createdAt).toLocaleDateString('en-IN'),
+  ]);
+  const csv = [headers, ...rows].map((r) => r.map(escapeCSV).join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = `orders-${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function exportExcelXML(orders: Order[]) {
+  const headers = ['Order #','Customer','Phone','Status','Payment Method','Payment Status','Subtotal','Delivery Fee','Total','Address','Date'];
+  const esc = (v: string | number | null | undefined) =>
+    String(v ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+  const rows = orders.map((o) => [
+    o.orderNumber, o.user?.name ?? '', o.user?.phone ?? '', o.status,
+    o.paymentMethod, o.paymentStatus,
+    o.subtotal?.toFixed(2), o.deliveryFee?.toFixed(2), o.total?.toFixed(2),
+    o.address ? `${o.address.line1}, ${o.address.city}, ${o.address.state} ${o.address.pincode}` : '',
+    new Date(o.createdAt).toLocaleDateString('en-IN'),
+  ]);
+
+  const xml = `<?xml version="1.0"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+<Worksheet ss:Name="Orders"><Table>
+<Row>${headers.map((h) => `<Cell><Data ss:Type="String">${esc(h)}</Data></Cell>`).join('')}</Row>
+${rows.map((r) => `<Row>${r.map((c) => `<Cell><Data ss:Type="String">${esc(c)}</Data></Cell>`).join('')}</Row>`).join('\n')}
+</Table></Worksheet></Workbook>`;
+
+  const blob = new Blob([xml], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = `orders-${new Date().toISOString().slice(0,10)}.xls`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function printOrdersPDF(orders: Order[]) {
+  const rows = orders.map((o) => `
+    <tr>
+      <td>${o.orderNumber}</td>
+      <td>${o.user?.name ?? ''}<br/><small>${o.user?.phone ?? ''}</small></td>
+      <td>${o.status}</td>
+      <td>${o.paymentMethod} / ${o.paymentStatus}</td>
+      <td style="text-align:right">₹${o.total?.toFixed(0)}</td>
+      <td>${new Date(o.createdAt).toLocaleDateString('en-IN')}</td>
+    </tr>`).join('');
+
+  const win = window.open('', '_blank', 'width=900,height=700');
+  if (!win) return;
+  win.document.write(`<!DOCTYPE html><html><head><title>Orders Export</title>
+  <style>body{font-family:sans-serif;padding:20px}h1{font-size:18px;margin-bottom:12px}
+  table{width:100%;border-collapse:collapse;font-size:12px}
+  th{background:#166534;color:#fff;padding:8px;text-align:left}
+  td{padding:7px 8px;border-bottom:1px solid #e5e7eb}
+  tr:nth-child(even){background:#f9fafb}
+  @media print{@page{margin:15mm}}</style></head>
+  <body><h1>Farmers Factory — Orders (${new Date().toLocaleDateString('en-IN')})</h1>
+  <table><thead><tr><th>Order #</th><th>Customer</th><th>Status</th><th>Payment</th><th>Amount</th><th>Date</th></tr></thead>
+  <tbody>${rows}</tbody></table></body></html>`);
+  win.document.close();
+  win.focus();
+  setTimeout(() => win.print(), 400);
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────────
 export default function AdminOrdersPage() {
   const [orders, setOrders]     = useState<Order[]>([]);
   const [total, setTotal]       = useState(0);
@@ -119,6 +210,7 @@ export default function AdminOrdersPage() {
   const [statusFilter, setStatusFilter] = useState('');
   const [loading, setLoading]   = useState(true);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
 
   const fetchOrders = useCallback(async () => {
     setLoading(true);
@@ -137,6 +229,20 @@ export default function AdminOrdersPage() {
       setLoading(false);
     }
   }, [page, search, statusFilter]);
+
+  const fetchAllForExport = async (): Promise<Order[]> => {
+    setExporting(true);
+    try {
+      const params = new URLSearchParams({ page: '1', limit: '500' });
+      if (search)       params.set('q', search);
+      if (statusFilter) params.set('status', statusFilter);
+      const res  = await fetch(`/api/admin/orders?${params}`);
+      const data = await res.json() as { orders: Order[] };
+      return data.orders ?? [];
+    } finally {
+      setExporting(false);
+    }
+  };
 
   useEffect(() => { void fetchOrders(); }, [fetchOrders]);
 
@@ -157,9 +263,32 @@ export default function AdminOrdersPage() {
           <h1 className="text-2xl font-black text-neutral-900">Orders</h1>
           <p className="mt-0.5 text-sm text-neutral-500">{total} total orders</p>
         </div>
-        <button onClick={() => void fetchOrders()} className="flex items-center gap-2 rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm font-semibold text-neutral-600 hover:bg-neutral-50">
-          <RefreshCw className="h-4 w-4" /> Refresh
-        </button>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/admin/orders/summary"
+            className="flex items-center gap-1.5 rounded-xl border border-green-200 bg-green-50 px-3 py-2 text-sm font-semibold text-green-700 hover:bg-green-100"
+          >
+            <BarChart2 className="h-4 w-4" /> Product Summary
+          </Link>
+          <button
+            onClick={async () => { const d = await fetchAllForExport(); exportExcelXML(d); }}
+            disabled={exporting}
+            className="flex items-center gap-1.5 rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm font-semibold text-neutral-600 hover:bg-neutral-50 disabled:opacity-60"
+          >
+            <Download className="h-4 w-4" />
+            {exporting ? 'Loading…' : 'Excel'}
+          </button>
+          <button
+            onClick={async () => { const d = await fetchAllForExport(); printOrdersPDF(d); }}
+            disabled={exporting}
+            className="flex items-center gap-1.5 rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm font-semibold text-neutral-600 hover:bg-neutral-50 disabled:opacity-60"
+          >
+            <FileText className="h-4 w-4" /> PDF
+          </button>
+          <button onClick={() => void fetchOrders()} className="flex items-center gap-2 rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm font-semibold text-neutral-600 hover:bg-neutral-50">
+            <RefreshCw className="h-4 w-4" /> Refresh
+          </button>
+        </div>
       </div>
 
       {/* Filters */}
