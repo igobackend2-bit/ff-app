@@ -78,8 +78,32 @@ export async function PATCH(
       select: { id: true, status: true, updatedAt: true, orderNumber: true, userId: true },
     });
 
-    // ── Restore inventory if order was CANCELLED ─────────────────────────────
+    // ── Inventory decrease on CONFIRMED ─────────────────────────────────────
     const STORE_ID = 'main-store';
+    if (status === 'CONFIRMED' && current.status !== 'CONFIRMED') {
+      for (const item of current.items) {
+        try {
+          const existing = await prisma.inventory.findUnique({
+            where: { productId_darkStoreId: { productId: item.productId, darkStoreId: STORE_ID } },
+          });
+          if (existing) {
+            const newQty = Math.max(0, existing.quantity - item.quantity);
+            await prisma.inventory.update({
+              where: { productId_darkStoreId: { productId: item.productId, darkStoreId: STORE_ID } },
+              data:  { quantity: newQty },
+            });
+            // Mark out of stock if qty hits 0
+            if (newQty === 0) {
+              await prisma.product.update({ where: { id: item.productId }, data: { inStock: false } });
+            }
+          }
+        } catch (sErr) {
+          console.error('[stock-decrease]', sErr);
+        }
+      }
+    }
+
+    // ── Restore inventory if order was CANCELLED ─────────────────────────────
     if (status === 'CANCELLED' && current.status !== 'CANCELLED') {
       for (const item of current.items) {
         try {

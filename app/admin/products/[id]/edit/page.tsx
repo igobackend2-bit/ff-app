@@ -340,8 +340,51 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
               <p className="mt-1 text-[11px] text-neutral-400">Press Enter to add the URL as an image</p>
             </Field>
 
-            {/* Video URL input */}
-            <Field label="Add Product Video (YouTube / MP4 URL)">
+            {/* Video — file upload + URL input */}
+            <Field label="Add Product Video">
+              {/* File upload button */}
+              <div className="mb-2 flex items-center gap-3">
+                <input
+                  ref={videoFileRef}
+                  type="file"
+                  accept="video/*"
+                  className="hidden"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    if (file.size > 50 * 1024 * 1024) { setUploadError('Video must be under 50 MB.'); return; }
+                    setUploading(true);
+                    try {
+                      const fd = new FormData();
+                      fd.append('file', file);
+                      const res  = await fetch('/api/admin/upload-image', { method: 'POST', body: fd });
+                      const data = await res.json() as { ok?: boolean; url?: string; error?: string };
+                      if (data.ok && data.url) {
+                        setForm((f) => ({ ...f, imageUrls: [...f.imageUrls, data.url!] }));
+                      } else {
+                        setUploadError(data.error ?? 'Upload failed');
+                      }
+                    } catch { setUploadError('Upload failed'); }
+                    finally {
+                      setUploading(false);
+                      if (videoFileRef.current) videoFileRef.current.value = '';
+                    }
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => videoFileRef.current?.click()}
+                  disabled={uploading}
+                  className="flex items-center gap-2 rounded-xl border-2 border-dashed border-purple-200 bg-purple-50 px-4 py-2.5 text-sm font-semibold text-purple-700 transition-colors hover:border-purple-400 hover:bg-purple-100 disabled:opacity-60"
+                >
+                  {uploading
+                    ? <Loader2 className="h-4 w-4 animate-spin" />
+                    : <Video className="h-4 w-4" />}
+                  Upload Video File (MP4 / WebM)
+                </button>
+                <span className="text-xs text-neutral-400">up to 50 MB</span>
+              </div>
+              {/* URL input */}
               <div className="flex items-center gap-2">
                 <Video className="h-4 w-4 shrink-0 text-purple-400" />
                 <input
@@ -363,8 +406,7 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
                 />
               </div>
               <p className="mt-1 text-[11px] text-neutral-400">
-                Press Enter to add. Video will appear with a ▶ badge in the image grid.
-                Supports YouTube, Vimeo, MP4, WEBM.
+                Upload a file OR paste a YouTube / MP4 URL and press Enter. Video appears with a ▶ badge in the image grid.
               </p>
             </Field>
 
