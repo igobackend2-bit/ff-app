@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Products — FF Admin</title>
+  <link rel="stylesheet" href="../css/admin.css">
+</head>
+<body>
+<div id="toast-container"></div>
+
+<!-- Product Modal -->
+<div class="modal-backdrop" id="product-modal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3 id="modal-title">Add New Product</h3>
+      <button class="modal-close" id="modal-close">✕</button>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Product Name *</label>
+        <input type="text" id="f-name" placeholder="e.g. Organic Tomatoes">
+      </div>
+      <div class="form-group">
+        <label>Category *</label>
+        <select id="f-category">
+          <option value="">Select category</option>
+          <option value="vegetables">Vegetables</option>
+          <option value="fruits">Fruits</option>
+          <option value="dairy">Dairy</option>
+          <option value="grains">Grains</option>
+          <option value="herbs">Herbs</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Price (₹) *</label>
+        <input type="number" id="f-price" placeholder="e.g. 49" min="0" step="0.01">
+      </div>
+      <div class="form-group">
+        <label>Old Price (₹)</label>
+        <input type="number" id="f-old-price" placeholder="e.g. 65 (optional)" min="0" step="0.01">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Unit *</label>
+        <input type="text" id="f-unit" placeholder="e.g. 500g, 1kg, 1 litre">
+      </div>
+      <div class="form-group">
+        <label>Stock Quantity</label>
+        <input type="number" id="f-stock" placeholder="e.g. 100" min="0">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Description</label>
+      <textarea id="f-desc" rows="3" placeholder="Describe the product…"></textarea>
+    </div>
+    <div class="form-group">
+      <label>Is Organic?</label>
+      <div class="toggle-wrap">
+        <label class="toggle">
+          <input type="checkbox" id="f-organic">
+          <div class="toggle-slider"></div>
+        </label>
+        <span id="organic-label" style="font-size:13px;color:var(--text-3)">No</span>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Product Image</label>
+      <input type="file" id="f-image" accept="image/*">
+      <div id="image-preview" style="margin-top:8px"></div>
+      <div style="font-size:11px;color:var(--text-3);margin-top:4px">
+        Uploads to Supabase Storage bucket "product-images"
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:4px">
+      <button class="btn btn-primary" style="flex:1" id="save-product-btn">Save Product</button>
+      <button class="btn btn-outline" id="modal-cancel-btn">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div class="admin-shell">
+  <aside class="admin-sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-icon">🌿</div>
+      <div class="logo-text">FF Admin <span>Farmers Factory</span></div>
+    </div>
+    <nav class="sidebar-nav">
+      <a href="dashboard.html" class="nav-link"><span class="nav-icon">📊</span> Dashboard</a>
+      <a href="products.html"  class="nav-link active"><span class="nav-icon">🥦</span> Products</a>
+      <a href="orders.html"    class="nav-link"><span class="nav-icon">📦</span> Orders</a>
+      <a href="customers.html" class="nav-link"><span class="nav-icon">👥</span> Customers</a>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="logout-btn" id="logout-btn">🚪 Logout</div>
+    </div>
+  </aside>
+
+  <main class="admin-main">
+    <div class="admin-topbar">
+      <h1>Products</h1>
+      <div class="topbar-actions">
+        <button class="btn btn-primary" id="add-product-btn">+ Add New Product</button>
+      </div>
+    </div>
+
+    <div class="admin-content">
+      <div class="filter-bar">
+        <input type="text" id="search-products" placeholder="Search products…">
+        <select id="filter-category">
+          <option value="">All Categories</option>
+          <option value="vegetables">Vegetables</option>
+          <option value="fruits">Fruits</option>
+          <option value="dairy">Dairy</option>
+          <option value="grains">Grains</option>
+          <option value="herbs">Herbs</option>
+        </select>
+      </div>
+
+      <div class="data-card">
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th>Image</th><th>Name</th><th>Category</th><th>Price</th>
+              <th>Stock</th><th>Organic</th><th>Actions</th>
+            </tr></thead>
+            <tbody id="products-body">
+              <tr><td colspan="7" style="text-align:center;padding:24px"><div class="spinner"></div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script type="module">
+import {
+  requireAdmin, logoutAdmin, showToast,
+  fetchAllProducts, saveProduct, deleteProduct,
+  uploadProductImage, subscribeToProducts
+} from '../js/admin.js';
+
+if (!requireAdmin()) throw new Error('Not admin');
+document.getElementById('logout-btn').addEventListener('click', logoutAdmin);
+
+let products = [];
+let editingId = null;
+
+// Load all products
+async function loadProducts() {
+  products = await fetchAllProducts();
+  renderTable(products);
+}
+
+function renderTable(list) {
+  const body = document.getElementById('products-body');
+  if (!list.length) {
+    body.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-3);padding:24px">No products found</td></tr>';
+    return;
+  }
+  body.innerHTML = list.map(p => `
+    <tr data-id="${p.id}">
+      <td>
+        <div class="thumb">
+          ${p.image_url
+            ? `<img src="${p.image_url}" alt="${p.name}" onerror="this.parentElement.textContent='🌿'">`
+            : '🌿'}
+        </div>
+      </td>
+      <td class="td-bold">${p.name}<br><span class="text-muted">${p.unit || ''}</span></td>
+      <td style="text-transform:capitalize">${p.category || '—'}</td>
+      <td>
+        <span class="text-primary">₹${p.price}</span>
+        ${p.old_price ? `<br><span class="text-muted" style="text-decoration:line-through">₹${p.old_price}</span>` : ''}
+      </td>
+      <td>${p.stock ?? '—'}</td>
+      <td>${p.is_organic ? '<span class="organic-dot"></span>Yes' : 'No'}</td>
+      <td>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-outline btn-sm edit-btn" data-id="${p.id}">Edit</button>
+          <button class="btn btn-danger btn-sm delete-btn" data-id="${p.id}">Delete</button>
+        </div>
+      </td>
+    </tr>`).join('');
+
+  body.querySelectorAll('.edit-btn').forEach(btn =>
+    btn.addEventListener('click', () => openModal(products.find(p => p.id === btn.dataset.id))));
+
+  body.querySelectorAll('.delete-btn').forEach(btn =>
+    btn.addEventListener('click', async () => {
+      if (!confirm('Delete this product? This cannot be undone.')) return;
+      const { error } = await deleteProduct(btn.dataset.id);
+      if (error) { showToast('Delete failed', 'error'); return; }
+      showToast('Product deleted', 'success');
+      loadProducts();
+    }));
+}
+
+// Search + filter
+function applyFilters() {
+  const q   = document.getElementById('search-products').value.toLowerCase();
+  const cat = document.getElementById('filter-category').value.toLowerCase();
+  renderTable(products.filter(p =>
+    (!q   || p.name.toLowerCase().includes(q) || (p.category||'').toLowerCase().includes(q)) &&
+    (!cat || (p.category||'').toLowerCase() === cat)
+  ));
+}
+
+document.getElementById('search-products').addEventListener('input', applyFilters);
+document.getElementById('filter-category').addEventListener('change', applyFilters);
+
+// Modal
+function openModal(product = null) {
+  editingId = product?.id || null;
+  document.getElementById('modal-title').textContent = product ? 'Edit Product' : 'Add New Product';
+  document.getElementById('f-name').value      = product?.name || '';
+  document.getElementById('f-category').value  = product?.category || '';
+  document.getElementById('f-price').value     = product?.price || '';
+  document.getElementById('f-old-price').value = product?.old_price || '';
+  document.getElementById('f-unit').value      = product?.unit || '';
+  document.getElementById('f-stock').value     = product?.stock || '';
+  document.getElementById('f-desc').value      = product?.description || '';
+  document.getElementById('f-organic').checked = !!product?.is_organic;
+  document.getElementById('organic-label').textContent = product?.is_organic ? 'Yes' : 'No';
+  document.getElementById('image-preview').innerHTML = product?.image_url
+    ? `<img src="${product.image_url}" style="width:80px;height:80px;object-fit:cover;border-radius:8px">`
+    : '';
+  document.getElementById('product-modal').classList.add('open');
+}
+
+function closeModal() {
+  document.getElementById('product-modal').classList.remove('open');
+  document.getElementById('f-image').value = '';
+  editingId = null;
+}
+
+document.getElementById('add-product-btn').addEventListener('click', () => openModal());
+document.getElementById('modal-close').addEventListener('click', closeModal);
+document.getElementById('modal-cancel-btn').addEventListener('click', closeModal);
+
+document.getElementById('f-organic').addEventListener('change', e => {
+  document.getElementById('organic-label').textContent = e.target.checked ? 'Yes' : 'No';
+});
+
+document.getElementById('f-image').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const url = URL.createObjectURL(file);
+  document.getElementById('image-preview').innerHTML =
+    `<img src="${url}" style="width:80px;height:80px;object-fit:cover;border-radius:8px">`;
+});
+
+document.getElementById('save-product-btn').addEventListener('click', async () => {
+  const name     = document.getElementById('f-name').value.trim();
+  const category = document.getElementById('f-category').value;
+  const price    = parseFloat(document.getElementById('f-price').value);
+  const unit     = document.getElementById('f-unit').value.trim();
+
+  if (!name || !category || isNaN(price) || !unit) {
+    showToast('Fill in all required fields (*)', 'error');
+    return;
+  }
+
+  const btn = document.getElementById('save-product-btn');
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+
+  let image_url = null;
+  const file = document.getElementById('f-image').files[0];
+  if (file) {
+    image_url = await uploadProductImage(file);
+    if (!image_url) { showToast('Image upload failed', 'error'); btn.disabled = false; btn.textContent = 'Save Product'; return; }
+  } else if (editingId) {
+    const existing = products.find(p => p.id === editingId);
+    image_url = existing?.image_url || null;
+  }
+
+  const productData = {
+    name,
+    category,
+    price,
+    old_price:   parseFloat(document.getElementById('f-old-price').value) || null,
+    unit,
+    stock:       parseInt(document.getElementById('f-stock').value) || 0,
+    description: document.getElementById('f-desc').value.trim() || null,
+    is_organic:  document.getElementById('f-organic').checked,
+    image_url,
+  };
+
+  const { error } = await saveProduct(productData, editingId);
+  btn.disabled = false;
+  btn.textContent = 'Save Product';
+
+  if (error) { showToast('Save failed: ' + error.message, 'error'); return; }
+
+  showToast(editingId ? 'Product updated ✓' : 'Product added ✓', 'success');
+  closeModal();
+  loadProducts();
+});
+
+// Realtime
+subscribeToProducts(() => loadProducts());
+
+loadProducts();
+</script>
+</body>
+</html>

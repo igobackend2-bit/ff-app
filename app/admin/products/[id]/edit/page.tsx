@@ -68,7 +68,8 @@ const Field = ({ label, children }: { label: string; children: React.ReactNode }
 export default function EditProductPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router  = useRouter();
-  const fileRef = useRef<HTMLInputElement>(null);
+  const fileRef      = useRef<HTMLInputElement>(null);
+  const videoFileRef = useRef<HTMLInputElement>(null);
 
   const [product,     setProduct]     = useState<Product | null>(null);
   const [loading,     setLoading]     = useState(true);

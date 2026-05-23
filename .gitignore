@@ -53,3 +53,5 @@ public/images.zip
 
 # GitHub workflows (needs special PAT scope)
 .github/
+
+certificates

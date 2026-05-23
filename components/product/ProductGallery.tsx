@@ -198,6 +198,7 @@ export function ProductGallery({ imageUrls, blurDataUrls, productName, productUn
                   <button
                     key={idx}
                     onClick={() => setSelected(idx)}
+                    onMouseEnter={() => setSelected(idx)}
                     className={cn(
                       'relative h-16 w-16 flex-shrink-0 overflow-hidden rounded-xl border-2 transition-all',
                       idx === selected

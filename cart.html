@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <title>Cart — Farmers Factory</title>
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div id="toast-container"></div>
+
+<!-- Order Placement Modal -->
+<div class="modal-backdrop" id="order-modal">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <h3 class="modal-title">📦 Confirm Your Order</h3>
+    <div class="form-group">
+      <label class="form-label" for="delivery-loc">Delivery Location</label>
+      <input type="text" id="delivery-loc" placeholder="Enter your full address">
+      <button class="btn btn-outline" id="gps-autofill" style="margin-top:8px;padding:8px 14px;font-size:13px">
+        📍 Autofill with GPS
+      </button>
+      <div class="error-msg" id="loc-err">Please enter your delivery location</div>
+    </div>
+    <div class="form-group">
+      <label class="form-label" for="order-phone">Phone Number</label>
+      <input type="tel" id="order-phone" placeholder="10-digit mobile number" maxlength="10" inputmode="numeric">
+      <div class="error-msg" id="phone-err">Enter a valid 10-digit number</div>
+    </div>
+    <div style="background:var(--primary-pale);border-radius:10px;padding:12px;margin-bottom:16px;font-size:13px">
+      🚚 <strong style="color:var(--primary)">24hr Delivery</strong> — Your order will arrive within 24 hours.
+    </div>
+    <button class="btn btn-primary btn-block" id="confirm-order-btn">Confirm Order ✓</button>
+    <button class="btn btn-outline btn-block" id="cancel-order-btn" style="margin-top:8px">Cancel</button>
+  </div>
+</div>
+
+<!-- Success screen -->
+<div id="order-success" class="hidden" style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px;text-align:center;background:var(--white)">
+  <div style="font-size:72px;margin-bottom:16px">✅</div>
+  <h2 style="color:var(--primary);font-size:22px;margin-bottom:8px">Order Placed!</h2>
+  <p style="color:var(--text-2);margin-bottom:4px">Your order has been placed successfully.</p>
+  <p style="color:var(--primary);font-weight:700;margin-bottom:24px">🚚 Delivery within 24 hours</p>
+  <a href="orders.html" class="btn btn-primary" style="margin-bottom:10px">Track My Order</a>
+  <a href="index.html" class="btn btn-outline">Continue Shopping</a>
+</div>
+
+<div class="app-wrapper" id="cart-page">
+  <header class="page-header">
+    <a href="index.html" class="back-btn">←</a>
+    <h1 class="page-title">My Cart</h1>
+    <button id="clear-cart-btn" style="font-size:12px;color:var(--danger);font-weight:700">Clear All</button>
+  </header>
+
+  <!-- Items -->
+  <div class="card" id="cart-items-wrap"></div>
+
+  <!-- Summary -->
+  <div id="cart-summary-wrap" class="hidden">
+    <div class="order-summary">
+      <div class="summary-row"><span>Subtotal</span><span id="subtotal-val"></span></div>
+      <div class="summary-row"><span>🚚 Delivery</span><span style="color:var(--primary);font-weight:700">FREE</span></div>
+      <div class="summary-row"><span>Total</span><span id="total-val"></span></div>
+    </div>
+    <div style="padding:16px">
+      <div style="background:var(--primary-pale);border-radius:10px;padding:10px 14px;font-size:13px;margin-bottom:16px;color:var(--primary)">
+        🚚 <strong>24hr Delivery</strong> — Fresh to your door, ordered today
+      </div>
+      <button class="btn btn-primary btn-block" id="place-order-btn">Place Order →</button>
+    </div>
+  </div>
+</div>
+
+<nav class="bottom-nav">
+  <a href="index.html"   class="nav-item"><span class="nav-icon">🏠</span><span>Home</span></a>
+  <a href="wishlist.html" class="nav-item"><span class="nav-icon">🤍</span><span>Wishlist</span></a>
+  <a href="cart.html"    class="nav-item active"><span class="nav-icon">🛒</span><span>Cart</span></a>
+  <a href="orders.html"  class="nav-item"><span class="nav-icon">📦</span><span>Orders</span></a>
+  <a href="profile.html" class="nav-item"><span class="nav-icon">👤</span><span>Profile</span></a>
+</nav>
+
+<script type="module">
+import { getCart, updateCartQty, removeFromCart, clearCart, cartSubtotal, syncBadges } from './js/cart.js';
+import { formatPrice, getCategoryEmoji } from './js/products.js';
+import { placeOrder } from './js/orders.js';
+import { getSession } from './js/auth.js';
+
+syncBadges();
+
+function showToast(msg, type='success') {
+  const c = document.getElementById('toast-container');
+  const t = document.createElement('div');
+  t.className = `toast ${type}`;
+  t.textContent = msg;
+  c.appendChild(t);
+  setTimeout(() => t.remove(), 3200);
+}
+
+function render() {
+  const cart  = getCart();
+  const wrap  = document.getElementById('cart-items-wrap');
+  const sumWrap = document.getElementById('cart-summary-wrap');
+
+  if (!cart.length) {
+    wrap.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-icon">🛒</div>
+        <h3>Your cart is empty</h3>
+        <p>Add items from the homepage</p>
+        <a href="index.html" class="btn btn-primary mt-16">Shop Now</a>
+      </div>`;
+    sumWrap.classList.add('hidden');
+    return;
+  }
+
+  wrap.innerHTML = cart.map(item => {
+    const emoji = getCategoryEmoji(item.category);
+    return `
+    <div class="cart-item" data-id="${item.id}">
+      <div class="cart-item-img">
+        ${item.image_url
+          ? `<img src="${item.image_url}" alt="${item.name}" style="width:100%;height:100%;object-fit:cover;border-radius:10px"
+              onerror="this.outerHTML='<span style=\'font-size:24px\'>${emoji}</span>'">`
+          : `<span style="font-size:24px">${emoji}</span>`}
+      </div>
+      <div class="cart-item-info">
+        <div class="cart-item-name">${item.name}</div>
+        <div class="cart-item-unit">${item.unit || ''}</div>
+        <div class="qty-controls">
+          <button class="qty-dec" data-id="${item.id}" data-qty="${item.qty}">−</button>
+          <span>${item.qty}</span>
+          <button class="qty-inc" data-id="${item.id}" data-qty="${item.qty}">+</button>
+        </div>
+        <div class="cart-item-price">${formatPrice(item.price * item.qty)}</div>
+      </div>
+      <button class="cart-remove-btn" data-id="${item.id}" aria-label="Remove">🗑</button>
+    </div>`;
+  }).join('');
+
+  const sub = cartSubtotal();
+  document.getElementById('subtotal-val').textContent = formatPrice(sub);
+  document.getElementById('total-val').textContent    = formatPrice(sub);
+  sumWrap.classList.remove('hidden');
+
+  // Qty controls
+  wrap.querySelectorAll('.qty-dec').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id  = btn.dataset.id;
+      const qty = parseInt(btn.dataset.qty);
+      updateCartQty(id, qty - 1);
+      syncBadges();
+      render();
+    });
+  });
+
+  wrap.querySelectorAll('.qty-inc').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id  = btn.dataset.id;
+      const qty = parseInt(btn.dataset.qty);
+      updateCartQty(id, qty + 1);
+      syncBadges();
+      render();
+    });
+  });
+
+  wrap.querySelectorAll('.cart-remove-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      removeFromCart(btn.dataset.id);
+      syncBadges();
+      render();
+      showToast('Item removed', 'info');
+    });
+  });
+}
+
+render();
+
+document.getElementById('clear-cart-btn').addEventListener('click', () => {
+  if (!getCart().length) return;
+  if (confirm('Clear all items from cart?')) {
+    clearCart();
+    syncBadges();
+    render();
+  }
+});
+
+// Open order modal
+document.getElementById('place-order-btn').addEventListener('click', () => {
+  const user = getSession();
+  if (user?.phone) document.getElementById('order-phone').value = user.phone;
+  document.getElementById('order-modal').classList.add('open');
+});
+
+document.getElementById('cancel-order-btn').addEventListener('click', () => {
+  document.getElementById('order-modal').classList.remove('open');
+});
+
+// GPS autofill
+document.getElementById('gps-autofill').addEventListener('click', () => {
+  if (!navigator.geolocation) { showToast('GPS not supported', 'error'); return; }
+  const btn = document.getElementById('gps-autofill');
+  btn.textContent = '🔍 Detecting…';
+  btn.disabled = true;
+  navigator.geolocation.getCurrentPosition(async pos => {
+    try {
+      const r = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&format=json&addressdetails=1`,
+        { headers: { 'Accept-Language': 'en', 'User-Agent': 'FarmersFactory/1.0' } });
+      const d = await r.json();
+      document.getElementById('delivery-loc').value = d.display_name || '';
+    } catch { showToast('Could not fetch address', 'error'); }
+    btn.textContent = '📍 Autofill with GPS';
+    btn.disabled = false;
+  }, () => {
+    btn.textContent = '📍 Autofill with GPS';
+    btn.disabled = false;
+    showToast('Location access denied', 'error');
+  });
+});
+
+// Confirm order
+document.getElementById('confirm-order-btn').addEventListener('click', async () => {
+  const loc   = document.getElementById('delivery-loc').value.trim();
+  const phone = document.getElementById('order-phone').value.trim();
+  let valid = true;
+
+  document.getElementById('loc-err').classList.toggle('show', !loc);
+  if (!loc) valid = false;
+
+  const phoneOk = /^\d{10}$/.test(phone);
+  document.getElementById('phone-err').classList.toggle('show', !phoneOk);
+  if (!phoneOk) valid = false;
+
+  if (!valid) return;
+
+  const confirmBtn = document.getElementById('confirm-order-btn');
+  confirmBtn.disabled = true;
+  confirmBtn.textContent = 'Placing Order…';
+
+  const { orderId, error } = await placeOrder({ location: loc, phone });
+
+  confirmBtn.disabled = false;
+  confirmBtn.textContent = 'Confirm Order ✓';
+
+  if (error) { showToast(error, 'error'); return; }
+
+  document.getElementById('order-modal').classList.remove('open');
+  document.getElementById('cart-page').classList.add('hidden');
+  document.querySelector('.bottom-nav').classList.add('hidden');
+  document.getElementById('order-success').classList.remove('hidden');
+  syncBadges();
+});
+</script>
+</body>
+</html>

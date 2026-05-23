@@ -78,9 +78,12 @@ export async function PATCH(
       select: { id: true, status: true, updatedAt: true, orderNumber: true, userId: true },
     });
 
-    // ── Inventory decrease on CONFIRMED ─────────────────────────────────────
+    // ── Inventory decrease: first time order leaves PLACED ──────────────────
+    // Triggers on CONFIRMED, PICKING, OUT_FOR_DELIVERY, or DELIVERED
+    // (catches cases where CONFIRMED step is skipped)
     const STORE_ID = 'main-store';
-    if (status === 'CONFIRMED' && current.status !== 'CONFIRMED') {
+    const DECREASE_TRIGGERS = ['CONFIRMED', 'PICKING', 'OUT_FOR_DELIVERY', 'DELIVERED'];
+    if (current.status === 'PLACED' && DECREASE_TRIGGERS.includes(status)) {
       for (const item of current.items) {
         try {
           const existing = await prisma.inventory.findUnique({
@@ -92,10 +95,15 @@ export async function PATCH(
               where: { productId_darkStoreId: { productId: item.productId, darkStoreId: STORE_ID } },
               data:  { quantity: newQty },
             });
-            // Mark out of stock if qty hits 0
             if (newQty === 0) {
               await prisma.product.update({ where: { id: item.productId }, data: { inStock: false } });
             }
+          } else {
+            // No inventory record — create one at 0 so it shows out of stock
+            await prisma.inventory.create({
+              data: { productId: item.productId, darkStoreId: STORE_ID, quantity: 0, threshold: 10 },
+            });
+            await prisma.product.update({ where: { id: item.productId }, data: { inStock: false } });
           }
         } catch (sErr) {
           console.error('[stock-decrease]', sErr);

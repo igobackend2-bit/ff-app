@@ -1,0 +1,117 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Font loading ──────────────────────────────────────────────────────────── */
+/* Skill #34: Font preload handled via <link rel="preload"> in layout.tsx      */
+/* Using CSS font-face as fallback / additional loading mechanism              */
+
+@layer base {
+  :root {
+    /* ── Safe area insets for iPhone notch ────────────────────── */
+    --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-area-inset-top: env(safe-area-inset-top, 0px);
+  }
+
+  /* ── Smooth scrolling — respect prefers-reduced-motion ─────── */
+  @media (prefers-reduced-motion: no-preference) {
+    html {
+      scroll-behavior: smooth;
+    }
+  }
+
+  /* ── Base body ──────────────────────────────────────────────── */
+  body {
+    @apply bg-neutral-50 text-neutral-900 antialiased;
+    font-feature-settings: 'rlig' 1, 'calt' 1;
+  }
+
+  /* ── Focus ring — never remove outline completely ─────────── */
+  /* Skill #33: All interactive elements must have visible focus  */
+  *:focus-visible {
+    @apply outline-none ring-2 ring-primary-600 ring-offset-2;
+  }
+
+  /* Remove default focus for mouse users (but keep for keyboard) */
+  *:focus:not(:focus-visible) {
+    @apply outline-none ring-0;
+  }
+
+  /* ── Heading hierarchy (Skill #26: one h1 per page) ─────────── */
+  h1 {
+    @apply text-2xl font-bold leading-tight text-neutral-900 md:text-3xl;
+  }
+  h2 {
+    @apply text-xl font-bold text-neutral-900;
+  }
+  h3 {
+    @apply text-lg font-semibold text-neutral-800;
+  }
+  h4 {
+    @apply text-base font-semibold text-neutral-800;
+  }
+
+  /* ── Links ────────────────────────────────────────────────── */
+  a {
+    @apply text-inherit no-underline;
+  }
+
+  /* ── Scrollbar styling ────────────────────────────────────── */
+  ::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply rounded-full bg-neutral-300;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-neutral-400;
+  }
+}
+
+@layer utilities {
+  /* ── Safe area padding for bottom nav ───────────────────── */
+  .pb-safe {
+    padding-bottom: var(--safe-area-inset-bottom);
+  }
+  .pt-safe {
+    padding-top: var(--safe-area-inset-top);
+  }
+
+  /* ── Line clamping ──────────────────────────────────────── */
+  .line-clamp-1 {
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  /* ── Touch target enforcement ───────────────────────────── */
+  /* Skill #33: All interactive elements ≥ 44px */
+  .touch-safe {
+    @apply min-h-touch min-w-touch;
+  }
+
+  /* ── Shimmer animation (used via .skeleton class) ─────── */
+  /* Defined in tailwind.config.ts keyframes */
+}
+
+/* ── Print styles ──────────────────────────────────────────────────────────── */
+@media print {
+  .no-print,
+  header,
+  nav,
+  footer,
+  .cart-drawer {
+    display: none !important;
+  }
+}

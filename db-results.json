@@ -1,0 +1,51 @@
+[
+  {
+    "id": "cmor45o8f000014gd106epac9",
+    "identifier": "test-debug@example.com",
+    "token": "e0192bbed6500ee65cb25ea26a29d831d5bfbcae687c84a3366b9ce891a3b288",
+    "expires": "2026-05-04T11:26:46.074Z",
+    "attempts": 0
+  },
+  {
+    "id": "cmor391ti0005tshayugxnt0l",
+    "identifier": "naveen@example.com",
+    "token": "472b368759bd35a6385f42079be3b5748dd3619fd9bdb3911400830f0b79669d",
+    "expires": "2026-05-04T11:05:34.036Z",
+    "attempts": 0
+  },
+  {
+    "id": "cmoqqihfa0000m8ba3a7l0uap",
+    "identifier": "test@gmail.com",
+    "token": "e91eec1dd46b732e7436688cdbf6c02f2addf66f46be85e113a763c5cf0628ae",
+    "expires": "2026-05-04T05:08:59.149Z",
+    "attempts": 0
+  },
+  {
+    "id": "cmomr40lv0000k36l9u9tgqem",
+    "identifier": "+918925958929",
+    "token": "1ea4ce38b674fe9117eef4df5f4a5b3499cc7e27b55b6494792dd93b9c561a27",
+    "expires": "2026-05-01T10:14:39.088Z",
+    "attempts": 0
+  },
+  {
+    "id": "cmomr3epa0000z91nb6yw6g0e",
+    "identifier": "+919999999999",
+    "token": "169e6eda6a113c8292e9c1a5c9147807673b6ef3916b65678ebfa76a237d1102",
+    "expires": "2026-05-01T10:14:10.665Z",
+    "attempts": 0
+  },
+  {
+    "id": "cmoljs5ff0000cloo0f5sg40g",
+    "identifier": "+919786537167",
+    "token": "3f10b0137c88c3368831a15558edea21025b5ab087f069925733f93a2db5b8a9",
+    "expires": "2026-04-30T14:01:41.977Z",
+    "attempts": 0
+  },
+  {
+    "id": "cmol1hzop00006397tq200ssm",
+    "identifier": "+916379930698",
+    "token": "e66cba9282e4786dc7b9acfc70190b838613b510ebe03d2fbffcf50e0dd17525",
+    "expires": "2026-04-30T05:29:54.883Z",
+    "attempts": 0
+  }
+]

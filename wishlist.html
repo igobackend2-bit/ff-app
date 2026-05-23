@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <title>Wishlist — Farmers Factory</title>
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div id="toast-container"></div>
+<div class="app-wrapper">
+  <header class="page-header">
+    <a href="index.html" class="back-btn">←</a>
+    <h1 class="page-title">My Wishlist</h1>
+    <a href="cart.html" class="icon-btn" aria-label="Cart">
+      🛒<span class="badge cart-badge" style="display:none">0</span>
+    </a>
+  </header>
+
+  <div id="wishlist-container"></div>
+</div>
+
+<nav class="bottom-nav">
+  <a href="index.html"    class="nav-item"><span class="nav-icon">🏠</span><span>Home</span></a>
+  <a href="wishlist.html" class="nav-item active"><span class="nav-icon">❤️</span><span>Wishlist</span></a>
+  <a href="cart.html"     class="nav-item"><span class="nav-icon">🛒</span><span>Cart</span></a>
+  <a href="orders.html"   class="nav-item"><span class="nav-icon">📦</span><span>Orders</span></a>
+  <a href="profile.html"  class="nav-item"><span class="nav-icon">👤</span><span>Profile</span></a>
+</nav>
+
+<script type="module">
+import { getWishlist, toggleWishlist, addToCart, syncBadges } from './js/cart.js';
+import { formatPrice, getCategoryEmoji, discountPct } from './js/products.js';
+
+syncBadges();
+
+function showToast(msg, type='success') {
+  const c = document.getElementById('toast-container');
+  const t = document.createElement('div');
+  t.className = `toast ${type}`;
+  t.textContent = msg;
+  c.appendChild(t);
+  setTimeout(() => t.remove(), 3200);
+}
+
+function render() {
+  const list = getWishlist();
+  const container = document.getElementById('wishlist-container');
+
+  if (!list.length) {
+    container.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-icon">🤍</div>
+        <h3>Your wishlist is empty</h3>
+        <p>Tap the heart icon on any product to save it here</p>
+        <a href="index.html" class="btn btn-primary mt-16">Browse Products</a>
+      </div>`;
+    return;
+  }
+
+  container.innerHTML = `<div class="wishlist-grid">${
+    list.map(p => {
+      const emoji = getCategoryEmoji(p.category);
+      const disc  = discountPct(p.price, p.old_price);
+      return `
+      <div class="product-card" data-id="${p.id}">
+        <div class="product-card-img-wrap">
+          ${p.image_url
+            ? `<img src="${p.image_url}" alt="${p.name}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
+            : ''}
+          <div class="product-emoji-fallback" ${p.image_url ? 'style="display:none"' : ''}>${emoji}</div>
+          ${p.is_organic ? '<span class="organic-tag">Organic</span>' : ''}
+          ${disc > 0 ? `<span class="discount-tag">${disc}% off</span>` : ''}
+          <button class="wishlist-btn active remove-wish" data-id="${p.id}" aria-label="Remove from wishlist">❤️</button>
+        </div>
+        <div class="product-card-body">
+          <div class="product-name">${p.name}</div>
+          <div class="product-unit">${p.unit || ''}</div>
+          <div class="product-price-row">
+            <div>
+              <span class="product-price">${formatPrice(p.price)}</span>
+              ${p.old_price ? `<span class="product-old-price">${formatPrice(p.old_price)}</span>` : ''}
+            </div>
+            <button class="add-btn add-to-cart" data-id="${p.id}" aria-label="Add to cart">+</button>
+          </div>
+        </div>
+      </div>`;
+    }).join('')
+  }</div>`;
+
+  // Navigate to detail
+  container.querySelectorAll('.product-card').forEach(card => {
+    card.addEventListener('click', e => {
+      if (e.target.closest('.remove-wish') || e.target.closest('.add-to-cart')) return;
+      window.location.href = `product-detail.html?id=${card.dataset.id}`;
+    });
+  });
+
+  // Remove from wishlist
+  container.querySelectorAll('.remove-wish').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const p = list.find(x => x.id === btn.dataset.id);
+      if (p) { toggleWishlist(p); syncBadges(); render(); showToast('Removed from wishlist', 'info'); }
+    });
+  });
+
+  // Add to cart
+  container.querySelectorAll('.add-to-cart').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const p = list.find(x => x.id === btn.dataset.id);
+      if (p) { addToCart(p); syncBadges(); showToast(p.name + ' added to cart 🛒', 'success'); }
+    });
+  });
+}
+
+render();
+</script>
+</body>
+</html>
