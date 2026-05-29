@@ -38,7 +38,6 @@ async function sendOtpEmail(to: string, otp: string): Promise<{ ok: boolean; err
   const from   = process.env['RESEND_FROM_EMAIL'] ?? 'Farmers Factory <noreply@igogroup.in>';
 
   if (!apiKey) {
-    console.log(`\n[OTP DEV] No RESEND_API_KEY — OTP for ${to}: ${otp}\n`);
     return { ok: true };
   }
 
@@ -67,20 +66,17 @@ async function sendOtpEmail(to: string, otp: string): Promise<{ ok: boolean; err
       console.error('[OTP][Resend]', msg);
       // Don't fail the whole flow — log and continue (dev convenience)
       if (process.env['NODE_ENV'] !== 'production') {
-        console.log(`[OTP DEV] Email failed but continuing — OTP for ${to}: ${otp}`);
         return { ok: true };
       }
       return { ok: false, error: msg };
     }
 
-    console.log('[OTP][Resend] Sent to:', to, '| id:', data.id);
     return { ok: true };
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error('[OTP][Resend] Fetch error:', msg);
     // In dev, let login work even if email fails
     if (process.env['NODE_ENV'] !== 'production') {
-      console.log(`[OTP DEV] Email error but continuing — OTP for ${to}: ${otp}`);
       return { ok: true };
     }
     return { ok: false, error: msg };
@@ -106,8 +102,6 @@ export async function POST(req: NextRequest) {
 
     const email = result.data.email.trim().toLowerCase();
     const otp   = generateOtp();
-
-    console.log('\n[OTP] Sending to:', email);
 
     // Save hashed OTP to DB
     const hashedOtp = await hashOtp(otp);

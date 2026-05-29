@@ -55,8 +55,6 @@ export async function POST(req: NextRequest) {
         user = await prisma.user.findUnique({ where: { phone }, select: userSelect });
       }
 
-      console.log('[Auth API] Returning user data:', user);
-
       return NextResponse.json({ message: 'Logged in successfully', user });
     } catch (error: unknown) {
       // Auth.js v5 throws specific errors

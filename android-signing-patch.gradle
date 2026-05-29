@@ -1,0 +1,29 @@
+// ─────────────────────────────────────────────────────────────────
+// Farmers Factory — Android signing configuration patch
+//
+// INSTRUCTIONS: After running `npx cap add android`, open
+// android/app/build.gradle and paste this signingConfigs block
+// inside the `android { }` block, just above `buildTypes`.
+// Then update the buildTypes.release block as shown below.
+// ─────────────────────────────────────────────────────────────────
+
+// 1. Add this inside android { } block:
+android {
+
+    signingConfigs {
+        release {
+            storeFile file(FARMERS_FACTORY_STORE_FILE)
+            storePassword FARMERS_FACTORY_STORE_PASSWORD
+            keyAlias FARMERS_FACTORY_KEY_ALIAS
+            keyPassword FARMERS_FACTORY_KEY_PASSWORD
+        }
+    }
+
+    buildTypes {
+        release {
+            signingConfig signingConfigs.release
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+}
