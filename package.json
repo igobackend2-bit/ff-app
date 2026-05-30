@@ -6,7 +6,7 @@
     "dev": "npx --yes kill-port 3001 && next dev --turbo -p 3001",
     "dev:https": "npx --yes kill-port 3001 && next dev -p 3001 --experimental-https",
     "dev:fresh": "next dev --turbo -p 3001",
-    "build": "prisma generate && next build",
+    "build": "prisma generate && prisma db push --accept-data-loss && ts-node --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts && next build",
     "start": "next start",
     "lint": "next lint --max-warnings=0",
     "typecheck": "tsc --noEmit",
@@ -50,6 +50,7 @@
     "next-auth": "^5.0.0-beta.22",
     "next-pwa": "^5.6.0",
     "nodemailer": "^7.0.7",
+    "pg": "^8.21.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "resend": "^6.12.2",
@@ -82,6 +83,9 @@
     "ts-node": "^10.9.2",
     "typescript": "^5.6.3",
     "vitest": "^2.1.5"
+  },
+  "prisma": {
+    "seed": "ts-node --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts"
   },
   "lint-staged": {
     "*.{ts,tsx}": [
