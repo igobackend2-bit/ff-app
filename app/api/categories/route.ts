@@ -1,29 +1,31 @@
 import { NextResponse } from 'next/server';
 import type { ApiResponse, Category } from '@/types';
-import { prisma } from '@/lib/db';
 
 export const revalidate = 0;
 
+const SUPABASE_URL = process.env['NEXT_PUBLIC_SUPABASE_URL'] ?? '';
+const SUPABASE_KEY = process.env['NEXT_PUBLIC_SUPABASE_ANON_KEY'] ?? '';
+
 export async function GET() {
   try {
-    const rows = await prisma.category.findMany({
-      where:   { isActive: true },
-      orderBy: { sortOrder: 'asc' },
-      include: { _count: { select: { products: { where: { isActive: true } } } } },
-    });
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/categories?is_active=eq.true&order=sort_order.asc`,
+      { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` }, cache: 'no-store' }
+    );
+    const rows: any[] = await res.json();
 
     const data = rows.map((c) => ({
       id:              c.id,
       name:            c.name,
       slug:            c.slug,
       description:     c.description ?? null,
-      imageUrl:        c.imageUrl,
-      iconUrl:         c.iconUrl ?? null,
-      parentId:        c.parentId ?? null,
-      sortOrder:       c.sortOrder,
-      metaTitle:       c.metaTitle ?? null,
-      metaDescription: c.metaDescription ?? null,
-      _count:          { products: c._count.products },
+      imageUrl:        c.image_url,
+      iconUrl:         c.icon_url ?? null,
+      parentId:        c.parent_id ?? null,
+      sortOrder:       c.sort_order,
+      metaTitle:       c.meta_title ?? null,
+      metaDescription: c.meta_description ?? null,
+      _count:          { products: 0 },
     }));
 
     return NextResponse.json({ data, error: null });
