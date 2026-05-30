@@ -2,7 +2,10 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { otpVerifySchema } from '@/lib/validations';
 import { signIn } from '@/lib/auth';
-import { prisma } from '@/lib/db';
+
+const SB = process.env['NEXT_PUBLIC_SUPABASE_URL'] ?? '';
+const KEY = process.env['SUPABASE_SERVICE_ROLE_KEY'] ?? process.env['NEXT_PUBLIC_SUPABASE_ANON_KEY'] ?? '';
+const sbH = { apikey: KEY, Authorization: `Bearer ${KEY}` };
 
 export async function POST(req: NextRequest) {
   try {
@@ -35,27 +38,22 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Invalid OTP or expired' }, { status: 401 });
       }
 
-      // 3. fetch fresh user data — always look up by email first (OTP is tied to email),
-      //    fall back to phone only when email yields nothing and phone is non-empty.
-      const userSelect = {
-        id: true,
-        name: true,
-        email: true,
-        phone: true,
-        avatarUrl: true,
-        referralCode: true,
-        loyaltyPoints: true,
-      } as const;
-
-      let user = email
-        ? await prisma.user.findUnique({ where: { email }, select: userSelect })
+      // 3. fetch fresh user data
+      let userRes = email
+        ? await fetch(`${SB}/rest/v1/users?email=eq.${encodeURIComponent(email)}&limit=1`, { headers: sbH, cache: 'no-store' })
         : null;
-
-      if (!user && phone && phone.trim() !== '') {
-        user = await prisma.user.findUnique({ where: { phone }, select: userSelect });
+      let userRows: any[] = userRes ? await userRes.json() : [];
+      if (!userRows.length && phone?.trim()) {
+        const r2 = await fetch(`${SB}/rest/v1/users?phone=eq.${encodeURIComponent(phone)}&limit=1`, { headers: sbH, cache: 'no-store' });
+        userRows = await r2.json();
       }
+      const user = userRows[0] ?? null;
+      const mappedUser = user ? {
+        id: user.id, name: user.name, email: user.email, phone: user.phone,
+        avatarUrl: user.avatar_url, referralCode: user.referral_code, loyaltyPoints: user.loyalty_points,
+      } : null;
 
-      return NextResponse.json({ message: 'Logged in successfully', user });
+      return NextResponse.json({ message: 'Logged in successfully', user: mappedUser });
     } catch (error: unknown) {
       // Auth.js v5 throws specific errors
       if (

@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { prisma } from '@/lib/db';
+
+const SB = process.env['NEXT_PUBLIC_SUPABASE_URL'] ?? '';
+const KEY = process.env['SUPABASE_SERVICE_ROLE_KEY'] ?? process.env['NEXT_PUBLIC_SUPABASE_ANON_KEY'] ?? '';
+const sbH = { apikey: KEY, Authorization: `Bearer ${KEY}`, 'Content-Type': 'application/json' };
 
 const sendOtpSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -103,15 +106,12 @@ export async function POST(req: NextRequest) {
     const email = result.data.email.trim().toLowerCase();
     const otp   = generateOtp();
 
-    // Save hashed OTP to DB
+    // Save hashed OTP to DB via Supabase REST
     const hashedOtp = await hashOtp(otp);
-    await prisma.verificationToken.deleteMany({ where: { identifier: email } });
-    await prisma.verificationToken.create({
-      data: {
-        identifier: email,
-        token:      hashedOtp,
-        expires:    new Date(Date.now() + 5 * 60 * 1000),
-      },
+    await fetch(`${SB}/rest/v1/verification_tokens?identifier=eq.${encodeURIComponent(email)}`, { method: 'DELETE', headers: sbH });
+    await fetch(`${SB}/rest/v1/verification_tokens`, {
+      method: 'POST', headers: { ...sbH, Prefer: 'return=minimal' },
+      body: JSON.stringify({ identifier: email, token: hashedOtp, expires: new Date(Date.now() + 5 * 60 * 1000).toISOString() }),
     });
 
     // Send email (never blocks login in dev)

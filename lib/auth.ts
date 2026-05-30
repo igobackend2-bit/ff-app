@@ -1,10 +1,32 @@
 import NextAuth from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
-import { PrismaAdapter } from '@next-auth/prisma-adapter';
-import { prisma } from '@/lib/db';
+
+const SB = process.env['NEXT_PUBLIC_SUPABASE_URL'] ?? '';
+const KEY = process.env['SUPABASE_SERVICE_ROLE_KEY'] ?? process.env['NEXT_PUBLIC_SUPABASE_ANON_KEY'] ?? '';
+const sbHeaders = { apikey: KEY, Authorization: `Bearer ${KEY}`, 'Content-Type': 'application/json' };
+
+async function sbGet(table: string, query: string) {
+  const res = await fetch(`${SB}/rest/v1/${table}?${query}&limit=1`, { headers: sbHeaders, cache: 'no-store' });
+  const rows: any[] = await res.json();
+  return rows[0] ?? null;
+}
+async function sbPost(table: string, body: object) {
+  const res = await fetch(`${SB}/rest/v1/${table}`, {
+    method: 'POST', headers: { ...sbHeaders, Prefer: 'return=representation' }, body: JSON.stringify(body),
+  });
+  const rows: any[] = await res.json();
+  return rows[0] ?? null;
+}
+async function sbPatch(table: string, query: string, body: object) {
+  await fetch(`${SB}/rest/v1/${table}?${query}`, {
+    method: 'PATCH', headers: { ...sbHeaders, Prefer: 'return=minimal' }, body: JSON.stringify(body),
+  });
+}
+async function sbDelete(table: string, query: string) {
+  await fetch(`${SB}/rest/v1/${table}?${query}`, { method: 'DELETE', headers: sbHeaders });
+}
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
-  adapter: PrismaAdapter(prisma),
   session: { strategy: 'jwt' },
   pages: { signIn: '/login' },
   providers: [
@@ -26,71 +48,55 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         const identifier = email || phone;
 
-        const verificationToken = await prisma.verificationToken.findFirst({
-          where:   { identifier },
-          orderBy: { expires: 'desc' },
-        });
+        // Look up verification token
+        const vt = await sbGet('verification_tokens', `identifier=eq.${encodeURIComponent(identifier)}&order=expires.desc`);
+        if (!vt) return null;
+        if (new Date(vt.expires) < new Date()) return null;
 
-        if (!verificationToken) return null;
-        if (verificationToken.expires < new Date()) return null;
+        // Hash the OTP
+        const secret = process.env['NEXTAUTH_SECRET'] ?? '';
+        const enc = new TextEncoder();
+        const hashBuf = await crypto.subtle.digest('SHA-256', enc.encode(otp + secret));
+        const hashed = Buffer.from(hashBuf).toString('hex');
 
-        // Hash the provided OTP the same way the send route does
-        const secret  = process.env['NEXTAUTH_SECRET'] ?? '';
-        const enc     = new TextEncoder();
-        const data    = enc.encode(otp + secret);
-        const hash    = await crypto.subtle.digest('SHA-256', data);
-        const hashed  = Buffer.from(hash).toString('hex');
-
-        if (hashed !== verificationToken.token) return null;
+        if (hashed !== vt.token) return null;
 
         // Invalidate token
-        await prisma.verificationToken.deleteMany({ where: { identifier } });
+        await sbDelete('verification_tokens', `identifier=eq.${encodeURIComponent(identifier)}`);
 
         // Find or create user
-        let user = email
-          ? await prisma.user.findUnique({ where: { email } })
-          : null;
-
-        if (!user && phone) {
-          user = await prisma.user.findUnique({ where: { phone } });
-        }
+        let user = email ? await sbGet('users', `email=eq.${encodeURIComponent(email)}`) : null;
+        if (!user && phone) user = await sbGet('users', `phone=eq.${encodeURIComponent(phone)}`);
 
         if (!user) {
-          user = await prisma.user.create({
-            data: {
-              phone:  phone  || undefined,
-              email:  email  || undefined,
-              name:   name   || (phone ? `Farmer ${phone.slice(-4)}` : 'Farmer'),
-            },
+          user = await sbPost('users', {
+            phone: phone || null,
+            email: email || null,
+            name: name || (phone ? `Farmer ${phone.slice(-4)}` : 'Farmer'),
           });
         } else if (name && !user.name) {
-          user = await prisma.user.update({
-            where: { id: user.id },
-            data:  { name },
-          });
+          await sbPatch('users', `id=eq.${user.id}`, { name });
+          user = { ...user, name };
         }
 
-        return {
-          id:    user.id,
-          name:  user.name,
-          email: user.email,
-          phone: user.phone,
-        } as Parameters<typeof CredentialsProvider>[0]['credentials'] extends infer C ? unknown : unknown as never;
+        if (!user) return null;
+
+        return { id: user.id, name: user.name, email: user.email, phone: user.phone } as any;
       },
     }),
   ],
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
-        token.id    = (user as { id?: string }).id;
-        token.phone = (user as { phone?: string | null }).phone;
+        token.id    = (user as any).id;
+        token.phone = (user as any).phone;
       }
       return token;
     },
     async session({ session, token }) {
       if (token && session.user) {
-        (session.user as { id?: string }).id    = token.id    as string;
-        (session.user as { phone?: string | null }).phone = token.phone as string | null;
+        (session.user as any).id    = token.id;
+        (session.user as any).phone = token.phone;
       }
       return session;
     },

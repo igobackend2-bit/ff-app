@@ -1,6 +1,7 @@
-// Customer: Live order tracking status
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
+
+const SB = process.env['NEXT_PUBLIC_SUPABASE_URL'] ?? '';
+const KEY = process.env['SUPABASE_SERVICE_ROLE_KEY'] ?? process.env['NEXT_PUBLIC_SUPABASE_ANON_KEY'] ?? '';
 
 const STATUS_STEPS = [
   { key: 'PLACED',           label: 'Order Placed',     emoji: '🛒', desc: 'Your order has been received.' },
@@ -10,77 +11,46 @@ const STATUS_STEPS = [
   { key: 'DELIVERED',        label: 'Delivered',        emoji: '🎉', desc: 'Your order has been delivered.' },
 ];
 
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const resolvedParams = await params;
-    const order = await prisma.order.findUnique({
-      where: { id: resolvedParams.id },
-      include: {
-        items: {
-          include: {
-            product: { select: { name: true, imageUrls: true, unit: true } },
-          },
-        },
-        address: true,
-      },
-    });
+    const { id } = await params;
+    const res = await fetch(
+      `${SB}/rest/v1/orders?id=eq.${id}&select=*,order_items(*,products(name,image_urls,unit)),addresses(*)&limit=1`,
+      { headers: { apikey: KEY, Authorization: `Bearer ${KEY}` }, cache: 'no-store' }
+    );
+    const rows: any[] = await res.json();
+    if (!rows.length) return NextResponse.json({ error: 'Order not found' }, { status: 404 });
 
-    if (!order) return NextResponse.json({ error: 'Order not found' }, { status: 404 });
-
-    let statusForStep = order.status;
+    const o = rows[0];
+    let statusForStep = o.status;
     if (statusForStep === 'CANCELLED' || statusForStep === 'REFUNDED') statusForStep = 'PLACED';
     const currentStepIdx = Math.max(0, STATUS_STEPS.findIndex((s) => s.key === statusForStep));
 
-    const createdAt  = new Date(order.createdAt);
-    const etaAt      = new Date(createdAt.getTime() + 24 * 60 * 60 * 1000);
-    const remainingMs   = Math.max(0, etaAt.getTime() - Date.now());
-    const remainingHrs  = Math.floor(remainingMs / (1000 * 60 * 60));
-    const remainingMins = Math.floor((remainingMs % (1000 * 60 * 60)) / (1000 * 60));
+    const createdAt = new Date(o.created_at);
+    const etaAt = new Date(createdAt.getTime() + 24 * 60 * 60 * 1000);
+    const remainingMs = Math.max(0, etaAt.getTime() - Date.now());
 
     return NextResponse.json({
       order: {
-        id: order.id,
-        status: order.status,
-        total: order.total,
-        createdAt: order.createdAt,
-        address: order.address,
-        items: order.items.map((item: any) => {
+        id: o.id, status: o.status, total: o.total, createdAt: o.created_at,
+        address: o.addresses,
+        items: (o.order_items ?? []).map((item: any) => {
           let imgs: string[] = [];
-          try { imgs = JSON.parse(item.product.imageUrls as string) as string[]; }
-          catch { imgs = item.product.imageUrls ? [item.product.imageUrls as string] : []; }
-          return {
-            name: item.product.name,
-            unit: item.product.unit,
-            imageUrls: imgs,
-            qty: item.quantity,
-            price: item.unitPrice,
-          };
+          try { imgs = JSON.parse(item.products?.image_urls ?? '[]'); } catch {}
+          return { name: item.products?.name, unit: item.products?.unit, imageUrls: imgs, qty: item.quantity, price: item.unit_price };
         }),
       },
       tracking: {
         steps: STATUS_STEPS.map((step, i) => ({
-          ...step,
-          status:
-            i < currentStepIdx ? 'completed'
-            : i === currentStepIdx ? 'current'
-            : 'upcoming',
+          ...step, status: i < currentStepIdx ? 'completed' : i === currentStepIdx ? 'current' : 'upcoming',
         })),
         currentStep: currentStepIdx,
-        eta:
-          order.status === 'DELIVERED' || order.status === 'CANCELLED'
-            ? null
-            : { hours: remainingHrs, minutes: remainingMins },
-        location:
-          order.status === 'OUT_FOR_DELIVERY'
-            ? { lat: 13.0827, lng: 80.2707, bearing: 45 }
-            : null,
-        deliveryAddress:
-          order.address
-            ? `${(order.address as any).city ?? ''}, ${(order.address as any).state ?? ''}`.replace(/^, |, $/, '')
-            : 'Chennai',
+        eta: o.status === 'DELIVERED' || o.status === 'CANCELLED' ? null : {
+          hours: Math.floor(remainingMs / 3600000),
+          minutes: Math.floor((remainingMs % 3600000) / 60000),
+        },
+        location: o.status === 'OUT_FOR_DELIVERY' ? { lat: 13.0827, lng: 80.2707, bearing: 45 } : null,
+        deliveryAddress: o.addresses ? `${o.addresses.city ?? ''}, ${o.addresses.state ?? ''}`.replace(/^, |, $/, '') : 'Chennai',
       },
     });
   } catch (err) {
