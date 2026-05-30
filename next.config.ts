@@ -67,7 +67,8 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   // ── Image optimisation ──────────────────────────────────────────────────────
   images: {
-    formats: ['image/avif', 'image/webp'], // AVIF first (best compression)
+    unoptimized: true, // serve all images as-is (supports .jfif, .webp, .jfif etc.)
+    formats: ['image/avif', 'image/webp'],
     deviceSizes: [400, 640, 750, 828, 1080, 1200, 1920],
     imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
     remotePatterns: [
