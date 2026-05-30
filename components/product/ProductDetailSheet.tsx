@@ -31,7 +31,7 @@ function extractNumericUnit(unit: string): number {
 function getCategoryPresets(categorySlug: string, unit?: string, productName?: string): number[] {
   const slug = categorySlug.toLowerCase();
   const u = (unit ?? '').toLowerCase();
-np  const name = (productName ?? '').toLowerCase();
+  const name = (productName ?? '').toLowerCase();
   const currentUnit = extractNumericUnit(unit ?? '1');
 
   if (/oil/.test(name)) {
