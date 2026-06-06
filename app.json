@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "extra": {
+      "eas": {
+        "projectId": "20591ce0-eadd-41cb-b09e-b57bb02088c6"
+      }
+    },
+    "android": {
+      "package": "com.igobackend2bit.farmersfactory"
+    }
+  }
+}

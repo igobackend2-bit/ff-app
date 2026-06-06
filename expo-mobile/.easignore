@@ -1,0 +1,9 @@
+node_modules/
+.git/
+*.bat
+*.md
+ios/
+android/
+.expo/
+dist/
+web-build/

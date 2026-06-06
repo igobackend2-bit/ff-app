@@ -11,7 +11,9 @@
       "resizeMode": "contain",
       "backgroundColor": "#16a34a"
     },
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.igogroups.farmersfactory",
@@ -40,8 +42,9 @@
     ],
     "extra": {
       "eas": {
-        "projectId": "YOUR_EAS_PROJECT_ID"
+        "projectId": "20591ce0-eadd-41cb-b09e-b57bb02088c6"
       }
-    }
+    },
+    "owner": "igobackend2-bit"
   }
 }

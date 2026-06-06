@@ -11,14 +11,17 @@ export const authRequestSchema = z.object({
 });
 
 export const otpVerifySchema = z.object({
-  name: z.string(),
-  phone: z.string(),
-  email: z.string().email(),
+  name:  z.string().optional().default(''),
+  phone: z.string().optional().default(''),
+  email: z.string().optional().default(''),
   otp: z
     .string()
     .length(6)
     .regex(/^\d{6}$/, 'OTP must be 6 digits'),
-});
+}).refine(
+  (d) => (d.email && d.email.includes('@')) || (d.phone && d.phone.length >= 10),
+  { message: 'Email or phone number is required' },
+);
 
 // ── Cart ──────────────────────────────────────────────────────────────────────
 

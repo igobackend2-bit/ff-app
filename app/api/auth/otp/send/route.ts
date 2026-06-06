@@ -1,15 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
-const SB = process.env['NEXT_PUBLIC_SUPABASE_URL'] ?? '';
+const SB  = process.env['NEXT_PUBLIC_SUPABASE_URL'] ?? '';
 const KEY = process.env['SUPABASE_SERVICE_ROLE_KEY'] ?? process.env['NEXT_PUBLIC_SUPABASE_ANON_KEY'] ?? '';
 const sbH = { apikey: KEY, Authorization: `Bearer ${KEY}`, 'Content-Type': 'application/json' };
 
 const sendOtpSchema = z.object({
-  email: z.string().email('Invalid email address'),
-  name:  z.string().min(2).optional(),
+  email: z.string().email().optional(),
   phone: z.string().optional(),
-});
+  name:  z.string().min(2).optional(),
+}).refine(
+  (d) => d.email || d.phone,
+  { message: 'email or phone is required' },
+);
 
 function generateOtp(): string {
   return Math.floor(100000 + Math.random() * 900000).toString();
@@ -22,6 +25,7 @@ async function hashOtp(otp: string): Promise<string> {
   return Buffer.from(hash).toString('hex');
 }
 
+// ── Email OTP (Resend) ────────────────────────────────────────────────────────
 function otpHtml(otp: string): string {
   return `<!DOCTYPE html>
 <html><body style="font-family:Arial,sans-serif;background:#f9fafb;padding:40px 0;">
@@ -39,94 +43,153 @@ function otpHtml(otp: string): string {
 async function sendOtpEmail(to: string, otp: string): Promise<{ ok: boolean; error?: string }> {
   const apiKey = process.env['RESEND_API_KEY'];
   const from   = process.env['RESEND_FROM_EMAIL'] ?? 'Farmers Factory <noreply@igogroup.in>';
-
-  if (!apiKey) {
-    return { ok: true };
-  }
-
+  if (!apiKey) return { ok: true };
   try {
     const res = await fetch('https://api.resend.com/emails', {
       method:  'POST',
       headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        from,
-        to,
+        from, to,
         subject: `Your Farmers Factory login code: ${otp}`,
-        html:    otpHtml(otp),
-        text:    `Your Farmers Factory login code: ${otp}\n\nValid for 5 minutes.`,
+        html: otpHtml(otp),
+        text: `Your Farmers Factory login code: ${otp}\n\nValid for 5 minutes.`,
       }),
     });
-
-    // Try to parse response — might not be JSON on network errors
-    let data: { id?: string; name?: string; message?: string } = {};
-    const ct = res.headers.get('content-type') ?? '';
-    if (ct.includes('application/json')) {
-      data = (await res.json()) as typeof data;
-    }
-
+    const ct   = res.headers.get('content-type') ?? '';
+    const data = ct.includes('application/json')
+      ? (await res.json()) as { id?: string; name?: string; message?: string }
+      : {};
     if (!res.ok) {
-      const msg = `${data.name ?? res.status}: ${data.message ?? 'Resend error'}`;
-      console.error('[OTP][Resend]', msg);
-      // Don't fail the whole flow — log and continue (dev convenience)
-      if (process.env['NODE_ENV'] !== 'production') {
-        return { ok: true };
-      }
+      const msg = `${(data as any).name ?? res.status}: ${(data as any).message ?? 'Resend error'}`;
+      if (process.env['NODE_ENV'] !== 'production') return { ok: true };
       return { ok: false, error: msg };
     }
-
     return { ok: true };
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error('[OTP][Resend] Fetch error:', msg);
-    // In dev, let login work even if email fails
-    if (process.env['NODE_ENV'] !== 'production') {
-      return { ok: true };
-    }
-    return { ok: false, error: msg };
+  } catch (err) {
+    if (process.env['NODE_ENV'] !== 'production') return { ok: true };
+    return { ok: false, error: err instanceof Error ? err.message : 'Email failed' };
   }
 }
 
+// ── SMS OTP (APITxT) ─────────────────────────────────────────────────────────
+// API ref: https://www.apitxt.com/apiDoc/sendSMS
+// Endpoint: GET https://www.apitxt.com/api/sendMsg
+// Params:   authkey, mobiles, message, sender, route, flash, unicode
+async function sendOtpSms(phone: string, otp: string): Promise<{ ok: boolean; error?: string }> {
+  const apiKey   = process.env['APITXT_API_KEY'];
+  const senderId = process.env['APITXT_SENDER_ID'] ?? 'FFCTRY';
+
+  if (!apiKey || apiKey === 'your_apitxt_api_key_here') {
+    console.log(`[OTP SMS] Phone: ${phone}  OTP: ${otp}  (APITXT_API_KEY not set — dev mode)`);
+    return { ok: true };
+  }
+
+  // Normalise: remove + so it becomes 91XXXXXXXXXX
+  const mobile  = phone.replace(/^\+/, '');
+  const message = `${otp} is your Farmers Factory OTP. Valid for 5 mins. Do not share. -FFCTRY`;
+
+  const templateId = process.env['APITXT_TEMPLATE_ID'] ?? '';
+  const peId       = process.env['APITXT_PE_ID'] ?? '';
+
+  const params = new URLSearchParams({
+    authkey: apiKey,
+    mobiles: mobile,
+    message,
+    sender:  senderId,
+    route:   '4',     // 4 = transactional (OTP)
+    flash:   '0',
+    unicode: '0',
+    ...(templateId && { template_id: templateId }),
+    ...(peId       && { pe_id: peId }),
+  });
+
+  try {
+    const url = `https://www.apitxt.com/api/sendMsg?${params.toString()}`;
+    const res  = await fetch(url, { method: 'GET' });
+    const text = await res.text();
+
+    console.log('[OTP SMS] APITxT response:', text);
+
+    // Check for error in response
+    try {
+      const json = JSON.parse(text) as { status?: string; message?: string };
+      if (json.status === 'error') {
+        // Missing DLT registration — guide user
+        if (text.includes('template_id') || text.includes('pe_id')) {
+          return {
+            ok: false,
+            error: 'SMS provider needs DLT registration. Please add APITXT_TEMPLATE_ID and APITXT_PE_ID to your environment variables. Get these from your APITxT dashboard → DLT Registration.',
+          };
+        }
+        return { ok: false, error: json.message ?? text };
+      }
+    } catch { /* not JSON — check raw text */ }
+
+    if (!res.ok || text.toLowerCase().startsWith('error') || text.toLowerCase().includes('"status":"error"')) {
+      return { ok: false, error: `SMS failed: ${text}` };
+    }
+
+    return { ok: true };
+  } catch (err) {
+    console.error('[OTP SMS] Fetch error:', err);
+    return { ok: false, error: err instanceof Error ? err.message : 'SMS send failed' };
+  }
+}
+
+// ── Route Handler ─────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
   try {
-    const contentType = req.headers.get('content-type') ?? '';
-    if (!contentType.includes('application/json')) {
+    const ct = req.headers.get('content-type') ?? '';
+    if (!ct.includes('application/json'))
       return NextResponse.json({ error: 'Content-Type must be application/json' }, { status: 400 });
-    }
 
     const body   = (await req.json()) as unknown;
     const result = sendOtpSchema.safeParse(body);
 
-    if (!result.success) {
+    if (!result.success)
       return NextResponse.json(
         { error: result.error.errors[0]?.message ?? 'Invalid input' },
         { status: 400 },
       );
-    }
 
-    const email = result.data.email.trim().toLowerCase();
-    const otp   = generateOtp();
+    const { email, name, phone } = result.data;
+    const otp        = generateOtp();
+    const hashedOtp  = await hashOtp(otp);
 
-    // Save hashed OTP to DB via Supabase REST
-    const hashedOtp = await hashOtp(otp);
-    await fetch(`${SB}/rest/v1/verification_tokens?identifier=eq.${encodeURIComponent(email)}`, { method: 'DELETE', headers: sbH });
+    // Identifier: phone takes priority if provided
+    const identifier = phone
+      ? (phone.startsWith('+') ? phone : `+91${phone.replace(/\D/g, '')}`)
+      : email!.trim().toLowerCase();
+
+    // Store hashed OTP
+    await fetch(`${SB}/rest/v1/verification_tokens?identifier=eq.${encodeURIComponent(identifier)}`, {
+      method: 'DELETE', headers: sbH,
+    });
     await fetch(`${SB}/rest/v1/verification_tokens`, {
-      method: 'POST', headers: { ...sbH, Prefer: 'return=minimal' },
-      body: JSON.stringify({ identifier: email, token: hashedOtp, expires: new Date(Date.now() + 5 * 60 * 1000).toISOString() }),
+      method: 'POST',
+      headers: { ...sbH, Prefer: 'return=minimal' },
+      body: JSON.stringify({
+        identifier,
+        token:   hashedOtp,
+        expires: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
+      }),
     });
 
-    // Send email (never blocks login in dev)
-    const { ok, error } = await sendOtpEmail(email, otp);
-
-    if (!ok) {
-      return NextResponse.json(
-        { error: `Could not send OTP email: ${error}` },
-        { status: 500 },
-      );
+    // Send OTP via appropriate channel
+    let sendResult: { ok: boolean; error?: string };
+    if (phone) {
+      sendResult = await sendOtpSms(identifier, otp);
+    } else {
+      sendResult = await sendOtpEmail(email!.trim().toLowerCase(), otp);
     }
 
+    if (!sendResult.ok)
+      return NextResponse.json({ error: sendResult.error ?? 'Failed to send OTP' }, { status: 500 });
+
     return NextResponse.json({
-      message:   'OTP sent to your email',
-      emailSent: true,
+      message:  phone ? 'OTP sent to your phone via SMS' : 'OTP sent to your email',
+      smsSent:  !!phone,
+      emailSent: !phone,
     });
   } catch (error) {
     console.error('[OTP send] Error:', error);

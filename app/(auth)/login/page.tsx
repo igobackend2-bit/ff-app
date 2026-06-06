@@ -18,7 +18,7 @@ export default function LoginPage() {
           Sign in to Farmers Factory
         </h1>
         <p className="mb-8 text-sm font-medium text-neutral-500">
-          Enter your email — we&apos;ll send you a one-time password
+          Use your mobile number or email — we&apos;ll send a one-time OTP
         </p>
         <Suspense>
           <OtpLoginForm />
