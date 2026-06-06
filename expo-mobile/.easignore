@@ -7,3 +7,7 @@ android/
 .expo/
 dist/
 web-build/
+__tests__/
+coverage/
+*.test.ts
+*.test.tsx
