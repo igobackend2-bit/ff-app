@@ -44,6 +44,7 @@ export function Header() {
   const [notifOpen, setNotifOpen]           = useState(false);
   const [notifs, setNotifs]                 = useState<UserNotif[]>([]);
   const [unreadCount, setUnreadCount]       = useState(0);
+  const [logoError, setLogoError]           = useState(false);
   const notifRef                            = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -168,14 +169,22 @@ export function Header() {
           className="flex shrink-0 items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600 focus-visible:ring-offset-2"
           aria-label="Farmers Factory — home"
         >
-          <Image
-            src="/logo.jpg"
-            alt="Farmers Factory"
-            width={120}
-            height={36}
-            className="h-9 w-auto object-contain"
-            priority
-          />
+          {!logoError ? (
+            <Image
+              src="/logo.jpg"
+              alt="Farmers Factory"
+              width={120}
+              height={36}
+              className="h-9 w-auto object-contain"
+              priority
+              onError={() => setLogoError(true)}
+            />
+          ) : (
+            /* Fallback text logo when image fails to load */
+            <span className="flex items-center gap-1.5 text-base font-black text-primary-700 tracking-tight">
+              🌿 <span>Farmers Factory</span>
+            </span>
+          )}
         </Link>
 
         {/* Location pill */}

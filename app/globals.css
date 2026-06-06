@@ -26,6 +26,18 @@
     font-feature-settings: 'rlig' 1, 'calt' 1;
   }
 
+  /* ── Mobile WebView touch responsiveness ─────────────────────── */
+  /* Removes the 300ms tap delay on Android WebView */
+  * {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Restore scroll ability on scrollable elements */
+  [class*="overflow-"] {
+    touch-action: pan-y;
+  }
+
   /* ── Focus ring — never remove outline completely ─────────── */
   /* Skill #33: All interactive elements must have visible focus  */
   *:focus-visible {

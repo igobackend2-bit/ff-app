@@ -33,6 +33,21 @@ const EMOJI: Record<string, string> = {
   'seeds-health-mix':  '🌱',
 };
 
+// ── Local fallback images (shown when DB imageUrl is missing/broken) ────────
+// These live in /public/images/category/ and are always deployed
+const LOCAL_IMAGE: Record<string, string> = {
+  'fruits':            '/images/category/freshfruitscategory.png',
+  'vegetables':        '/images/category/freshvegtablecategory.png',
+  'valluvam':          '/images/category/valluvamproductscategory.png',
+  'dry-fruits':        '/images/category/dryfruitscategory.png',
+  'nuts':              '/images/category/nutscategory.png',
+  'spices':            '/images/category/spicescategory.png',
+  'cold-pressed-oils': '/images/category/oilcategory.png',
+  'millets':           '/images/category/milletscategory.png',
+  'dairy-ghee':        '/images/category/gheecategory.png',
+  'honey':             '/images/category/honeycategory.png',
+};
+
 const RING_COLOR: Record<string, string> = {
   'fruits':            'border-red-200 bg-red-50',
   'vegetables':        'border-green-200 bg-green-50',
@@ -48,9 +63,17 @@ const RING_COLOR: Record<string, string> = {
 };
 
 function CategoryCircle({ cat, isActive }: { cat: Category; isActive: boolean }) {
-  const [imgError, setImgError] = useState(false);
-  const emoji     = EMOJI[cat.slug] ?? '🛒';
-  const ringColor = RING_COLOR[cat.slug] ?? 'border-neutral-100 bg-white';
+  const [dbImgError,    setDbImgError]    = useState(false);
+  const [localImgError, setLocalImgError] = useState(false);
+
+  const emoji      = EMOJI[cat.slug] ?? '🛒';
+  const ringColor  = RING_COLOR[cat.slug] ?? 'border-neutral-100 bg-white';
+  const localImage = LOCAL_IMAGE[cat.slug];
+
+  // Priority: DB image → local fallback image → emoji
+  const showDbImage    = cat.imageUrl && !dbImgError;
+  const showLocalImage = !showDbImage && localImage && !localImgError;
+  const showEmoji      = !showDbImage && !showLocalImage;
 
   return (
     <Link
@@ -63,15 +86,25 @@ function CategoryCircle({ cat, isActive }: { cat: Category; isActive: boolean })
           ? 'border-primary-500 bg-primary-50 scale-110 shadow-primary-100'
           : `${ringColor} hover:scale-105 hover:shadow-md`,
       )}>
-        {cat.imageUrl && !imgError ? (
+        {showDbImage && (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={cat.imageUrl}
+            src={cat.imageUrl!}
             alt={cat.name}
             className="h-full w-full object-cover"
-            onError={() => setImgError(true)}
+            onError={() => setDbImgError(true)}
           />
-        ) : (
+        )}
+        {showLocalImage && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={localImage}
+            alt={cat.name}
+            className="h-full w-full object-cover"
+            onError={() => setLocalImgError(true)}
+          />
+        )}
+        {showEmoji && (
           <span className="text-3xl select-none" role="img" aria-label={cat.name}>{emoji}</span>
         )}
         {isActive && (

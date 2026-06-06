@@ -8,12 +8,13 @@ import {
   StatusBar,
   Text,
   TouchableOpacity,
+  PermissionsAndroid,
 } from 'react-native';
-import { WebView } from 'react-native-webview';
+import { WebView, WebViewNavigation } from 'react-native-webview';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 // ── IMPORTANT: Change this to your deployed production URL ────────────
-const APP_URL = 'https://farmersfactory.igogroups.com';
+const APP_URL = 'https://ff-app-pi.vercel.app';
 // ─────────────────────────────────────────────────────────────────────
 
 const BRAND_GREEN = '#16a34a';
@@ -23,6 +24,15 @@ export default function App() {
   const [loading, setLoading]   = useState(true);
   const [error, setError]       = useState(false);
   const [canGoBack, setCanGoBack] = useState(false);
+
+  // ── Request location permission on Android ──────────────────────────────
+  React.useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    PermissionsAndroid.requestMultiple([
+      PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+      PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION,
+    ]).catch(() => {});
+  }, []);
 
   // Android hardware back button — go back in WebView history
   React.useEffect(() => {
@@ -69,25 +79,57 @@ export default function App() {
         ref={webViewRef}
         source={{ uri: APP_URL }}
         style={styles.webview}
-        // Navigation state
-        onNavigationStateChange={(state) => setCanGoBack(state.canGoBack)}
-        // Loading
+
+        // ── Navigation state ───────────────────────────────────────────────
+        onNavigationStateChange={(state: WebViewNavigation) => setCanGoBack(state.canGoBack)}
+
+        // ── Loading ────────────────────────────────────────────────────────
         onLoadStart={() => setLoading(true)}
         onLoadEnd={() => setLoading(false)}
         onError={() => { setError(true); setLoading(false); }}
         onHttpError={(e) => {
           if (e.nativeEvent.statusCode >= 500) setError(true);
         }}
-        // Performance
+
+        // ── Performance ────────────────────────────────────────────────────
         cacheEnabled={true}
         domStorageEnabled={true}
         javaScriptEnabled={true}
         allowsInlineMediaPlayback={true}
         mediaPlaybackRequiresUserAction={false}
-        // Allow all origins (needed for payment gateways, Supabase, etc.)
+
+        // ── Location (FIX #3) ──────────────────────────────────────────────
+        // Enables HTML5 navigator.geolocation inside the WebView
+        geolocationEnabled={true}
+
+        // ── Razorpay / popups (FIX #4) ────────────────────────────────────
+        // Allow Razorpay and other payment gateways that open new windows
+        setSupportMultipleWindows={false}
+        // Keep Razorpay checkout.js working inside WebView
+        allowsInlineMediaPlayback={true}
+        // Allow all navigation including payment gateway redirects
+        onShouldStartLoadWithRequest={(request) => {
+          // Allow Razorpay and UPI deep links
+          const url = request.url;
+          if (
+            url.startsWith('upi://') ||
+            url.startsWith('phonepe://') ||
+            url.startsWith('paytmmp://') ||
+            url.startsWith('gpay://') ||
+            url.startsWith('bharatpe://')
+          ) {
+            // These are UPI app deep links — can't open them in WebView
+            // They will be handled by the OS
+            return false;
+          }
+          return true;
+        }}
+
+        // ── Security / origins ─────────────────────────────────────────────
         mixedContentMode="always"
-        originWhitelist={['*']}
-        // Inject CSS to hide browser scrollbars & set mobile viewport
+        originWhitelist={['*', 'upi://', 'phonepe://', 'paytmmp://']}
+
+        // ── Inject CSS & viewport ──────────────────────────────────────────
         injectedJavaScript={`
           (function() {
             // Set app-like meta viewport
@@ -105,7 +147,8 @@ export default function App() {
           })();
           true;
         `}
-        // User agent — tell the server this is your mobile app
+
+        // ── User agent ─────────────────────────────────────────────────────
         userAgent="FarmersFactory-Android/1.0 (Mobile)"
       />
 
