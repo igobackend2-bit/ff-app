@@ -1,15 +1,18 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { otpVerifySchema } from '@/lib/validations';
+import { z } from 'zod';
 import { signIn } from '@/lib/auth';
+import { prisma } from '@/lib/db';
 
-const SB = process.env['NEXT_PUBLIC_SUPABASE_URL'] ?? '';
-const KEY = process.env['SUPABASE_SERVICE_ROLE_KEY'] ?? process.env['NEXT_PUBLIC_SUPABASE_ANON_KEY'] ?? '';
-const sbH = { apikey: KEY, Authorization: `Bearer ${KEY}` };
+const otpVerifySchema = z.object({
+  phone: z.string().regex(/^\+91[6-9]\d{9}$/, 'Invalid phone number'),
+  otp:   z.string().length(6).regex(/^\d{6}$/, 'OTP must be 6 digits'),
+  name:  z.string().optional(),
+});
 
 export async function POST(req: NextRequest) {
   try {
-    const body = (await req.json()) as unknown;
+    const body   = (await req.json()) as unknown;
     const result = otpVerifySchema.safeParse(body);
 
     if (!result.success) {
@@ -19,18 +22,15 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { name, phone, otp } = result.data;
-    const email = result.data.email.trim().toLowerCase();
+    const { phone, otp, name } = result.data;
 
-    // Use NextAuth signIn to verify and create session
-    // Note: Since we are in a Route Handler, calling the server-side signIn 
-    // will perform the authorize check defined in lib/auth.ts.
     try {
+      // Use NextAuth credentials provider — identifier is phone
       const response = await signIn('credentials', {
-        name,
-        email,
         phone,
         otp,
+        name:     name ?? '',
+        email:    '',          // not used in phone-only flow
         redirect: false,
       });
 
@@ -38,29 +38,27 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Invalid OTP or expired' }, { status: 401 });
       }
 
-      // 3. fetch fresh user data
-      let userRes = email
-        ? await fetch(`${SB}/rest/v1/users?email=eq.${encodeURIComponent(email)}&limit=1`, { headers: sbH, cache: 'no-store' })
-        : null;
-      let userRows: any[] = userRes ? await userRes.json() : [];
-      if (!userRows.length && phone?.trim()) {
-        const r2 = await fetch(`${SB}/rest/v1/users?phone=eq.${encodeURIComponent(phone)}&limit=1`, { headers: sbH, cache: 'no-store' });
-        userRows = await r2.json();
-      }
-      const user = userRows[0] ?? null;
-      const mappedUser = user ? {
-        id: user.id, name: user.name, email: user.email, phone: user.phone,
-        avatarUrl: user.avatar_url, referralCode: user.referral_code, loyaltyPoints: user.loyalty_points,
-      } : null;
+      // Fetch the user record after successful auth
+      const userSelect = {
+        id:            true,
+        name:          true,
+        email:         true,
+        phone:         true,
+        avatarUrl:     true,
+        referralCode:  true,
+        loyaltyPoints: true,
+      } as const;
 
-      return NextResponse.json({ message: 'Logged in successfully', user: mappedUser });
+      const user = await prisma.user.findUnique({ where: { phone }, select: userSelect });
+
+      return NextResponse.json({ message: 'Logged in successfully', user });
     } catch (error: unknown) {
-      // Auth.js v5 throws specific errors
+      // Auth.js v5 throws CredentialsSignin on wrong OTP
       if (
         typeof error === 'object' &&
         error !== null &&
         'type' in error &&
-        error.type === 'CredentialsSignin'
+        (error as { type: string }).type === 'CredentialsSignin'
       ) {
         return NextResponse.json({ error: 'Invalid OTP' }, { status: 401 });
       }
