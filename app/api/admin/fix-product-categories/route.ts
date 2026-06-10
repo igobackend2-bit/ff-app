@@ -97,6 +97,7 @@ export async function GET() {
         create: {
           name: c.name, slug: c.slug, sortOrder: c.sortOrder,
           description: c.desc, isActive: true,
+          imageUrl: null,
           metaTitle: `${c.name} — Farmers Factory`,
           metaDescription: `Buy ${c.name.toLowerCase()} online. 24-hour delivery.`,
         },
@@ -121,8 +122,9 @@ export async function GET() {
             { categoryId: { not: oilCat.id } },
             {
               OR: [
-                { name: { contains: 'oil', mode: 'insensitive' } },
-                { name: { contains: 'Oil', mode: 'insensitive' } },
+                { name: { contains: 'oil' } },
+                { name: { contains: 'Oil' } },
+                { name: { contains: 'OIL' } },
               ],
             },
           ],
@@ -178,8 +180,9 @@ export async function GET() {
             { categoryId: { not: honeyCat.id } },
             {
               OR: [
-                { name: { contains: 'honey', mode: 'insensitive' } },
-                { name: { contains: 'Honey', mode: 'insensitive' } },
+                { name: { contains: 'honey' } },
+                { name: { contains: 'Honey' } },
+                { name: { contains: 'HONEY' } },
               ],
             },
           ],
@@ -200,8 +203,9 @@ export async function GET() {
             { categoryId: { not: gheeCat.id } },
             {
               OR: [
-                { name: { contains: 'ghee', mode: 'insensitive' } },
-                { name: { contains: 'Ghee', mode: 'insensitive' } },
+                { name: { contains: 'ghee' } },
+                { name: { contains: 'Ghee' } },
+                { name: { contains: 'GHEE' } },
               ],
             },
           ],

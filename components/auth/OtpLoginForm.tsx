@@ -116,7 +116,7 @@ export function OtpLoginForm({ onSuccess }: OtpLoginFormProps = {}) {
           otp,
         }),
       });
-      const data = await res.json() as { user?: { id: string; name?: string | null; phone?: string | null; email?: string | null; avatarUrl?: string | null; referralCode?: string | null; loyaltyPoints?: number }; error?: string };
+      const data = await res.json() as { user?: { id: string; name?: string | null; phone?: string | null; email?: string | null; avatarUrl?: string | null; referralCode?: string | null; loyaltyPoints?: number; walletBalance?: number }; error?: string };
       if (!res.ok) { setOtpError(data.error ?? 'Invalid OTP. Try again.'); return; }
       if (data.user) {
         setUser(data.user);
