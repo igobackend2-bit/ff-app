@@ -104,7 +104,7 @@ export const DEMO_PRODUCTS: Product[] = [
   {
     id: 'p10', name: 'Cold-Pressed Gingelly Oil', slug: 'cold-pressed-gingelly-oil-1l',
     description: 'Pure cold-pressed sesame oil from traditional wooden churner. Retains all nutrients and authentic flavour.',
-    imageUrls: ['https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?w=400&h=400&fit=crop&auto=format'],
+    imageUrls: ['https://qwiumswrbddwmlraktvy.supabase.co/storage/v1/object/public/app-images/oils/sesame-1L.jpg'],
     blurDataUrls: [], categoryId: 'cat-oil', categoryName: 'Cold-Pressed Oils', categorySlug: 'cold-pressed-oils',
     brandId: 'brand-valluvam', brandName: 'Valluvam Products', sku: 'VL-OIL-001',
     mrp: 420, price: 380, unit: '1 Litre', tags: ['oil','cold-pressed','sesame'],
@@ -113,7 +113,7 @@ export const DEMO_PRODUCTS: Product[] = [
   {
     id: 'p11', name: 'Cold-Pressed Coconut Oil', slug: 'cold-pressed-coconut-oil-500ml',
     description: 'Virgin cold-pressed coconut oil — chemical-free, first-press extraction.',
-    imageUrls: ['https://images.unsplash.com/photo-1526045612212-70caf35c14df?w=400&h=400&fit=crop&auto=format'],
+    imageUrls: ['https://qwiumswrbddwmlraktvy.supabase.co/storage/v1/object/public/app-images/oils/coconutoil250.jpg'],
     blurDataUrls: [], categoryId: 'cat-oil', categoryName: 'Cold-Pressed Oils', categorySlug: 'cold-pressed-oils',
     brandId: 'brand-valluvam', brandName: 'Valluvam Products', sku: 'VL-OIL-002',
     mrp: 320, price: 285, unit: '500ml', tags: ['oil','cold-pressed','coconut'],
@@ -156,12 +156,12 @@ export const DEMO_PRODUCTS: Product[] = [
     isFeatured: true, inStock: true, averageRating: 4.7, reviewCount: 521,
   },
   {
-    id: 'p16', name: 'A2 Cow Ghee', slug: 'a2-cow-ghee-500ml',
-    description: 'Pure A2 bilona ghee from Gir cows. Traditional churning method. Rich in butyric acid and CLA.',
-    imageUrls: ['https://images.unsplash.com/photo-1550583724-b2692b85b150?w=400&h=400&fit=crop&auto=format'],
+    id: 'p16', name: 'Pure Cow Ghee', slug: 'pure-cow-ghee-500ml',
+    description: 'Pure cow ghee made with traditional bilona method. Rich in butyric acid and natural vitamins.',
+    imageUrls: ['https://qwiumswrbddwmlraktvy.supabase.co/storage/v1/object/public/app-images/valluvam/Ghee250.jpg'],
     blurDataUrls: [], categoryId: 'cat-dairy', categoryName: 'Dairy & Ghee', categorySlug: 'dairy-ghee',
-    brandId: 'brand-ff', brandName: 'Farmers Factory', sku: 'FF-DAIRY-001',
-    mrp: 980, price: 890, unit: '500ml', tags: ['ghee','a2','traditional'],
+    brandId: 'brand-valluvam', brandName: 'Valluvam Products', sku: 'FF-DAIRY-001',
+    mrp: 670, price: 570, unit: '500g', tags: ['ghee','cow','traditional'],
     isFeatured: true, inStock: true, averageRating: 4.9, reviewCount: 1567,
   },
   {

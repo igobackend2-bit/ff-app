@@ -37,7 +37,35 @@ export function ProductGrid({ categoryId, categorySlug, sort, brand, tags, page 
         const res = await fetch(`/api/products?${params}`);
         if (!res.ok) throw new Error('Failed');
         const data = (await res.json()) as { data: { data: Product[] } };
-        setProducts(data.data?.data ?? []);
+        let loaded = data.data?.data ?? [];
+
+        // Fallback: if category is empty, try related parent category
+        if (loaded.length === 0 && slug) {
+          const fallbackMap: Record<string, string> = {
+            'cold-pressed-oils': 'oils-ghee',
+            'honey':             'honey-jaggery',
+            'dairy-ghee':        'honey-jaggery',
+          };
+          const fallbackSlug = fallbackMap[slug];
+          if (fallbackSlug) {
+            const fb = new URLSearchParams({ limit: '100', page: String(page), category: fallbackSlug });
+            if (sort && sort !== 'relevance') fb.set('sort', sort);
+            const fbRes = await fetch(`/api/products?${fb}`);
+            if (fbRes.ok) {
+              const fbData = (await fbRes.json()) as { data: { data: Product[] } };
+              // For dairy-ghee fallback, only show ghee products (filter from honey-jaggery)
+              const fbProducts = fbData.data?.data ?? [];
+              if (slug === 'dairy-ghee') {
+                loaded = fbProducts.filter(p => p.name.toLowerCase().includes('ghee'));
+              } else if (slug === 'honey') {
+                loaded = fbProducts.filter(p => p.name.toLowerCase().includes('honey') || p.name.toLowerCase().includes('jaggery') || p.name.toLowerCase().includes('palm'));
+              } else {
+                loaded = fbProducts;
+              }
+            }
+          }
+        }
+        setProducts(loaded);
       } catch {
         setError('Could not load products.');
       } finally {
