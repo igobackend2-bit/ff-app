@@ -97,7 +97,7 @@ export async function GET() {
         create: {
           name: c.name, slug: c.slug, sortOrder: c.sortOrder,
           description: c.desc, isActive: true,
-          imageUrl: null,
+          imageUrl: '',
           metaTitle: `${c.name} — Farmers Factory`,
           metaDescription: `Buy ${c.name.toLowerCase()} online. 24-hour delivery.`,
         },
