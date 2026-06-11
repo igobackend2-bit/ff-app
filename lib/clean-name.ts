@@ -18,6 +18,7 @@ const NAME_FIXES: Record<string, string> = {
   'sweetpotato':               'Sweet Potato',
   'honeyamla':                 'Honey Amla',
   'ghee250':                   'Pure Cow Ghee (250 ml)',
+  'a2-ghee':                   'A2 Cow Ghee',
   'sorghum-cholam-w-h-i-t-e':  'Sorghum Cholam (White)',
   'palm-jaggery-500':          'Palm Jaggery (500 g)',
 };
