@@ -5,9 +5,10 @@ import { signIn } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 
 const otpVerifySchema = z.object({
-  phone: z.string().regex(/^\+91[6-9]\d{9}$/, 'Invalid phone number'),
-  otp:   z.string().length(6).regex(/^\d{6}$/, 'OTP must be 6 digits'),
-  name:  z.string().optional(),
+  phone:    z.string().regex(/^\+91[6-9]\d{9}$/, 'Invalid phone number'),
+  otp:      z.string().length(6).regex(/^\d{6}$/, 'OTP must be 6 digits'),
+  name:     z.string().optional(),
+  otpToken: z.string().optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -22,13 +23,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { phone, otp, name } = result.data;
+    const { phone, otp, name, otpToken } = result.data;
 
     try {
       // Use NextAuth credentials provider — identifier is phone
       const response = await signIn('credentials', {
         phone,
         otp,
+        otpToken: otpToken ?? '',
         name:     name ?? '',
         email:    '',          // not used in phone-only flow
         redirect: false,
@@ -38,7 +40,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Invalid OTP or expired' }, { status: 401 });
       }
 
-      // Fetch the user record after successful auth
+      // Fetch the user record after successful auth (best effort — DB may be down)
       const userSelect = {
         id:            true,
         name:          true,
@@ -49,7 +51,23 @@ export async function POST(req: NextRequest) {
         loyaltyPoints: true,
       } as const;
 
-      const user = await prisma.user.findUnique({ where: { phone }, select: userSelect });
+      let user: Record<string, unknown> | null = null;
+      try {
+        user = await prisma.user.findUnique({ where: { phone }, select: userSelect });
+      } catch { /* DB unavailable — fall back to JWT-only user below */ }
+
+      if (!user) {
+        user = {
+          id:            `phone:${phone}`,
+          name:          name || `Farmer ${phone.slice(-4)}`,
+          email:         null,
+          phone,
+          avatarUrl:     null,
+          referralCode:  null,
+          loyaltyPoints: 0,
+          walletBalance: 0,
+        };
+      }
 
       return NextResponse.json({ message: 'Logged in successfully', user });
     } catch (error: unknown) {

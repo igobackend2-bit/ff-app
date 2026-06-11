@@ -17,7 +17,8 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ exists: !!user, name: user?.name ?? null });
   } catch (err) {
-    console.error('[check-user]', err);
-    return NextResponse.json({ error: 'Server error' }, { status: 500 });
+    console.warn('[check-user] DB unavailable:', String(err).slice(0, 150));
+    // DB down — treat as new user so login can proceed via stateless OTP
+    return NextResponse.json({ exists: false, name: null });
   }
 }

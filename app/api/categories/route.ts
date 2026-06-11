@@ -1,36 +1,47 @@
 import { NextResponse } from 'next/server';
 import type { ApiResponse, Category } from '@/types';
+import { prisma } from '@/lib/db';
 
 export const revalidate = 0;
 
-const SUPABASE_URL = process.env['NEXT_PUBLIC_SUPABASE_URL'] ?? '';
-const SUPABASE_KEY = process.env['NEXT_PUBLIC_SUPABASE_ANON_KEY'] ?? '';
-
 export async function GET() {
   try {
-    const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/categories?is_active=eq.true&order=sort_order.asc`,
-      { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` }, cache: 'no-store' }
-    );
-    const rows: any[] = await res.json();
+    const rows = await prisma.category.findMany({
+      where:   { isActive: true },
+      orderBy: { sortOrder: 'asc' },
+      include: { _count: { select: { products: { where: { isActive: true } } } } },
+    });
 
     const data = rows.map((c) => ({
       id:              c.id,
       name:            c.name,
       slug:            c.slug,
       description:     c.description ?? null,
-      imageUrl:        c.image_url,
-      iconUrl:         c.icon_url ?? null,
-      parentId:        c.parent_id ?? null,
-      sortOrder:       c.sort_order,
-      metaTitle:       c.meta_title ?? null,
-      metaDescription: c.meta_description ?? null,
-      _count:          { products: 0 },
+      imageUrl:        c.imageUrl,
+      iconUrl:         c.iconUrl ?? null,
+      parentId:        c.parentId ?? null,
+      sortOrder:       c.sortOrder,
+      metaTitle:       c.metaTitle ?? null,
+      metaDescription: c.metaDescription ?? null,
+      _count:          { products: c._count.products },
     }));
 
     return NextResponse.json({ data, error: null });
   } catch (err) {
     console.error('Categories API error:', err);
+
+    // DB unreachable — proxy from the legacy live site
+    try {
+      const res = await fetch('https://ff-app-pi.vercel.app/api/categories', {
+        cache: 'no-store',
+        signal: AbortSignal.timeout(8000),
+      });
+      if (res.ok) {
+        const json = (await res.json()) as { data: Category[] };
+        if (json.data) return NextResponse.json({ data: json.data, error: null });
+      }
+    } catch { /* fall through */ }
+
     return NextResponse.json<ApiResponse<Category[]>>({ data: [], error: 'Failed to load categories' }, { status: 500 });
   }
 }

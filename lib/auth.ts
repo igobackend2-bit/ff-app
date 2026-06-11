@@ -1,102 +1,124 @@
 import NextAuth from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
-
-const SB = process.env['NEXT_PUBLIC_SUPABASE_URL'] ?? '';
-const KEY = process.env['SUPABASE_SERVICE_ROLE_KEY'] ?? process.env['NEXT_PUBLIC_SUPABASE_ANON_KEY'] ?? '';
-const sbHeaders = { apikey: KEY, Authorization: `Bearer ${KEY}`, 'Content-Type': 'application/json' };
-
-async function sbGet(table: string, query: string) {
-  const res = await fetch(`${SB}/rest/v1/${table}?${query}&limit=1`, { headers: sbHeaders, cache: 'no-store' });
-  const rows: any[] = await res.json();
-  return rows[0] ?? null;
-}
-async function sbPost(table: string, body: object) {
-  const res = await fetch(`${SB}/rest/v1/${table}`, {
-    method: 'POST', headers: { ...sbHeaders, Prefer: 'return=representation' }, body: JSON.stringify(body),
-  });
-  const rows: any[] = await res.json();
-  return rows[0] ?? null;
-}
-async function sbPatch(table: string, query: string, body: object) {
-  await fetch(`${SB}/rest/v1/${table}?${query}`, {
-    method: 'PATCH', headers: { ...sbHeaders, Prefer: 'return=minimal' }, body: JSON.stringify(body),
-  });
-}
-async function sbDelete(table: string, query: string) {
-  await fetch(`${SB}/rest/v1/${table}?${query}`, { method: 'DELETE', headers: sbHeaders });
-}
+import { PrismaAdapter } from '@next-auth/prisma-adapter';
+import { prisma } from '@/lib/db';
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
+  adapter: PrismaAdapter(prisma),
   session: { strategy: 'jwt' },
   pages: { signIn: '/login' },
   providers: [
     CredentialsProvider({
       name: 'OTP',
       credentials: {
-        name:  { label: 'Name',  type: 'text' },
-        email: { label: 'Email', type: 'text' },
-        phone: { label: 'Phone', type: 'text' },
-        otp:   { label: 'OTP',   type: 'text' },
+        name:     { label: 'Name',  type: 'text' },
+        email:    { label: 'Email', type: 'text' },
+        phone:    { label: 'Phone', type: 'text' },
+        otp:      { label: 'OTP',   type: 'text' },
+        otpToken: { label: 'OTP Token', type: 'text' },
       },
       async authorize(credentials) {
-        const otp   = credentials?.otp   as string;
-        const name  = credentials?.name  as string;
-        const email = (credentials?.email as string)?.trim().toLowerCase();
-        const phone = credentials?.phone as string;
+        const otp      = credentials?.otp   as string;
+        const name     = credentials?.name  as string;
+        const email    = (credentials?.email as string)?.trim().toLowerCase();
+        const phone    = credentials?.phone as string;
+        const otpToken = credentials?.otpToken as string | undefined;
 
         if (!otp || (!email && !phone)) return null;
 
         const identifier = email || phone;
+        const secret = process.env['NEXTAUTH_SECRET'] ?? 'ff-dev-secret';
+        let verified = false;
 
-        // Look up verification token
-        const vt = await sbGet('verification_tokens', `identifier=eq.${encodeURIComponent(identifier)}&order=expires.desc`);
-        if (!vt) return null;
-        if (new Date(vt.expires) < new Date()) return null;
-
-        // Hash the OTP
-        const secret = process.env['NEXTAUTH_SECRET'] ?? '';
-        const enc = new TextEncoder();
-        const hashBuf = await crypto.subtle.digest('SHA-256', enc.encode(otp + secret));
-        const hashed = Buffer.from(hashBuf).toString('hex');
-
-        if (hashed !== vt.token) return null;
-
-        // Invalidate token
-        await sbDelete('verification_tokens', `identifier=eq.${encodeURIComponent(identifier)}`);
-
-        // Find or create user
-        let user = email ? await sbGet('users', `email=eq.${encodeURIComponent(email)}`) : null;
-        if (!user && phone) user = await sbGet('users', `phone=eq.${encodeURIComponent(phone)}`);
-
-        if (!user) {
-          user = await sbPost('users', {
-            phone: phone || null,
-            email: email || null,
-            name: name || (phone ? `Farmer ${phone.slice(-4)}` : 'Farmer'),
-          });
-        } else if (name && !user.name) {
-          await sbPatch('users', `id=eq.${user.id}`, { name });
-          user = { ...user, name };
+        // ── 1. Stateless signed token (works without DB) ───────────────────
+        if (otpToken && phone) {
+          try {
+            const decoded = Buffer.from(otpToken, 'base64url').toString();
+            const [tokPhone, expStr, signature] = decoded.split('|');
+            const expires = Number(expStr);
+            if (tokPhone === phone && expires > Date.now() && signature) {
+              const sigInput = `${phone}|${otp}|${expires}|${secret}`;
+              const sigHash  = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(sigInput));
+              const expected = Buffer.from(sigHash).toString('hex');
+              if (expected === signature) verified = true;
+            }
+          } catch { /* fall through to DB check */ }
         }
 
-        if (!user) return null;
+        // ── 2. DB-stored token (legacy path) ───────────────────────────────
+        if (!verified) {
+          try {
+            const verificationToken = await prisma.verificationToken.findFirst({
+              where:   { identifier },
+              orderBy: { expires: 'desc' },
+            });
+            if (!verificationToken || verificationToken.expires < new Date()) return null;
 
-        return { id: user.id, name: user.name, email: user.email, phone: user.phone } as any;
+            const data   = new TextEncoder().encode(otp + secret);
+            const hash   = await crypto.subtle.digest('SHA-256', data);
+            const hashed = Buffer.from(hash).toString('hex');
+            if (hashed !== verificationToken.token) return null;
+
+            await prisma.verificationToken.deleteMany({ where: { identifier } });
+            verified = true;
+          } catch {
+            return null; // no stateless token and DB down — cannot verify
+          }
+        }
+
+        if (!verified) return null;
+
+        // ── 3. Find or create user — JWT-only fallback when DB is down ─────
+        const fallbackName = name || (phone ? `Farmer ${phone.slice(-4)}` : 'Farmer');
+        try {
+          let user = email
+            ? await prisma.user.findUnique({ where: { email } })
+            : null;
+
+          if (!user && phone) {
+            user = await prisma.user.findUnique({ where: { phone } });
+          }
+
+          if (!user) {
+            user = await prisma.user.create({
+              data: {
+                phone:  phone  || undefined,
+                email:  email  || undefined,
+                name:   fallbackName,
+              },
+            });
+          } else if (name && !user.name) {
+            user = await prisma.user.update({
+              where: { id: user.id },
+              data:  { name },
+            });
+          }
+
+          return { id: user.id, name: user.name, email: user.email, phone: user.phone };
+        } catch (dbErr) {
+          console.warn('[auth] DB unavailable — issuing JWT-only session:', String(dbErr).slice(0, 200));
+          return {
+            id:    `phone:${phone}`,
+            name:  fallbackName,
+            email: email || null,
+            phone: phone || null,
+          };
+        }
       },
     }),
   ],
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
-        token.id    = (user as any).id;
-        token.phone = (user as any).phone;
+        token.id    = (user as { id?: string }).id;
+        token.phone = (user as { phone?: string | null }).phone;
       }
       return token;
     },
     async session({ session, token }) {
       if (token && session.user) {
-        (session.user as any).id    = token.id;
-        (session.user as any).phone = token.phone;
+        (session.user as { id?: string }).id    = token.id    as string;
+        (session.user as { phone?: string | null }).phone = token.phone as string | null;
       }
       return session;
     },

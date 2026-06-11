@@ -1,28 +1,77 @@
 import { NextRequest, NextResponse } from 'next/server';
 import type { ApiResponse, PaginatedResponse, Product } from '@/types';
+import { prisma } from '@/lib/db';
+import { cleanProductName } from '@/lib/clean-name';
 
-export const revalidate = 0;
+// Legacy live site — used as a read-only fallback when our DB is unreachable
+const LEGACY_SOURCE = 'https://ff-app-pi.vercel.app';
 
-const SB = process.env['NEXT_PUBLIC_SUPABASE_URL'] ?? '';
-const KEY = process.env['NEXT_PUBLIC_SUPABASE_ANON_KEY'] ?? '';
+/** Proxy product reads from the legacy site, cleaning broken names on the fly. */
+async function proxyFromLegacy(query: string): Promise<PaginatedResponse<Product> | null> {
+  try {
+    const res = await fetch(`${LEGACY_SOURCE}/api/products?${query}`, {
+      cache: 'no-store',
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) return null;
+    const json = (await res.json()) as { data: PaginatedResponse<Product> };
+    const d = json.data;
+    if (!d?.data) return null;
+    d.data = d.data.map((p) => ({ ...p, name: cleanProductName(p.name, p.slug) }));
+    return d;
+  } catch {
+    return null;
+  }
+}
 
-function formatProduct(p: any): Product {
+export const revalidate = 0; // always fresh from DB
+
+function formatProduct(p: {
+  id: string; name: string; slug: string; description: string | null;
+  imageUrls: string; blurDataUrls: string; categoryId: string; brandId: string | null;
+  sku: string; mrp: number; price: number; unit: string; tags: string;
+  isFeatured: boolean; inStock: boolean; averageRating: number; reviewCount: number;
+  metaTitle: string | null; metaDescription: string | null;
+  category: { name: string; slug: string } | null;
+  brand: { name: string } | null;
+}): Product {
   return {
-    id: p.id, name: p.name, slug: p.slug, description: p.description ?? null,
-    imageUrls: (() => { try { return JSON.parse(p.image_urls); } catch { return p.image_urls ? [p.image_urls] : []; } })(),
-    blurDataUrls: (() => { try { return JSON.parse(p.blur_data_urls ?? '[]'); } catch { return []; } })(),
-    categoryId: p.category_id, categoryName: p.categories?.name,
-    categorySlug: p.categories?.slug ?? p.category_slug,
-    brandId: p.brand_id ?? null, brandName: p.brands?.name ?? null,
-    sku: p.sku, mrp: p.mrp, price: p.price, unit: p.unit,
-    tags: (() => { try { return JSON.parse(p.tags ?? '[]'); } catch { return []; } })(),
-    isFeatured: p.is_featured, inStock: p.in_stock,
-    averageRating: p.average_rating, reviewCount: p.review_count,
-    metaTitle: p.meta_title ?? null, metaDescription: p.meta_description ?? null,
+    id: p.id,
+    name: p.name,
+    slug: p.slug,
+    description: p.description ?? null,
+    imageUrls: (() => {
+      try { return JSON.parse(p.imageUrls) as string[]; }
+      catch { return p.imageUrls ? [p.imageUrls] : []; }
+    })(),
+    blurDataUrls: (() => {
+      try { return JSON.parse(p.blurDataUrls) as string[]; }
+      catch { return []; }
+    })(),
+    categoryId: p.categoryId,
+    categoryName: p.category?.name,
+    categorySlug: p.category?.slug,
+    brandId: p.brandId ?? null,
+    brandName: p.brand?.name ?? null,
+    sku: p.sku,
+    mrp: p.mrp,
+    price: p.price,
+    unit: p.unit,
+    tags: (() => {
+      try { return JSON.parse(p.tags) as string[]; }
+      catch { return []; }
+    })(),
+    isFeatured: p.isFeatured,
+    inStock: p.inStock,
+    averageRating: p.averageRating,
+    reviewCount: p.reviewCount,
+    metaTitle: p.metaTitle ?? null,
+    metaDescription: p.metaDescription ?? null,
   };
 }
 
-function dedupe(products: Product[]): Product[] {
+/** Deduplicate by name+unit — keep the first occurrence (highest order count / newest) */
+function deduplicateByNameUnit(products: Product[]): Product[] {
   const seen = new Set<string>();
   return products.filter((p) => {
     const key = `${p.name.trim().toLowerCase()}||${p.unit.trim().toLowerCase()}`;
@@ -35,68 +84,110 @@ function dedupe(products: Product[]): Product[] {
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = req.nextUrl;
-    const categorySlug = searchParams.get('category') ?? '';
-    const search  = searchParams.get('search') ?? '';
-    const sort    = searchParams.get('sort') ?? 'relevance';
+    const category = searchParams.get('category') ?? '';
+    const search   = searchParams.get('search') ?? '';
+    const sort     = searchParams.get('sort') ?? 'relevance';
     const featured = searchParams.get('filter') === 'featured';
-    const page    = Math.max(1, parseInt(searchParams.get('page') ?? '1', 10));
-    const limit   = Math.min(100, parseInt(searchParams.get('limit') ?? '20', 10));
-    const offset  = (page - 1) * limit;
+    const page     = Math.max(1, parseInt(searchParams.get('page') ?? '1', 10));
+    const limit    = Math.min(100, parseInt(searchParams.get('limit') ?? '20', 10));
+    const offset   = (page - 1) * limit;
 
-    // Resolve category slug → id if needed
-    let categoryId = '';
-    if (categorySlug) {
-      const catRes = await fetch(
-        `${SB}/rest/v1/categories?slug=eq.${encodeURIComponent(categorySlug)}&select=id&limit=1`,
-        { headers: { apikey: KEY, Authorization: `Bearer ${KEY}` }, cache: 'no-store' }
-      );
-      const cats: any[] = await catRes.json();
-      categoryId = cats[0]?.id ?? '';
-      if (!categoryId) {
-        return NextResponse.json<ApiResponse<PaginatedResponse<Product>>>({
-          data: { data: [], total: 0, page, limit, hasMore: false }, error: null,
-        });
-      }
+    // Build where clause — only show active products
+    const where: Record<string, any> = { isActive: true };
+
+    // When browsing categories/featured, only show in-stock items
+    if (!search) where['inStock'] = true;
+    if (category) where['category'] = { slug: category };
+    if (search) {
+      where['OR'] = [
+        { name:        { contains: search } },
+        { description: { contains: search } },
+        { tags:        { contains: search } },
+      ];
+    }
+    if (featured) where['isFeatured'] = true;
+
+    // ── Sort=orders: rank by order count ─────────────────────────────────────
+    if (sort === 'orders') {
+      const allIds = (await prisma.product.findMany({ where, select: { id: true } })).map((p) => p.id);
+
+      const counts = await prisma.orderItem.groupBy({
+        by: ['productId'],
+        _count: { id: true },
+        where: { productId: { in: allIds } },
+      });
+      const countMap = new Map(counts.map((c) => [c.productId, c._count.id]));
+
+      // Sort by count desc; products with 0 orders sort after those with orders
+      const sortedIds = [...allIds].sort((a, b) => (countMap.get(b) ?? 0) - (countMap.get(a) ?? 0));
+
+      // Fetch enough to fill the page after dedup (fetch 2× limit to absorb duplicates)
+      const fetchIds = sortedIds.slice(offset, offset + limit * 2);
+      const pageProducts = await prisma.product.findMany({
+        where: { id: { in: fetchIds } },
+        include: {
+          category: { select: { name: true, slug: true } },
+          brand:    { select: { name: true } },
+        },
+      });
+      // Restore order
+      const ordered = fetchIds
+        .map((id) => pageProducts.find((p) => p.id === id))
+        .filter(Boolean) as typeof pageProducts;
+
+      const formatted = deduplicateByNameUnit(ordered.map(formatProduct)).slice(0, limit);
+      const total = deduplicateByNameUnit(allIds.map((id) => ({ id, name: '', unit: '' } as any)).map(() => ({ id: '', name: '', unit: '' } as any))).length;
+
+      return NextResponse.json<ApiResponse<PaginatedResponse<Product>>>({
+        data: { data: formatted, total: allIds.length, page, limit, hasMore: offset + limit < allIds.length },
+        error: null,
+      });
     }
 
-    const filters: string[] = ['is_active=eq.true'];
-    if (!search) filters.push('in_stock=eq.true');
-    if (featured) filters.push('is_featured=eq.true');
-    if (categoryId) filters.push(`category_id=eq.${categoryId}`);
-    if (search) filters.push(`name=ilike.*${encodeURIComponent(search)}*`);
+    // ── Standard sorts ────────────────────────────────────────────────────────
+    let orderBy: any = [{ sortOrder: 'asc' }, { createdAt: 'desc' }];
+    if (sort === 'price-asc')  orderBy = [{ price: 'asc' }];
+    if (sort === 'price-desc') orderBy = [{ price: 'desc' }];
+    if (sort === 'name-asc')   orderBy = [{ name: 'asc' }];
+    if (sort === 'newest')     orderBy = [{ createdAt: 'desc' }];
+    if (featured)              orderBy = [{ createdAt: 'desc' }];
 
-    let order = 'sort_order.asc,created_at.desc';
-    if (sort === 'price-asc')  order = 'price.asc';
-    if (sort === 'price-desc') order = 'price.desc';
-    if (sort === 'name-asc')   order = 'name.asc';
-    if (sort === 'newest')     order = 'created_at.desc';
-
-    const filterStr = filters.join('&');
-    const fetchLimit = limit * 2;
-
-    const [dataRes, countRes] = await Promise.all([
-      fetch(
-        `${SB}/rest/v1/products?${filterStr}&order=${order}&limit=${fetchLimit}&offset=${offset}&select=*,categories(name,slug),brands(name)`,
-        { headers: { apikey: KEY, Authorization: `Bearer ${KEY}` }, cache: 'no-store' }
-      ),
-      fetch(
-        `${SB}/rest/v1/products?${filterStr}&select=id`,
-        { headers: { apikey: KEY, Authorization: `Bearer ${KEY}`, Prefer: 'count=exact' }, cache: 'no-store' }
-      ),
+    // Fetch extra to absorb duplicates then slice to limit
+    const [rawProducts, total] = await Promise.all([
+      prisma.product.findMany({
+        where,
+        include: {
+          category: { select: { name: true, slug: true } },
+          brand:    { select: { name: true } },
+        },
+        orderBy,
+        skip: offset,
+        take: limit * 2,
+      }),
+      prisma.product.count({ where }),
     ]);
 
-    const rows: any[] = await dataRes.json();
-    const range = countRes.headers.get('content-range');
-    const total = range ? parseInt(range.split('/')[1] ?? '0', 10) : rows.length;
-
-    const formatted = dedupe(rows.map(formatProduct)).slice(0, limit);
+    const formatted = deduplicateByNameUnit(rawProducts.map(formatProduct)).slice(0, limit);
 
     return NextResponse.json<ApiResponse<PaginatedResponse<Product>>>({
-      data: { data: formatted, total, page, limit, hasMore: offset + formatted.length < total },
+      data: {
+        data: formatted,
+        total,
+        page,
+        limit,
+        hasMore: offset + formatted.length < total,
+      },
       error: null,
     });
   } catch (err) {
     console.error('Products API error:', err);
+
+    // DB unreachable — serve live data from the legacy site instead
+    const proxied = await proxyFromLegacy(req.nextUrl.searchParams.toString());
+    if (proxied) {
+      return NextResponse.json<ApiResponse<PaginatedResponse<Product>>>({ data: proxied, error: null });
+    }
+
     return NextResponse.json<ApiResponse<PaginatedResponse<Product>>>({
       data: { data: [], total: 0, page: 1, limit: 20, hasMore: false },
       error: 'Failed to load products',

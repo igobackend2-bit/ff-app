@@ -116,16 +116,28 @@ export async function POST(req: NextRequest) {
     const phone = result.data.phone;
     const otp   = generateOtp();
 
-    // Persist hashed OTP — use phone as identifier
-    const hashedOtp = await hashOtp(otp);
-    await prisma.verificationToken.deleteMany({ where: { identifier: phone } });
-    await prisma.verificationToken.create({
-      data: {
-        identifier: phone,
-        token:      hashedOtp,
-        expires:    new Date(Date.now() + 5 * 60 * 1000), // 5 minutes
-      },
-    });
+    // Persist hashed OTP in DB when available (best effort — stateless token below
+    // keeps login working even when the database is unreachable)
+    try {
+      const hashedOtp = await hashOtp(otp);
+      await prisma.verificationToken.deleteMany({ where: { identifier: phone } });
+      await prisma.verificationToken.create({
+        data: {
+          identifier: phone,
+          token:      hashedOtp,
+          expires:    new Date(Date.now() + 5 * 60 * 1000), // 5 minutes
+        },
+      });
+    } catch (dbErr) {
+      console.warn('[OTP send] DB unavailable, relying on stateless token:', String(dbErr).slice(0, 200));
+    }
+
+    // Stateless signed token: HMAC(phone|otp|expires) — verified without DB
+    const expires   = Date.now() + 5 * 60 * 1000;
+    const sigInput  = `${phone}|${otp}|${expires}|${process.env['NEXTAUTH_SECRET'] ?? 'ff-dev-secret'}`;
+    const sigHash   = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(sigInput));
+    const signature = Buffer.from(sigHash).toString('hex');
+    const otpToken  = Buffer.from(`${phone}|${expires}|${signature}`).toString('base64url');
 
     // Deliver OTP via SMS
     const { ok, error } = await sendSmsOtp(phone, otp);
@@ -137,7 +149,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    return NextResponse.json({ message: 'OTP sent to your mobile', smsSent: true });
+    return NextResponse.json({ message: 'OTP sent to your mobile', smsSent: true, otpToken });
   } catch (error) {
     console.error('[OTP send] Error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

@@ -31,6 +31,7 @@ export function OtpLoginForm({ onSuccess }: OtpLoginFormProps = {}) {
   const [step, setStep]           = useState<Step>('phone');
   const [phone, setPhone]         = useState('');
   const [otp, setOtp]             = useState('');
+  const [otpToken, setOtpToken]   = useState('');
   const [displayName, setDisplayName] = useState('');
 
   const [isLoading, setIsLoading]   = useState(false);
@@ -87,8 +88,9 @@ export function OtpLoginForm({ onSuccess }: OtpLoginFormProps = {}) {
       if (!ct.includes('application/json')) {
         throw new Error(`Server error (${res.status}). Please try again.`);
       }
-      const data = await res.json() as { error?: string };
+      const data = await res.json() as { error?: string; otpToken?: string };
       if (!res.ok) throw new Error(data.error ?? 'Failed to send OTP');
+      if (data.otpToken) setOtpToken(data.otpToken);
 
       setStep('otp');
       startCooldown();
@@ -114,6 +116,7 @@ export function OtpLoginForm({ onSuccess }: OtpLoginFormProps = {}) {
         body:    JSON.stringify({
           phone: `+91${phone.trim().replace(/\D/g, '')}`,
           otp,
+          otpToken: otpToken || undefined,
         }),
       });
       const data = await res.json() as { user?: import('@/types').User & { id: string }; error?: string };
@@ -152,6 +155,8 @@ export function OtpLoginForm({ onSuccess }: OtpLoginFormProps = {}) {
         body:    JSON.stringify({ phone: `+91${trimmed}` }),
       });
       if (res.ok) {
+        const data = await res.json() as { otpToken?: string };
+        if (data.otpToken) setOtpToken(data.otpToken);
         startCooldown();
         addToast?.({ variant: 'success', title: 'Code Resent ✓', description: `New OTP sent to +91 ${trimmed}` });
       }
