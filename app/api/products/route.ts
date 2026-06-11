@@ -7,6 +7,13 @@ import { filterExtraProducts } from '@/lib/extra-products';
 // Legacy live site — used as a read-only fallback when our DB is unreachable
 const LEGACY_SOURCE = 'https://ff-app-pi.vercel.app';
 
+// Empty-category remaps: legacy DB keeps these products under a sibling category
+const CATEGORY_FALLBACKS: Record<string, { source: string; nameFilter?: RegExp }> = {
+  'dairy-ghee':        { source: 'honey-jaggery', nameFilter: /ghee/i },
+  'honey':             { source: 'honey-jaggery', nameFilter: /honey|jaggery|palm/i },
+  'cold-pressed-oils': { source: 'oils-ghee' },
+};
+
 /** Proxy product reads from the legacy site, cleaning broken names on the fly. */
 async function proxyFromLegacy(query: string): Promise<PaginatedResponse<Product> | null> {
   try {
@@ -18,6 +25,27 @@ async function proxyFromLegacy(query: string): Promise<PaginatedResponse<Product
     const json = (await res.json()) as { data: PaginatedResponse<Product> };
     const d = json.data;
     if (!d?.data) return null;
+
+    // Category empty in legacy DB? Pull from its sibling category instead
+    if (d.data.length === 0) {
+      const params = new URLSearchParams(query);
+      const fb = CATEGORY_FALLBACKS[params.get('category') ?? ''];
+      if (fb) {
+        params.set('category', fb.source);
+        const fbRes = await fetch(`${LEGACY_SOURCE}/api/products?${params}`, {
+          cache: 'no-store',
+          signal: AbortSignal.timeout(8000),
+        });
+        if (fbRes.ok) {
+          const fbJson = (await fbRes.json()) as { data: PaginatedResponse<Product> };
+          if (fbJson.data?.data) {
+            d.data  = fb.nameFilter ? fbJson.data.data.filter((p) => fb.nameFilter!.test(p.name)) : fbJson.data.data;
+            d.total = d.data.length;
+          }
+        }
+      }
+    }
+
     d.data = d.data.map((p) => ({
       ...p,
       name: cleanProductName(p.name, p.slug),
