@@ -17,8 +17,50 @@ async function hashOtp(otp: string): Promise<string> {
   return Buffer.from(hash).toString('hex');
 }
 
-/** Send OTP via Fast2SMS (India). Falls back to console.log if API key not set. */
+/** Send OTP via APITxT (DLT-approved, sender FFCTRY). */
+async function sendViaApitxt(phone: string, otp: string): Promise<{ ok: boolean; error?: string }> {
+  const authkey  = process.env['APITXT_API_KEY']!;
+  const sender   = process.env['APITXT_SENDER_ID'] ?? 'FFCTRY';
+  const template = process.env['APITXT_OTP_TEMPLATE'] ?? 'Your Farmers Factory login OTP is {otp}. Valid for 5 minutes. Do not share it with anyone.';
+  const message  = template.replace('{otp}', otp);
+  const digits   = phone.replace(/^\+91/, '');
+
+  const url = new URL('https://www.apitxt.com/api/sendMsg');
+  url.searchParams.set('authkey', authkey);
+  url.searchParams.set('mobiles', digits);
+  url.searchParams.set('message', message);
+  url.searchParams.set('sender', sender);
+  url.searchParams.set('route', process.env['APITXT_ROUTE'] ?? '4');
+  if (process.env['APITXT_TEMPLATE_ID']) url.searchParams.set('template_id', process.env['APITXT_TEMPLATE_ID']);
+  if (process.env['APITXT_PE_ID'])       url.searchParams.set('pe_id', process.env['APITXT_PE_ID']);
+
+  try {
+    const res  = await fetch(url.toString(), { method: 'GET' });
+    const text = await res.text();
+    let data: { status?: string | boolean; message?: string } = {};
+    try { data = JSON.parse(text) as typeof data; } catch { /* non-JSON response */ }
+
+    const ok = res.ok && (data.status === 'success' || data.status === true || data.status === 'OK' || /success/i.test(text));
+    if (!ok) {
+      console.error('[OTP][APITxT]', res.status, text.slice(0, 300));
+      return { ok: false, error: data.message ?? `APITxT HTTP ${res.status}` };
+    }
+    return { ok: true };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error('[OTP][APITxT] Fetch error:', msg);
+    return { ok: false, error: msg };
+  }
+}
+
+/** Send OTP SMS — APITxT first (DLT-approved), Fast2SMS fallback, console in dev. */
 async function sendSmsOtp(phone: string, otp: string): Promise<{ ok: boolean; error?: string }> {
+  if (process.env['APITXT_API_KEY']) {
+    const result = await sendViaApitxt(phone, otp);
+    if (result.ok) return result;
+    // fall through to Fast2SMS if configured
+  }
+
   const apiKey = process.env['FAST2SMS_API_KEY'];
 
   if (!apiKey) {
