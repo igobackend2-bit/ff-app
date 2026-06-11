@@ -14,7 +14,7 @@ import { WebView, WebViewNavigation } from 'react-native-webview';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 // ── IMPORTANT: Change this to your deployed production URL ────────────
-const APP_URL = 'https://ff-app-pi.vercel.app';
+const APP_URL = 'https://ff-app-pi-ten.vercel.app';
 // ─────────────────────────────────────────────────────────────────────
 
 const BRAND_GREEN = '#16a34a';
@@ -25,12 +25,14 @@ export default function App() {
   const [error, setError]       = useState(false);
   const [canGoBack, setCanGoBack] = useState(false);
 
-  // ── Request location permission on Android ──────────────────────────────
+  // ── Request Android permissions on startup ───────────────────────────────
   React.useEffect(() => {
     if (Platform.OS !== 'android') return;
     PermissionsAndroid.requestMultiple([
       PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
       PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION,
+      PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
+      PermissionsAndroid.PERMISSIONS.CAMERA,
     ]).catch(() => {});
   }, []);
 
@@ -98,9 +100,14 @@ export default function App() {
         allowsInlineMediaPlayback={true}
         mediaPlaybackRequiresUserAction={false}
 
-        // ── Location (FIX #3) ──────────────────────────────────────────────
+        // ── Location ──────────────────────────────────────────────────────
         // Enables HTML5 navigator.geolocation inside the WebView
         geolocationEnabled={true}
+
+        // ── Microphone & Camera permissions ───────────────────────────────
+        // Auto-grant mic/camera/location requests from the WebView
+        onPermissionRequest={(e) => e.nativeEvent.request.grant(e.nativeEvent.resources)}
+        mediaCapturePermissionGrantType="grantIfSameHostElseDeny"
 
         // ── Razorpay / popups (FIX #4) ────────────────────────────────────
         // Allow Razorpay and other payment gateways that open new windows
