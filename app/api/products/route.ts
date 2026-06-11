@@ -9,7 +9,7 @@ const LEGACY_SOURCE = 'https://ff-app-pi.vercel.app';
 
 // Empty-category remaps: legacy DB keeps these products under a sibling category
 const CATEGORY_FALLBACKS: Record<string, { source: string; nameFilter?: RegExp }> = {
-  'dairy-ghee':        { source: 'honey-jaggery', nameFilter: /ghee/i },
+  'dairy-ghee':        { source: 'oils-ghee', nameFilter: /ghee|curd|paneer|butter/i },
   'honey':             { source: 'honey-jaggery', nameFilter: /honey|jaggery|palm/i },
   'cold-pressed-oils': { source: 'oils-ghee' },
 };
