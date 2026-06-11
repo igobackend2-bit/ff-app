@@ -141,7 +141,16 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    return NextResponse.json({ message: 'OTP sent to your mobile', smsSent: true, otpToken });
+    const response = NextResponse.json({ message: 'OTP sent to your mobile', smsSent: true, otpToken });
+    // Cookie fallback — verify works even if the client doesn't echo otpToken back
+    response.cookies.set('ff_otp_tok', otpToken, {
+      httpOnly: true,
+      sameSite: 'lax',
+      path:     '/',
+      maxAge:   5 * 60,
+      secure:   process.env['NODE_ENV'] === 'production',
+    });
+    return response;
   } catch (error) {
     console.error('[OTP send] Error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

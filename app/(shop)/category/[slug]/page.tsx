@@ -13,7 +13,9 @@ interface SearchParams { sort?: string; brand?: string; tags?: string; page?: st
 
 async function getCategory(slug: string) {
   try {
-    const baseUrl = process.env['NEXT_PUBLIC_APP_URL'] ?? 'http://localhost:3000';
+    const baseUrl =
+      process.env['NEXT_PUBLIC_APP_URL'] ??
+      (process.env['VERCEL_URL'] ? `https://${process.env['VERCEL_URL']}` : 'http://localhost:3000');
     const res = await fetch(`${baseUrl}/api/categories/${slug}`, {
       next: { revalidate: 300 },
     });

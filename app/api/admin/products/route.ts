@@ -1,33 +1,9 @@
+// Admin: List all products + Create new product
 import { NextRequest, NextResponse } from 'next/server';
+import { prisma } from '@/lib/db';
 
-const SB = process.env['NEXT_PUBLIC_SUPABASE_URL'] ?? '';
-const KEY = process.env['SUPABASE_SERVICE_ROLE_KEY'] ?? process.env['NEXT_PUBLIC_SUPABASE_ANON_KEY'] ?? '';
-const H = { apikey: KEY, Authorization: `Bearer ${KEY}`, 'Content-Type': 'application/json' };
-
-function parseJSON(val: any, fallback: any = []) {
-  if (Array.isArray(val)) return val;
-  try { return JSON.parse(val || '[]'); } catch { return fallback; }
-}
-
-function fmtProduct(p: any) {
-  return {
-    ...p,
-    id: p.id, name: p.name, slug: p.slug, description: p.description,
-    imageUrls: parseJSON(p.image_urls),
-    blurDataUrls: parseJSON(p.blur_data_urls),
-    tags: parseJSON(p.tags),
-    categoryId: p.category_id, brandId: p.brand_id,
-    sku: p.sku, mrp: p.mrp, price: p.price, unit: p.unit,
-    isFeatured: p.is_featured, isActive: p.is_active, inStock: p.in_stock,
-    averageRating: p.average_rating, reviewCount: p.review_count, sortOrder: p.sort_order,
-    createdAt: p.created_at, updatedAt: p.updated_at,
-    brand: p.brands ?? null,
-    category: p.categories ?? null,
-    orderCount: 0,
-  };
-}
-
-function dedupe(products: any[]): any[] {
+/** Deduplicate by name+unit — keep first occurrence (highest orderCount / sorted first) */
+function deduplicateAdmin(products: any[]): any[] {
   const seen = new Set<string>();
   return products.filter((p) => {
     const key = `${String(p.name).trim().toLowerCase()}||${String(p.unit).trim().toLowerCase()}`;
@@ -40,46 +16,115 @@ function dedupe(products: any[]): any[] {
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
-    const page   = Math.max(1, Number(searchParams.get('page')  ?? 1));
-    const limit  = Math.min(50, Number(searchParams.get('limit') ?? 20));
+    const page = Math.max(1, Number(searchParams.get('page') ?? 1));
+    const limit = Math.min(50, Number(searchParams.get('limit') ?? 20));
     const search = searchParams.get('q') ?? '';
     const categorySlug = searchParams.get('category') ?? '';
-    const stockFilter  = searchParams.get('stock'); // 'in' | 'out'
-    const sortParam    = searchParams.get('sort') ?? '';
-    const offset = (page - 1) * limit;
+    const stockFilter = searchParams.get('stock'); // 'in' | 'out' | null
 
-    const filters: string[] = ['is_active=eq.true'];
-    if (search)        filters.push(`name=ilike.*${encodeURIComponent(search)}*`);
-    if (stockFilter === 'in')  filters.push('in_stock=eq.true');
-    if (stockFilter === 'out') filters.push('in_stock=eq.false');
-
+    const where: Record<string, unknown> = {};
+    if (search) where['name'] = { contains: search };
     if (categorySlug) {
-      const catRes = await fetch(`${SB}/rest/v1/categories?slug=eq.${encodeURIComponent(categorySlug)}&select=id&limit=1`, { headers: H, cache: 'no-store' });
-      const cats: any[] = await catRes.json();
-      if (cats[0]?.id) filters.push(`category_id=eq.${cats[0].id}`);
+      const cat = await prisma.category.findUnique({ where: { slug: categorySlug } });
+      if (cat) where['categoryId'] = cat.id;
+    }
+    if (stockFilter === 'in') where['inStock'] = true;
+    if (stockFilter === 'out') where['inStock'] = false;
+
+    const sortParam = searchParams.get('sort') ?? '';
+
+    // Try to add sortOrder column if missing (safe no-op if exists)
+    try {
+      await prisma.$executeRawUnsafe(`ALTER TABLE "Product" ADD COLUMN "sortOrder" INTEGER NOT NULL DEFAULT 0`);
+    } catch { /* already exists */ }
+
+    let formattedProducts: any[];
+    let total: number;
+
+    if (sortParam === 'orders') {
+      // ── Sort by most ordered: fetch all matching IDs, rank by order count, paginate ──
+      const allMatchingIds = (await prisma.product.findMany({
+        where,
+        select: { id: true },
+      })).map((p) => p.id);
+
+      total = allMatchingIds.length;
+
+      // Get order counts for all matching products
+      const counts = await prisma.orderItem.groupBy({
+        by: ['productId'],
+        _count: { id: true },
+        where: { productId: { in: allMatchingIds } },
+      });
+      const countMap = new Map(counts.map((c) => [c.productId, c._count.id]));
+
+      // Sort IDs by count desc, then paginate
+      const sortedIds = [...allMatchingIds].sort(
+        (a, b) => (countMap.get(b) ?? 0) - (countMap.get(a) ?? 0),
+      );
+      const pageIds = sortedIds.slice((page - 1) * limit, page * limit);
+
+      const pageProducts = await prisma.product.findMany({
+        where: { id: { in: pageIds } },
+        include: { brand: true, category: true },
+      });
+      // Restore sorted order (findMany order is not guaranteed)
+      const orderedProducts = pageIds
+        .map((id) => pageProducts.find((p) => p.id === id))
+        .filter(Boolean) as typeof pageProducts;
+
+      formattedProducts = deduplicateAdmin(orderedProducts.map((p: any) => ({
+        ...p,
+        imageUrls:    typeof p.imageUrls    === 'string' ? JSON.parse(p.imageUrls    || '[]') : p.imageUrls,
+        blurDataUrls: typeof p.blurDataUrls === 'string' ? JSON.parse(p.blurDataUrls || '[]') : p.blurDataUrls,
+        tags:         typeof p.tags         === 'string' ? JSON.parse(p.tags         || '[]') : p.tags,
+        orderCount: countMap.get(p.id) ?? 0,
+      })));
+    } else {
+      // ── Standard sort ──────────────────────────────────────────────────────
+      type OrderBy = Record<string, 'asc' | 'desc'> | Array<Record<string, 'asc' | 'desc'>>;
+      const orderBy: OrderBy =
+        sortParam === 'rating'  ? { averageRating: 'desc' } :
+        sortParam === 'popular' ? { reviewCount:   'desc' } :
+        sortParam === 'order'   ? [{ sortOrder: 'asc' }, { createdAt: 'desc' }] :
+                                  { createdAt: 'desc' };
+
+      const [products, cnt] = await Promise.all([
+        prisma.product.findMany({
+          where,
+          include: { brand: true, category: true },
+          orderBy,
+          skip: (page - 1) * limit,
+          take: limit,
+        }),
+        prisma.product.count({ where }),
+      ]);
+      total = cnt;
+
+      // Fetch order counts for just this page's products
+      const pageIds = products.map((p) => p.id);
+      const counts = await prisma.orderItem.groupBy({
+        by: ['productId'],
+        _count: { id: true },
+        where: { productId: { in: pageIds } },
+      });
+      const countMap = new Map(counts.map((c) => [c.productId, c._count.id]));
+
+      formattedProducts = deduplicateAdmin(products.map((p: any) => ({
+        ...p,
+        imageUrls:    typeof p.imageUrls    === 'string' ? JSON.parse(p.imageUrls    || '[]') : p.imageUrls,
+        blurDataUrls: typeof p.blurDataUrls === 'string' ? JSON.parse(p.blurDataUrls || '[]') : p.blurDataUrls,
+        tags:         typeof p.tags         === 'string' ? JSON.parse(p.tags         || '[]') : p.tags,
+        orderCount: countMap.get(p.id) ?? 0,
+      })));
     }
 
-    let order = 'created_at.desc';
-    if (sortParam === 'rating')  order = 'average_rating.desc';
-    if (sortParam === 'popular') order = 'review_count.desc';
-    if (sortParam === 'order')   order = 'sort_order.asc,created_at.desc';
-
-    const filterStr = filters.join('&');
-
-    const [dataRes, countRes] = await Promise.all([
-      fetch(`${SB}/rest/v1/products?${filterStr}&order=${order}&limit=${limit * 2}&offset=${offset}&select=*,categories(id,name,slug),brands(id,name,slug)`,
-        { headers: H, cache: 'no-store' }),
-      fetch(`${SB}/rest/v1/products?${filterStr}&select=id`,
-        { headers: { ...H, Prefer: 'count=exact' }, cache: 'no-store' }),
-    ]);
-
-    const rows: any[] = await dataRes.json();
-    const range = countRes.headers.get('content-range');
-    const total = range ? parseInt(range.split('/')[1] ?? '0', 10) : rows.length;
-
-    const products = dedupe(rows.map(fmtProduct)).slice(0, limit);
-
-    return NextResponse.json({ products, total, page, pages: Math.ceil(total / limit) });
+    return NextResponse.json({
+      products: formattedProducts,
+      total,
+      page,
+      pages: Math.ceil(total / limit),
+    });
   } catch (err) {
     console.error('[admin/products GET]', err);
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
@@ -89,51 +134,62 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { name, slug, description, categorySlug, brandSlug, price, mrp, unit, tags, imageUrls, blurDataUrls, inStock = true, isFeatured = false } = body;
+    const {
+      name, slug, description, categorySlug, brandSlug,
+      price, mrp, unit, tags, imageUrls, blurDataUrls,
+      inStock = true, isFeatured = false,
+    } = body;
 
-    if (!name || !price || !unit) return NextResponse.json({ error: 'name, price, unit are required' }, { status: 400 });
+    if (!name || !slug || !price || !unit) {
+      return NextResponse.json({ error: 'name, slug, price, unit are required' }, { status: 400 });
+    }
 
-    const [catRes, brandRes, firstCatRes] = await Promise.all([
-      categorySlug ? fetch(`${SB}/rest/v1/categories?slug=eq.${encodeURIComponent(categorySlug)}&select=id&limit=1`, { headers: H, cache: 'no-store' }) : null,
-      brandSlug    ? fetch(`${SB}/rest/v1/brands?slug=eq.${encodeURIComponent(brandSlug)}&select=id&limit=1`,         { headers: H, cache: 'no-store' }) : null,
-      fetch(`${SB}/rest/v1/categories?order=sort_order.asc&limit=1&select=id`, { headers: H, cache: 'no-store' }),
+    const [category, brand, firstCategory] = await Promise.all([
+      categorySlug ? prisma.category.findUnique({ where: { slug: categorySlug } }) : null,
+      brandSlug    ? prisma.brand.findUnique({    where: { slug: brandSlug    } }) : null,
+      // Fallback: grab the first category in case none is selected
+      prisma.category.findFirst({ orderBy: { sortOrder: 'asc' } }),
     ]);
 
-    const catRows:   any[] = catRes   ? await catRes.json()   : [];
-    const brandRows: any[] = brandRes ? await brandRes.json() : [];
-    const firstCats: any[] = await firstCatRes.json();
+    const sku = `FF-${Date.now()}`;
 
-    const categoryId = catRows[0]?.id ?? firstCats[0]?.id ?? 'uncategorized';
-    const brandId    = brandRows[0]?.id ?? null;
-
-    const baseSlug  = (slug || name.toLowerCase().replace(/[^a-z0-9]+/g, '-')).replace(/^-+|-+$/g, '');
-    let finalSlug   = baseSlug;
-    let attempt     = 0;
-    while (true) {
-      const existing = await fetch(`${SB}/rest/v1/products?slug=eq.${encodeURIComponent(finalSlug)}&select=id&limit=1`, { headers: H, cache: 'no-store' });
-      const rows: any[] = await existing.json();
-      if (!rows.length) break;
+    // Build a unique slug — if the requested slug already exists, append a suffix
+    const baseSlug = (slug || name.toLowerCase().replace(/[^a-z0-9]+/g, '-')).replace(/^-+|-+$/g, '');
+    let finalSlug  = baseSlug;
+    let attempt    = 0;
+    while (await prisma.product.findUnique({ where: { slug: finalSlug } })) {
       attempt++;
       finalSlug = `${baseSlug}-${attempt}`;
     }
 
-    const sku = `FF-${Date.now()}`;
-    const res = await fetch(`${SB}/rest/v1/products`, {
-      method: 'POST',
-      headers: { ...H, Prefer: 'return=representation' },
-      body: JSON.stringify({
-        name, description: description ?? '', slug: finalSlug, sku, category_id: categoryId, brand_id: brandId,
-        price: Number(price), mrp: Number(mrp ?? price), unit,
-        tags: JSON.stringify(Array.isArray(tags) ? tags : []),
-        image_urls:    JSON.stringify(Array.isArray(imageUrls)    ? imageUrls    : []),
-        blur_data_urls: JSON.stringify(Array.isArray(blurDataUrls) ? blurDataUrls : []),
-        in_stock: inStock, is_featured: isFeatured,
-      }),
+    const product = await prisma.product.create({
+      data: {
+        name, description: description ?? '',
+        slug: finalSlug,
+        sku,
+        categoryId: category?.id ?? firstCategory?.id ?? 'uncategorized',
+        brandId:    brand?.id   ?? null,
+        price:      Number(price),
+        mrp:        Number(mrp ?? price),
+        unit,
+        tags:        JSON.stringify(Array.isArray(tags) ? tags : []),
+        imageUrls:   JSON.stringify(Array.isArray(imageUrls) ? imageUrls : []),
+        blurDataUrls: JSON.stringify(Array.isArray(blurDataUrls) ? blurDataUrls : []),
+        inStock,
+        isFeatured,
+      },
     });
-    const rows: any[] = await res.json();
-    return NextResponse.json({ product: fmtProduct(rows[0]) }, { status: 201 });
-  } catch (err) {
+
+    return NextResponse.json({ product }, { status: 201 });
+  } catch (err: unknown) {
+    if (err instanceof Error && (err as { code?: string }).code === 'P2002') {
+      return NextResponse.json(
+        { error: 'A product with this name already exists. Please use a different name.' },
+        { status: 409 },
+      );
+    }
+    const msg = err instanceof Error ? err.message : 'Server error';
     console.error('[admin/products POST]', err);
-    return NextResponse.json({ error: 'Server error' }, { status: 500 });
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

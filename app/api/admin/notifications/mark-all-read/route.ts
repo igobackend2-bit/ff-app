@@ -1,4 +1,13 @@
 import { NextResponse } from 'next/server';
-export async function GET() { return NextResponse.json({ ok: true }); }
-export async function POST() { return NextResponse.json({ ok: true }); }
-export async function PATCH() { return NextResponse.json({ ok: true }); }
+import { prisma } from '@/lib/db';
+
+export async function POST() {
+  try {
+    await prisma.$executeRawUnsafe(
+      `UPDATE AppNotification SET isAdminRead = 1`,
+    );
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    return NextResponse.json({ error: String(err) }, { status: 500 });
+  }
+}

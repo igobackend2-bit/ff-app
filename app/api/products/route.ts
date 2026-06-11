@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import type { ApiResponse, PaginatedResponse, Product } from '@/types';
 import { prisma } from '@/lib/db';
-import { cleanProductName } from '@/lib/clean-name';
+import { cleanProductName, localizeImageUrls } from '@/lib/clean-name';
+import { filterExtraProducts } from '@/lib/extra-products';
 
 // Legacy live site — used as a read-only fallback when our DB is unreachable
 const LEGACY_SOURCE = 'https://ff-app-pi.vercel.app';
@@ -17,7 +18,11 @@ async function proxyFromLegacy(query: string): Promise<PaginatedResponse<Product
     const json = (await res.json()) as { data: PaginatedResponse<Product> };
     const d = json.data;
     if (!d?.data) return null;
-    d.data = d.data.map((p) => ({ ...p, name: cleanProductName(p.name, p.slug) }));
+    d.data = d.data.map((p) => ({
+      ...p,
+      name: cleanProductName(p.name, p.slug),
+      imageUrls: localizeImageUrls(p.imageUrls),
+    }));
     return d;
   } catch {
     return null;
@@ -167,12 +172,19 @@ export async function GET(req: NextRequest) {
       prisma.product.count({ where }),
     ]);
 
-    const formatted = deduplicateByNameUnit(rawProducts.map(formatProduct)).slice(0, limit);
+    let formatted = deduplicateByNameUnit(rawProducts.map(formatProduct)).slice(0, limit);
+
+    // Append zip-imported Meat & Seafood products (not yet in DB)
+    const extras = filterExtraProducts({ category, search, featured });
+    if (extras.length > 0 && page === 1) {
+      const existingSlugs = new Set(formatted.map((x) => x.slug));
+      formatted = [...formatted, ...extras.filter((x) => !existingSlugs.has(x.slug))];
+    }
 
     return NextResponse.json<ApiResponse<PaginatedResponse<Product>>>({
       data: {
         data: formatted,
-        total,
+        total: total + extras.length,
         page,
         limit,
         hasMore: offset + formatted.length < total,
@@ -183,8 +195,19 @@ export async function GET(req: NextRequest) {
     console.error('Products API error:', err);
 
     // DB unreachable — serve live data from the legacy site instead
-    const proxied = await proxyFromLegacy(req.nextUrl.searchParams.toString());
+    const sp = req.nextUrl.searchParams;
+    const proxied = await proxyFromLegacy(sp.toString());
     if (proxied) {
+      const extras = filterExtraProducts({
+        category: sp.get('category') ?? '',
+        search:   sp.get('search') ?? '',
+        featured: sp.get('filter') === 'featured',
+      });
+      if (extras.length > 0 && (parseInt(sp.get('page') ?? '1', 10) || 1) === 1) {
+        const existingSlugs = new Set(proxied.data.map((x) => x.slug));
+        proxied.data  = [...proxied.data, ...extras.filter((x) => !existingSlugs.has(x.slug))];
+        proxied.total += extras.length;
+      }
       return NextResponse.json<ApiResponse<PaginatedResponse<Product>>>({ data: proxied, error: null });
     }
 

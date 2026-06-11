@@ -1,66 +1,91 @@
+// Admin: Inventory listing — real Inventory records merged with Products
 import { NextRequest, NextResponse } from 'next/server';
-
-const SB = process.env['NEXT_PUBLIC_SUPABASE_URL'] ?? '';
-const KEY = process.env['SUPABASE_SERVICE_ROLE_KEY'] ?? process.env['NEXT_PUBLIC_SUPABASE_ANON_KEY'] ?? '';
-const H = { apikey: KEY, Authorization: `Bearer ${KEY}`, 'Content-Type': 'application/json' };
+import { prisma } from '@/lib/db';
 
 const STORE_ID   = 'main-store';
 const STORE_NAME = 'Main Store';
 
+/** Ensure the default DarkStore exists */
+async function ensureStore() {
+  await prisma.darkStore.upsert({
+    where:  { id: STORE_ID },
+    create: { id: STORE_ID, name: STORE_NAME, city: 'Chennai', pincode: '600001', lat: 13.08, lng: 80.27, isActive: true },
+    update: {},
+  });
+}
+
 export async function GET(req: NextRequest) {
   try {
+    await ensureStore();
+
     const { searchParams } = new URL(req.url);
     const page  = Math.max(1, Number(searchParams.get('page')  ?? 1));
     const limit = Math.min(50, Number(searchParams.get('limit') ?? 25));
     const q     = searchParams.get('q') ?? '';
-    const stock = searchParams.get('stock') ?? 'all';
-    const offset = (page - 1) * limit;
+    const stock = searchParams.get('stock') ?? 'all'; // all | low | out
 
-    const filters = ['is_active=eq.true'];
-    if (q) filters.push(`name=ilike.*${encodeURIComponent(q)}*`);
+    const where: Record<string, unknown> = { isActive: true };
+    if (q) {
+      where['OR'] = [
+        { name: { contains: q } },
+        { sku:  { contains: q } },
+      ];
+    }
 
-    const filterStr = filters.join('&');
-
-    const [dataRes, countRes] = await Promise.all([
-      fetch(`${SB}/rest/v1/products?${filterStr}&order=name.asc&limit=${limit}&offset=${offset}&select=id,name,slug,sku,unit,image_urls,price,in_stock`,
-        { headers: H, cache: 'no-store' }),
-      fetch(`${SB}/rest/v1/products?${filterStr}&select=id`,
-        { headers: { ...H, Prefer: 'count=exact' }, cache: 'no-store' }),
+    const [products, total] = await Promise.all([
+      prisma.product.findMany({
+        where,
+        select: { id: true, name: true, slug: true, sku: true, unit: true, imageUrls: true, price: true, inStock: true },
+        orderBy: { name: 'asc' },
+        skip:  (page - 1) * limit,
+        take:  limit,
+      }),
+      prisma.product.count({ where }),
     ]);
 
-    const products: any[] = await dataRes.json();
-    const range = countRes.headers.get('content-range');
-    const total = range ? parseInt(range.split('/')[1] ?? '0', 10) : products.length;
+    if (products.length === 0) {
+      return NextResponse.json({ rows: [], total: 0, pages: 0 });
+    }
 
-    if (!products.length) return NextResponse.json({ rows: [], total: 0, pages: 0 });
-
-    // Fetch inventory records
+    // Fetch real inventory records for these products
     const productIds = products.map((p) => p.id);
-    const invRes = await fetch(
-      `${SB}/rest/v1/inventory?product_id=in.(${productIds.map(id => `"${id}"`).join(',')})&dark_store_id=eq.${STORE_ID}`,
-      { headers: H, cache: 'no-store' }
-    );
-    const invRecords: any[] = await invRes.json();
-    const invMap = new Map(invRecords.map((r) => [r.product_id, r]));
+    const invRecords = await prisma.inventory.findMany({
+      where: { productId: { in: productIds }, darkStoreId: STORE_ID },
+    });
+    const invMap = new Map(invRecords.map((r) => [r.productId, r]));
 
     const rows = products.map((p) => {
-      const inv = invMap.get(p.id);
+      const inv      = invMap.get(p.id);
+      const quantity = inv?.quantity ?? (p.inStock ? 100 : 0);
+      const threshold = inv?.threshold ?? 10;
       return {
-        productId: p.id, invId: inv?.id ?? null,
-        name: p.name, slug: p.slug, sku: p.sku, unit: p.unit,
-        imageUrls: (() => { try { return JSON.parse(p.image_urls ?? '[]'); } catch { return []; } })(),
-        price: p.price, inStock: p.in_stock,
-        quantity: inv?.quantity ?? (p.in_stock ? 100 : 0),
-        threshold: inv?.threshold ?? 10,
-        store: { id: STORE_ID, name: STORE_NAME },
+        productId: p.id,
+        invId:     inv?.id ?? null,
+        name:      p.name,
+        slug:      p.slug,
+        sku:       p.sku,
+        unit:      p.unit,
+        imageUrls: p.imageUrls,
+        price:     p.price,
+        inStock:   p.inStock,
+        quantity,
+        threshold,
+        store:     { id: STORE_ID, name: STORE_NAME },
       };
     });
 
-    const filtered = stock === 'low'  ? rows.filter((r) => r.quantity > 0 && r.quantity <= r.threshold)
-                   : stock === 'out'  ? rows.filter((r) => r.quantity <= 0 || !r.inStock)
-                   : rows;
+    // Client-side stock filter
+    const filtered = stock === 'low'
+      ? rows.filter((r) => r.quantity > 0 && r.quantity <= r.threshold)
+      : stock === 'out'
+        ? rows.filter((r) => r.quantity <= 0 || !r.inStock)
+        : rows;
 
-    return NextResponse.json({ rows: filtered, total, pages: Math.ceil(total / limit) });
+    return NextResponse.json({
+      rows:  filtered,
+      total,
+      pages: Math.ceil(total / limit),
+    });
   } catch (err) {
     console.error('[admin/inventory GET]', err);
     return NextResponse.json({ error: String(err) }, { status: 500 });

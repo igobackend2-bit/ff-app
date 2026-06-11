@@ -55,6 +55,13 @@ export async function GET(
   try {
     const { slug } = await params;
 
+    // Zip-imported Meat & Seafood products (not yet in DB)
+    const { MEAT_PRODUCTS } = await import('@/lib/extra-products');
+    const extra = MEAT_PRODUCTS.find((x) => x.slug === slug);
+    if (extra) {
+      return NextResponse.json<ApiResponse<Product>>({ data: extra, error: null });
+    }
+
     const product = await prisma.product.findFirst({
       where: { 
         slug,
@@ -90,8 +97,9 @@ export async function GET(
       if (res.ok) {
         const json = (await res.json()) as { data: Product | null };
         if (json.data) {
-          const { cleanProductName } = await import('@/lib/clean-name');
-          json.data.name = cleanProductName(json.data.name, json.data.slug);
+          const { cleanProductName, localizeImageUrls } = await import('@/lib/clean-name');
+          json.data.name      = cleanProductName(json.data.name, json.data.slug);
+          json.data.imageUrls = localizeImageUrls(json.data.imageUrls);
           return NextResponse.json<ApiResponse<Product>>({ data: json.data, error: null });
         }
       }

@@ -11,6 +11,12 @@ export async function GET(
   try {
     const { slug } = await params;
 
+    // Zip-imported Meat & Seafood category (not yet in DB)
+    if (slug === 'meat-seafood') {
+      const { MEAT_CATEGORY } = await import('@/lib/extra-products');
+      return NextResponse.json({ data: MEAT_CATEGORY, error: null });
+    }
+
     const c = await prisma.category.findFirst({
       where: { slug, isActive: true },
       include: { _count: { select: { products: true } } },

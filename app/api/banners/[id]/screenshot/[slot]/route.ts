@@ -1,35 +1,55 @@
 import { NextResponse } from 'next/server';
+import { prisma } from '@/lib/db';
 
-const SB = process.env['NEXT_PUBLIC_SUPABASE_URL'] ?? '';
-const KEY = process.env['NEXT_PUBLIC_SUPABASE_ANON_KEY'] ?? '';
-
-export async function GET(_req: Request, { params }: { params: Promise<{ id: string; slot: string }> }) {
+// GET /api/banners/[id]/screenshot/[slot] — streams screenshot 1 or 2 for a banner
+export async function GET(
+  _req: Request,
+  { params }: { params: Promise<{ id: string; slot: string }> },
+) {
   const { id, slot } = await params;
+
   try {
-    const res = await fetch(`${SB}/rest/v1/banners?id=eq.${id}&select=alt_text&limit=1`,
-      { headers: { apikey: KEY, Authorization: `Bearer ${KEY}` }, cache: 'no-store' });
-    const rows: any[] = await res.json();
-    if (!rows.length) return new NextResponse(null, { status: 404 });
+    const banner = await prisma.banner.findUnique({
+      where: { id },
+      select: { altText: true },
+    });
+
+    if (!banner) return new NextResponse(null, { status: 404 });
 
     let dataUrl = '';
     try {
-      const extra = JSON.parse(rows[0].alt_text ?? '{}');
+      const extra = JSON.parse(banner.altText) as { screenshot1?: string; screenshot2?: string };
       dataUrl = slot === '1' ? (extra.screenshot1 ?? '') : (extra.screenshot2 ?? '');
-    } catch {}
+    } catch {
+      return new NextResponse(null, { status: 404 });
+    }
 
     if (!dataUrl) return new NextResponse(null, { status: 404 });
-    if (!dataUrl.startsWith('data:')) return NextResponse.redirect(dataUrl);
+
+    if (!dataUrl.startsWith('data:')) {
+      return NextResponse.redirect(dataUrl);
+    }
 
     const commaIdx = dataUrl.indexOf(',');
     if (commaIdx === -1) return new NextResponse(null, { status: 422 });
-    const mime = dataUrl.slice(0, commaIdx).match(/data:([^;]+)/)?.[1] ?? 'image/png';
-    const buffer = Buffer.from(dataUrl.slice(commaIdx + 1), 'base64');
+
+    const header = dataUrl.slice(0, commaIdx);
+    const b64    = dataUrl.slice(commaIdx + 1);
+    const mimeMatch = header.match(/data:([^;]+)/);
+    const mime = mimeMatch?.[1] ?? 'image/png';
+
+    const buffer = Buffer.from(b64, 'base64');
+
     return new NextResponse(buffer, {
       status: 200,
-      headers: { 'Content-Type': mime, 'Content-Length': String(buffer.length), 'Cache-Control': 'public, max-age=86400' },
+      headers: {
+        'Content-Type': mime,
+        'Content-Length': String(buffer.length),
+        'Cache-Control': 'public, max-age=86400, immutable',
+      },
     });
   } catch (err) {
-    console.error('[banner screenshot]', err);
+    console.error('[GET /api/banners/[id]/screenshot/[slot]]', err);
     return new NextResponse(null, { status: 500 });
   }
 }

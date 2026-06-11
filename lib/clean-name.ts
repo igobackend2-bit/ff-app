@@ -22,6 +22,17 @@ const NAME_FIXES: Record<string, string> = {
   'palm-jaggery-500':          'Palm Jaggery (500 g)',
 };
 
+// Legacy Supabase storage URL prefix → images now hosted locally in /public/images
+const LEGACY_STORAGE_PREFIX = /^https:\/\/qwiumswrbddwmlraktvy\.supabase\.co\/storage\/v1\/object\/public\/app-images\//;
+
+export function localizeImageUrl(url: string): string {
+  return url.replace(LEGACY_STORAGE_PREFIX, '/images/');
+}
+
+export function localizeImageUrls(urls: string[] | undefined | null): string[] {
+  return (urls ?? []).map(localizeImageUrl);
+}
+
 export function cleanProductName(name: string, slug?: string): string {
   if (slug && NAME_FIXES[slug]) return NAME_FIXES[slug];
 

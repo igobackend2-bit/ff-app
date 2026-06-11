@@ -23,7 +23,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { phone, otp, name, otpToken } = result.data;
+    const { phone, otp, name } = result.data;
+    // Prefer body token; fall back to the httpOnly cookie set at send time
+    const otpToken = result.data.otpToken || req.cookies.get('ff_otp_tok')?.value || '';
 
     try {
       // Use NextAuth credentials provider — identifier is phone
@@ -69,7 +71,9 @@ export async function POST(req: NextRequest) {
         };
       }
 
-      return NextResponse.json({ message: 'Logged in successfully', user });
+      const okRes = NextResponse.json({ message: 'Logged in successfully', user });
+      okRes.cookies.set('ff_otp_tok', '', { httpOnly: true, path: '/', maxAge: 0 });
+      return okRes;
     } catch (error: unknown) {
       // Auth.js v5 throws CredentialsSignin on wrong OTP
       if (

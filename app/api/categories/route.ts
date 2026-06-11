@@ -26,6 +26,13 @@ export async function GET() {
       _count:          { products: c._count.products },
     }));
 
+    // Zip-imported Meat & Seafood category (not yet in DB)
+    const { MEAT_CATEGORY } = await import('@/lib/extra-products');
+    if (!data.some((c) => c.slug === MEAT_CATEGORY.slug)) {
+      data.push({ ...MEAT_CATEGORY, description: MEAT_CATEGORY.description ?? null, iconUrl: null, parentId: null, metaTitle: MEAT_CATEGORY.metaTitle ?? null, metaDescription: MEAT_CATEGORY.metaDescription ?? null, _count: { products: 11 } } as typeof data[number]);
+      data.sort((a, b) => a.sortOrder - b.sortOrder);
+    }
+
     return NextResponse.json({ data, error: null });
   } catch (err) {
     console.error('Categories API error:', err);
@@ -38,7 +45,16 @@ export async function GET() {
       });
       if (res.ok) {
         const json = (await res.json()) as { data: Category[] };
-        if (json.data) return NextResponse.json({ data: json.data, error: null });
+        if (json.data) {
+          const { MEAT_CATEGORY } = await import('@/lib/extra-products');
+          const { localizeImageUrl } = await import('@/lib/clean-name');
+          json.data = json.data.map((c) => ({ ...c, imageUrl: c.imageUrl ? localizeImageUrl(c.imageUrl) : c.imageUrl }));
+          if (!json.data.some((c) => c.slug === MEAT_CATEGORY.slug)) {
+            json.data.push(MEAT_CATEGORY);
+            json.data.sort((a, b) => a.sortOrder - b.sortOrder);
+          }
+          return NextResponse.json({ data: json.data, error: null });
+        }
       }
     } catch { /* fall through */ }
 
