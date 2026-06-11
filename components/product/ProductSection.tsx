@@ -18,7 +18,7 @@ export interface ProductSectionProps {
 
 async function fetchProducts(props: ProductSectionProps): Promise<Product[]> {
   try {
-    const baseUrl = process.env['NEXT_PUBLIC_APP_URL'] ?? 'http://localhost:3000';
+    const baseUrl = process.env['NEXT_PUBLIC_APP_URL'] ?? (process.env['VERCEL_URL'] ? `https://${process.env['VERCEL_URL']}` : 'http://localhost:3000');
     const params = new URLSearchParams();
     if (props.categorySlug) params.set('category', props.categorySlug);
     if (props.categoryId) params.set('categoryId', String(props.categoryId));
