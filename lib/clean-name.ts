@@ -37,6 +37,19 @@ export function localizeImageUrls(urls: string[] | undefined | null): string[] {
   return (urls ?? []).map(localizeImageUrl);
 }
 
+// Category name overrides — keyed by category slug
+const CATEGORY_NAME_FIXES: Record<string, string> = {
+  'valluvam':          'Naatu Sarkarai & Karupatti',
+  'naadu-sarkarai':    'Naatu Sarkarai',
+  'naatu-sarkarai':    'Naatu Sarkarai',
+  'palm-jaggery':      'Palm Jaggery (Karupatti)',
+};
+
+export function cleanCategoryName(name: string, slug?: string): string {
+  if (slug && CATEGORY_NAME_FIXES[slug.toLowerCase()]) return CATEGORY_NAME_FIXES[slug.toLowerCase()];
+  return name;
+}
+
 export function cleanProductName(name: string, slug?: string): string {
   if (slug && NAME_FIXES[slug]) return NAME_FIXES[slug];
 

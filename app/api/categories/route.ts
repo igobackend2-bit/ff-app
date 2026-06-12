@@ -5,8 +5,8 @@ import { prisma } from '@/lib/db';
 export const revalidate = 0;
 
 async function injectExtras(data: any[]): Promise<any[]> {
-  const { getExtraCategories } = await import('@/lib/extra-products');
-  const { localizeImageUrl }   = await import('@/lib/clean-name');
+  const { getExtraCategories }  = await import('@/lib/extra-products');
+  const { localizeImageUrl, cleanCategoryName } = await import('@/lib/clean-name');
   for (const ec of getExtraCategories()) {
     if (!data.some((c) => c.slug === ec.slug)) {
       data.push({
@@ -19,6 +19,10 @@ async function injectExtras(data: any[]): Promise<any[]> {
         imageUrl:        ec.imageUrl ? localizeImageUrl(ec.imageUrl) : ec.imageUrl,
       });
     }
+  }
+  // Apply category name fixes (e.g. "Valluvam" → "Naatu Sarkarai & Karupatti")
+  for (const c of data) {
+    c.name = cleanCategoryName(c.name as string, c.slug as string);
   }
   data.sort((a: any, b: any) => a.sortOrder - b.sortOrder);
   return data;

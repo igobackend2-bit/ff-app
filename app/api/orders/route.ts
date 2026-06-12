@@ -38,6 +38,7 @@ const orderSchema = z.object({
     name:      z.string().optional(),
     quantity:  z.number().int().positive(),
     unitPrice: z.number().min(0).optional().default(0),
+    imageUrl:  z.string().optional(),
   })).min(1),
   paymentMethod: z.enum(['COD', 'RAZORPAY', 'UPI']).default('COD'),
   address: z.object({
@@ -205,7 +206,7 @@ export async function POST(req: NextRequest) {
           unitPrice: i.unitPrice,
           unit:      '',
           slug:      i.productId,
-          imageUrls: [],
+          imageUrls: i.imageUrl ? [i.imageUrl] : [],
         })),
         subtotal,
         deliveryFee,
