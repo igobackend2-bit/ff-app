@@ -1,6 +1,13 @@
 // Product name cleanup — fixes broken names imported from the legacy DB
 // e.g. "Sesame500" -> "Cold-Pressed Sesame Oil (500 ml)", "Staranise" -> "Star Anise"
 
+// Name fixes keyed by EXACT product name (case-insensitive) — used when slug is unknown
+const NAME_FIXES_BY_NAME: Record<string, string> = {
+  'ponni boiled rice':  'Naatu Sarkarai',
+  'seeraga samba rice': 'Palm Candy',
+  'palm jaggery':       'Palm Jaggery (Karupatti)',
+};
+
 const NAME_FIXES: Record<string, string> = {
   'sesame500':                 'Cold-Pressed Sesame Oil (500 ml)',
   'sesame-1-l':                'Cold-Pressed Sesame Oil (1 L)',
@@ -56,6 +63,9 @@ export function cleanCategoryName(name: string, slug?: string): string {
 
 export function cleanProductName(name: string, slug?: string): string {
   if (slug && NAME_FIXES[slug]) return NAME_FIXES[slug];
+  // Name-based fallback (catches products regardless of slug format)
+  const byName = NAME_FIXES_BY_NAME[(name ?? '').trim().toLowerCase()];
+  if (byName) return byName;
 
   let n = (name ?? '').trim();
   // Collapse runs of single letters: "W H I T E" -> "White"

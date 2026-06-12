@@ -11,7 +11,7 @@ import { useRouter } from 'next/navigation';
 import {
   ShoppingBag, MapPin, ChevronRight, Gift, ArrowLeft,
   LogOut, ShieldCheck, Heart, Headset,
-  Package, PackageCheck,
+  Package, PackageCheck, Edit2, Check, X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
@@ -52,11 +52,14 @@ export default function AccountPage() {
   const wishlistItems = wishlist.slice(0, 3);
   const location      = useLocation();
 
+  const updateProfile   = useUserStore((s) => s.updateProfile);
   const [hydrated,      setHydrated]      = useState(false);
   const [orderCount,    setOrderCount]    = useState<number | null>(null);
   const [recentOrders,  setRecentOrders]  = useState<{
     id: string; orderNumber: string; status: string; total: number; createdAt: string;
   }[]>([]);
+  const [editingName,   setEditingName]   = useState(false);
+  const [nameInput,     setNameInput]     = useState('');
 
   useEffect(() => {
     if (useUserStore.persist.hasHydrated()) { setHydrated(true); return; }
@@ -159,7 +162,38 @@ export default function AccountPage() {
               </div>
             </div>
             <div className="min-w-0 flex-1">
-              <h2 className="truncate text-xl font-black text-neutral-900">{user.name || 'Set your name'}</h2>
+              {editingName ? (
+                <div className="flex items-center gap-2">
+                  <input
+                    autoFocus
+                    value={nameInput}
+                    onChange={(e) => setNameInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') { void updateProfile({ name: nameInput.trim() }); setEditingName(false); }
+                      if (e.key === 'Escape') setEditingName(false);
+                    }}
+                    className="min-w-0 flex-1 rounded-xl border border-emerald-300 bg-white px-3 py-1.5 text-sm font-bold text-neutral-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    placeholder="Enter your name"
+                  />
+                  <button
+                    onClick={() => { void updateProfile({ name: nameInput.trim() }); setEditingName(false); }}
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-white"
+                  ><Check className="h-4 w-4" /></button>
+                  <button
+                    onClick={() => setEditingName(false)}
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-neutral-600"
+                  ><X className="h-4 w-4" /></button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <h2 className="truncate text-xl font-black text-neutral-900">{user.name || 'Set your name'}</h2>
+                  <button
+                    onClick={() => { setNameInput(user.name || ''); setEditingName(true); }}
+                    className="shrink-0 rounded-lg bg-neutral-100 p-1.5 text-neutral-500 hover:bg-neutral-200"
+                    aria-label="Edit name"
+                  ><Edit2 className="h-3.5 w-3.5" /></button>
+                </div>
+              )}
               <p className="mt-0.5 truncate text-sm font-semibold italic text-neutral-500">{user.phone || user.email}</p>
               <div className="mt-3">
                 <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-emerald-700 ring-1 ring-inset ring-emerald-600/10">
