@@ -22,6 +22,7 @@ const BRAND_GREEN = '#16a34a';
 export default function App() {
   const webViewRef = useRef<WebView>(null);
   const [loading, setLoading]   = useState(true);
+  const [initialLoaded, setInitialLoaded] = useState(false);
   const [error, setError]       = useState(false);
   const [canGoBack, setCanGoBack] = useState(false);
 
@@ -86,8 +87,8 @@ export default function App() {
         onNavigationStateChange={(state: WebViewNavigation) => setCanGoBack(state.canGoBack)}
 
         // ── Loading ────────────────────────────────────────────────────────
-        onLoadStart={() => setLoading(true)}
-        onLoadEnd={() => setLoading(false)}
+        onLoadStart={() => { if (!initialLoaded) setLoading(true); }}
+        onLoadEnd={() => { setLoading(false); setInitialLoaded(true); }}
         onError={() => { setError(true); setLoading(false); }}
         onHttpError={(e) => {
           if (e.nativeEvent.statusCode >= 500) setError(true);

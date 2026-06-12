@@ -59,10 +59,9 @@ export const MEAT_PRODUCTS: Product[] = [
 export function filterExtraProducts(opts: {
   category?: string; search?: string; featured?: boolean;
 }): Product[] {
+  // Meat & Seafood only appear when explicitly browsing that category — never in general/featured listings
+  if (!opts.category || opts.category !== MEAT_CATEGORY.slug) return [];
   let list = MEAT_PRODUCTS;
-  if (opts.category) {
-    if (opts.category !== MEAT_CATEGORY.slug) return [];
-  }
   if (opts.search) {
     const q = opts.search.toLowerCase();
     list = list.filter((x) =>
