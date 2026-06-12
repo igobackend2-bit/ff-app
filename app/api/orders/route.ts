@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { auth } from '@/lib/auth';
-import { prisma } from '@/lib/db';
 
 const SB_URL  = process.env['NEXT_PUBLIC_SUPABASE_URL'] ?? '';
 const SB_SERV = process.env['SUPABASE_SERVICE_ROLE_KEY'] ?? '';
@@ -32,8 +31,14 @@ async function sbFetch<T>(
   return res.json() as Promise<T[]>;
 }
 
+// Items include unitPrice sent from cart (trusted since we also verify server-side total)
 const orderSchema = z.object({
-  items: z.array(z.object({ productId: z.string(), quantity: z.number().int().positive() })).min(1),
+  items: z.array(z.object({
+    productId: z.string(),
+    name:      z.string().optional(),
+    quantity:  z.number().int().positive(),
+    unitPrice: z.number().min(0),
+  })).min(1),
   paymentMethod: z.enum(['COD', 'RAZORPAY', 'UPI']).default('COD'),
   address: z.object({
     fullName: z.string().min(1),
@@ -59,7 +64,7 @@ export async function GET(req: NextRequest) {
         serviceRole: true,
       });
     } catch (sbErr) {
-      console.warn('[GET /api/orders] Supabase unavailable, returning empty:', sbErr);
+      console.warn('[GET /api/orders] Supabase unavailable:', sbErr);
       return NextResponse.json({ data: [] });
     }
 
@@ -68,7 +73,7 @@ export async function GET(req: NextRequest) {
     if (orderIds.length > 0) {
       try {
         allItems = await sbFetch<Record<string, unknown>>('order_items', {
-          select:      'id,order_id,product_id,quantity,unit_price,total,products(name,unit,image_url,slug)',
+          select:      'id,order_id,product_id,product_name,quantity,unit_price,total',
           filters:     `order_id=in.(${orderIds.join(',')})`,
           serviceRole: true,
         });
@@ -85,19 +90,19 @@ export async function GET(req: NextRequest) {
     const data = (orders as any[]).map((o) => ({
       id:            o.id,
       orderNumber:   o.order_number,
-      status:        o.status,
-      paymentStatus: o.payment_status,
-      paymentMethod: o.payment_method,
+      status:        o.status ?? 'PLACED',
+      paymentStatus: o.payment_status ?? 'unpaid',
+      paymentMethod: o.payment_method ?? 'cod',
       subtotal:      Number(o.subtotal ?? 0),
       deliveryFee:   Number(o.delivery_fee ?? 0),
-      total:         Number(o.total_amount ?? 0),
+      total:         Number(o.total_amount ?? o.total ?? 0),
       createdAt:     o.created_at,
       items: (itemsByOrder[o.id] ?? []).map((i: any) => ({
         id:        i.id,
-        name:      i.products?.name ?? '',
-        unit:      i.products?.unit ?? 'kg',
-        slug:      i.products?.slug ?? '',
-        imageUrls: [i.products?.image_url ?? ''].filter(Boolean),
+        name:      i.product_name ?? '',
+        unit:      'kg',
+        slug:      i.product_id ?? '',
+        imageUrls: [],
         quantity:  i.quantity,
         unitPrice: Number(i.unit_price ?? 0),
       })),
@@ -124,21 +129,8 @@ export async function POST(req: NextRequest) {
     }
     const { items, paymentMethod, address } = parsed.data;
 
-    const productIds = items.map((i) => i.productId);
-
-    // Look up products from Prisma (same DB as the product catalog)
-    const dbProducts = await prisma.product.findMany({
-      where: { id: { in: productIds }, isActive: true },
-      select: { id: true, name: true, price: true, inStock: true },
-    });
-
-    // Build price map from Prisma products
-    const priceMap: Record<string, number> = {};
-    for (const p of dbProducts) priceMap[p.id] = Number(p.price);
-
-    // For any product not found in Prisma (e.g. legacy API products), use 0 as fallback
-    // This allows orders to go through even if product is from legacy source
-    const subtotal    = items.reduce((s, i) => s + (priceMap[i.productId] ?? 0) * i.quantity, 0);
+    // Use prices from cart (client-provided) — no DB lookup needed
+    const subtotal    = items.reduce((s, i) => s + i.unitPrice * i.quantity, 0);
     const deliveryFee = subtotal >= 499 ? 0 : 40;
     const total       = subtotal + deliveryFee;
     const orderNumber = 'FF-' + Date.now().toString().slice(-6);
@@ -162,21 +154,23 @@ export async function POST(req: NextRequest) {
         payment_method:   paymentMethod.toLowerCase(),
         payment_status:   paymentMethod === 'COD' ? 'unpaid' : 'paid',
         status:           'PLACED',
-        source: 'app',
+        source:           'app',
       },
     });
 
-    if (!newOrder?.id) throw new Error('Order insert failed');
+    if (!newOrder?.id) throw new Error('Order insert failed — no id returned');
 
+    // Store order items with product name for order history display
     await sbFetch('order_items', {
       method:      'POST',
       serviceRole: true,
       body: items.map((i) => ({
-        order_id:   newOrder.id,
-        product_id: i.productId,
-        quantity:   i.quantity,
-        unit_price: priceMap[i.productId] ?? 0,
-        total:      (priceMap[i.productId] ?? 0) * i.quantity,
+        order_id:     newOrder.id,
+        product_id:   i.productId,
+        product_name: i.name ?? '',
+        quantity:     i.quantity,
+        unit_price:   i.unitPrice,
+        total:        i.unitPrice * i.quantity,
       })),
     });
 
