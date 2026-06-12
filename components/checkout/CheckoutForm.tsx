@@ -332,7 +332,6 @@ export function CheckoutForm() {
               <button
                 type="button"
                 onClick={handleSaveAddr}
-                style={{ WebkitTapHighlightColor: 'transparent', touchAction: 'manipulation' }}
                 className="mt-4 w-full rounded-xl bg-primary-600 py-2.5 text-sm font-bold text-white transition-colors hover:bg-primary-700"
               >
                 Save Address &amp; Continue
@@ -396,7 +395,6 @@ export function CheckoutForm() {
             type="button"
             onClick={() => void handleCodOrder()}
             disabled={placingCod}
-            style={{ WebkitTapHighlightColor: 'transparent', touchAction: 'manipulation' }}
             className="flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-primary-600 text-base font-black text-white shadow-lg shadow-primary-200 transition-all hover:bg-primary-700 active:scale-[0.98] disabled:opacity-60"
           >
             {placingCod

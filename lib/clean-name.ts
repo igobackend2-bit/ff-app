@@ -27,7 +27,10 @@ const NAME_FIXES: Record<string, string> = {
 const LEGACY_STORAGE_PREFIX = /^https:\/\/qwiumswrbddwmlraktvy\.supabase\.co\/storage\/v1\/object\/public\/app-images\//;
 
 export function localizeImageUrl(url: string): string {
-  return url.replace(LEGACY_STORAGE_PREFIX, '/images/');
+  let u = url.replace(LEGACY_STORAGE_PREFIX, '/images/');
+  // .jfif files were renamed to .jpg — fix any stored refs
+  u = u.replace(/\.jfif(\?.*)?$/, '.jpg');
+  return u;
 }
 
 export function localizeImageUrls(urls: string[] | undefined | null): string[] {
