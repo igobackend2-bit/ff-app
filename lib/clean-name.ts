@@ -21,6 +21,10 @@ const NAME_FIXES: Record<string, string> = {
   'a2-ghee':                   'A2 Cow Ghee',
   'sorghum-cholam-w-h-i-t-e':  'Sorghum Cholam (White)',
   'palm-jaggery-500':          'Palm Jaggery (500 g)',
+  'ponni-boiled-rice':         'Naatu Sarkarai',
+  'ponni-boiled-rice-5-kg':    'Naatu Sarkarai',
+  'seeraga-samba-rice':        'Palm Candy',
+  'seeraga-samba-rice-5-kg':   'Palm Candy',
 };
 
 // Legacy Supabase storage URL prefix → images now hosted locally in /public/images
