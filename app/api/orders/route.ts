@@ -37,7 +37,7 @@ const orderSchema = z.object({
     productId: z.string(),
     name:      z.string().optional(),
     quantity:  z.number().int().positive(),
-    unitPrice: z.number().min(0),
+    unitPrice: z.number().min(0).optional().default(0),
   })).min(1),
   paymentMethod: z.enum(['COD', 'RAZORPAY', 'UPI']).default('COD'),
   address: z.object({
