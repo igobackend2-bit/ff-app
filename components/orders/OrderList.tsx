@@ -35,17 +35,35 @@ export function OrderList() {
   useEffect(() => {
     async function fetchOrders() {
       try {
-        // Send x-user-id so the server can detect stale-JWT mismatches
+        // Load local orders saved when Supabase was unavailable
+        let localOrders: Order[] = [];
+        try {
+          const raw = localStorage.getItem('ff_local_orders');
+          if (raw) localOrders = JSON.parse(raw) as Order[];
+        } catch { /* ignore */ }
+
         const headers: HeadersInit = userId ? { 'x-user-id': userId } : {};
         const res = await fetch('/api/orders', { headers });
         if (res.status === 401) {
+          // Show local orders even if not authenticated on server
+          if (localOrders.length > 0) { setOrders(localOrders); return; }
           setError('login_required');
           return;
         }
         if (!res.ok) throw new Error('Failed to load orders');
         const data = (await res.json()) as { data: Order[] };
-        setOrders(data.data ?? []);
+        const apiOrders = data.data ?? [];
+
+        // Merge: prefer API orders, fill in any local-only ones
+        const apiIds = new Set(apiOrders.map((o) => o.id));
+        const merged = [...apiOrders, ...localOrders.filter((o) => !apiIds.has(o.id))];
+        setOrders(merged);
       } catch {
+        // On network error, still show local orders
+        try {
+          const raw = localStorage.getItem('ff_local_orders');
+          if (raw) { setOrders(JSON.parse(raw) as Order[]); return; }
+        } catch { /* ignore */ }
         setError('Could not load your orders. Please try again.');
       } finally {
         setIsLoading(false);

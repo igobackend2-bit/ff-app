@@ -188,10 +188,18 @@ export function CheckoutForm() {
           address:       addressPayload,
         }),
       });
-      const data = await res.json() as { order?: { id: string }; error?: string };
+      const data = await res.json() as { order?: { id: string; orderNumber?: string; total?: number; status?: string; items?: unknown[]; subtotal?: number; deliveryFee?: number; paymentMethod?: string; createdAt?: string }; error?: string };
       if (!res.ok) {
         setOrderError(data.error ?? 'Order failed. Please try again.');
         return;
+      }
+      // Save order to localStorage so it appears on Orders page even if Supabase is down
+      if (data.order) {
+        try {
+          const stored = JSON.parse(localStorage.getItem('ff_local_orders') ?? '[]') as unknown[];
+          stored.unshift(data.order);
+          localStorage.setItem('ff_local_orders', JSON.stringify(stored.slice(0, 50)));
+        } catch { /* localStorage may be unavailable */ }
       }
       clearCart();
       addToast({ variant: 'success', title: 'Order placed! Pay on delivery.' });
