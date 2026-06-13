@@ -100,7 +100,7 @@ export function Footer() {
                 FSSAI Licence No.
               </p>
               <p className="mt-0.5 font-mono text-xs text-neutral-700">
-                10021022001234
+                12426008000403
               </p>
             </div>
           </div>

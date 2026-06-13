@@ -34,14 +34,28 @@ const NAME_FIXES: Record<string, string> = {
   'seeraga-samba-rice-5-kg':   'Palm Candy',
 };
 
-// Legacy Supabase storage URL prefix → images now hosted locally in /public/images
+// Known local images that exist in /public/images — anything else keeps its original URL
+const LOCAL_IMAGE_NAMES = new Set([
+  'amla','apple','BananaElakki','BananaKarpooravalli','BananaNendhiram','BananaPoovan',
+  'droganfruit','GuavaWhite','kiwi','MangoBanganapalli','MuskMelon','orange','papaya',
+  'pineapple','Pomegranate','redbanana','Sapota','SenthooraMango','Strawberry','SweetLime',
+  'WatermelonKiran','WatermelonStrips','Guava','Banana',
+]);
+
 const LEGACY_STORAGE_PREFIX = /^https:\/\/qwiumswrbddwmlraktvy\.supabase\.co\/storage\/v1\/object\/public\/app-images\//;
 
 export function localizeImageUrl(url: string): string {
-  let u = url.replace(LEGACY_STORAGE_PREFIX, '/images/');
-  // .jfif files were renamed to .jpg — fix any stored refs
-  u = u.replace(/\.jfif(\?.*)?$/, '.jpg');
-  return u;
+  if (!url) return url;
+  // .jfif files were renamed to .jpg — fix refs in already-local paths
+  if (url.startsWith('/images/')) return url.replace(/\.jfif(\?.*)?$/, '.jpg');
+  // For CDN URLs: only localize if we know the file exists locally; otherwise keep original CDN URL
+  if (LEGACY_STORAGE_PREFIX.test(url)) {
+    const local = url.replace(LEGACY_STORAGE_PREFIX, '/images/').replace(/\.jfif(\?.*)?$/, '.jpg');
+    const filename = local.split('/').pop()?.replace(/\.[^.]+$/, '') ?? '';
+    if (LOCAL_IMAGE_NAMES.has(filename)) return local;
+    return url; // keep original CDN URL for images not copied locally
+  }
+  return url;
 }
 
 export function localizeImageUrls(urls: string[] | undefined | null): string[] {
