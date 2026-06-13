@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { auth } from '@/lib/auth';
+import { syncOrderToERP } from '@/lib/erp-sync';
 
 const SB_URL  = process.env['NEXT_PUBLIC_SUPABASE_URL'] ?? '';
 const SB_SERV = process.env['SUPABASE_SERVICE_ROLE_KEY'] ?? '';
@@ -192,6 +193,20 @@ export async function POST(req: NextRequest) {
         address:  deliveryAddress,
       });
     }
+
+    // Sync to ERP Supabase (non-blocking) — works for both web and APK
+    void syncOrderToERP({
+      customerName:    `${address.fullName} (${address.phone})`,
+      deliveryAddress: deliveryAddress,
+      totalAmount:     total,
+      notes:           `Order ${orderNumber} · Payment: ${paymentMethod}`,
+      items: items.map((i) => ({
+        productId:   i.productId,
+        productName: i.name ?? i.productId,
+        quantity:    i.quantity,
+        unitPrice:   i.unitPrice,
+      })),
+    });
 
     return NextResponse.json({
       order: {
