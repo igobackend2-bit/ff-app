@@ -11,7 +11,7 @@ interface Notification {
 }
 
 interface PushToken {
-  token: string; user_id: string | null; platform: string; updated_at: string;
+  token: string; customerId: string | null; platform: string; isActive: boolean; updatedAt: string;
 }
 
 const TYPE_STYLES: Record<string, string> = {

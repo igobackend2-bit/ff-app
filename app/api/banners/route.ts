@@ -1,63 +1,44 @@
+// Public banners — reads from ERP Supabase (no Prisma / DB_DISABLED safe)
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
+
+const SB  = 'https://qwiumswrbddwmlraktvy.supabase.co';
+const KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF3aXVtc3dyYmRkd21scmFrdHZ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAxMjU3NTIsImV4cCI6MjA5NTcwMTc1Mn0.AsY045N7wHqMF_2P0-D2Ouzrkphjfkb4CP6ImhSm-tc';
+const H   = { apikey: KEY, Authorization: `Bearer ${KEY}` };
+
+export const dynamic = 'force-dynamic';
 
 export interface BannerSlide {
-  id: string;
-  title: string;         // badge
-  headline: string;
-  subtitle: string;
-  ctaText: string;
-  ctaLink: string;
-  imageUrl: string;      // '' = no image, show gradient
-  videoUrl: string;      // '' = no video
-  screenshot1: string;   // optional mobile screenshot overlay
-  screenshot2: string;
-  bgGradient: string;
-  sortOrder: number;
+  id: string; title: string; headline: string; subtitle: string;
+  ctaText: string; ctaLink: string; imageUrl: string; videoUrl: string;
+  screenshot1: string; screenshot2: string; bgGradient: string; sortOrder: number;
 }
 
 interface AltTextJson {
-  headline?: string;
-  subtitle?: string;
-  ctaText?: string;
-  bgGradient?: string;
-  videoUrl?: string;
-  screenshot1?: string;
-  screenshot2?: string;
+  headline?: string; subtitle?: string; ctaText?: string;
+  bgGradient?: string; videoUrl?: string; screenshot1?: string; screenshot2?: string;
 }
 
-function parseBanner(b: {
-  id: string; title: string; imageUrl: string;
-  altText: string; linkUrl: string | null; sortOrder: number;
-}): BannerSlide {
+function parseBanner(b: Record<string, unknown>): BannerSlide {
   let extra: AltTextJson = {};
-  try { extra = JSON.parse(b.altText) as AltTextJson; } catch { /* use defaults */ }
+  try { extra = JSON.parse(String(b['alt_text'] ?? '{}')); } catch { /* defaults */ }
 
-  // If video/screenshots are stored as base64 data URIs, replace with a
-  // streaming endpoint URL so the JSON response stays small instead of 10-27 MB.
   const rawVideo = extra.videoUrl ?? '';
-  const videoUrl = rawVideo.startsWith('data:')
-    ? `/api/banners/${b.id}/video`
-    : rawVideo;
-
-  const rawSs1 = extra.screenshot1 ?? '';
-  const rawSs2 = extra.screenshot2 ?? '';
-  const screenshot1 = rawSs1.startsWith('data:') ? `/api/banners/${b.id}/screenshot/1` : rawSs1;
-  const screenshot2 = rawSs2.startsWith('data:') ? `/api/banners/${b.id}/screenshot/2` : rawSs2;
+  const rawSs1   = extra.screenshot1 ?? '';
+  const rawSs2   = extra.screenshot2 ?? '';
 
   return {
-    id:          b.id,
-    title:       b.title,
-    headline:    extra.headline   ?? b.title,
-    subtitle:    extra.subtitle   ?? '',
-    ctaText:     extra.ctaText    ?? 'Shop Now',
-    ctaLink:     b.linkUrl        ?? '/',
-    imageUrl:    b.imageUrl,
-    videoUrl,
-    screenshot1,
-    screenshot2,
+    id:          String(b['id']),
+    title:       String(b['title'] ?? ''),
+    headline:    extra.headline  ?? String(b['title'] ?? ''),
+    subtitle:    extra.subtitle  ?? '',
+    ctaText:     extra.ctaText   ?? 'Shop Now',
+    ctaLink:     String(b['link_url'] ?? '/'),
+    imageUrl:    String(b['image_url'] ?? ''),
+    videoUrl:    rawVideo.startsWith('data:')   ? `/api/banners/${b['id']}/video`          : rawVideo,
+    screenshot1: rawSs1.startsWith('data:')     ? `/api/banners/${b['id']}/screenshot/1`   : rawSs1,
+    screenshot2: rawSs2.startsWith('data:')     ? `/api/banners/${b['id']}/screenshot/2`   : rawSs2,
     bgGradient:  extra.bgGradient ?? 'from-emerald-700 via-green-600 to-teal-600',
-    sortOrder:   b.sortOrder,
+    sortOrder:   Number(b['sort_order'] ?? 0),
   };
 }
 
@@ -66,28 +47,19 @@ export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const position = searchParams.get('position') ?? 'hero';
-    const now = new Date();
-    const banners = await prisma.banner.findMany({
-      where: {
-        isActive: true,
-        position,
-        OR: [
-          { validFrom: null },
-          { validFrom: { lte: now } },
-        ],
-        AND: [
-          {
-            OR: [
-              { validUntil: null },
-              { validUntil: { gte: now } },
-            ],
-          },
-        ],
-      },
-      orderBy: { sortOrder: 'asc' },
-      select: { id: true, title: true, imageUrl: true, altText: true, linkUrl: true, sortOrder: true },
-    });
-    return NextResponse.json({ data: banners.map(parseBanner) });
+
+    const res = await fetch(
+      `${SB}/rest/v1/banners?is_active=eq.true&position=eq.${position}&order=sort_order.asc`,
+      { headers: H, cache: 'no-store' },
+    );
+
+    if (!res.ok) {
+      console.error('[GET /api/banners] Supabase error', res.status, await res.text());
+      return NextResponse.json({ data: [] });
+    }
+
+    const rows: Record<string, unknown>[] = await res.json();
+    return NextResponse.json({ data: (Array.isArray(rows) ? rows : []).map(parseBanner) });
   } catch (err) {
     console.error('[GET /api/banners]', err);
     return NextResponse.json({ data: [] });

@@ -1,4 +1,4 @@
-// Admin notifications — uses ERP Supabase (no Prisma / DB_DISABLED safe)
+// Admin notifications — uses ERP Supabase `notifications` table (no Prisma / DB_DISABLED safe)
 import { NextRequest, NextResponse } from 'next/server';
 
 const SB  = 'https://qwiumswrbddwmlraktvy.supabase.co';
@@ -12,10 +12,10 @@ export async function GET(req: NextRequest) {
     const limit = Number(new URL(req.url).searchParams.get('limit') ?? '60');
 
     const [notifRes, unreadRes] = await Promise.all([
-      fetch(`${SB}/rest/v1/app_notifications?select=*&order=created_at.desc&limit=${limit}`, {
+      fetch(`${SB}/rest/v1/notifications?select=*&order=created_at.desc&limit=${limit}`, {
         headers: H, cache: 'no-store',
       }),
-      fetch(`${SB}/rest/v1/app_notifications?select=id&is_admin_read=eq.false`, {
+      fetch(`${SB}/rest/v1/notifications?select=id&is_read=eq.false`, {
         headers: { ...H, Prefer: 'count=exact' }, cache: 'no-store',
       }),
     ]);
@@ -26,13 +26,13 @@ export async function GET(req: NextRequest) {
 
     const notifications = rows.map((r) => ({
       id:           r['id'],
-      type:         r['type']           ?? 'INFO',
-      title:        r['title']          ?? '',
-      message:      r['message']        ?? '',
-      targetUserId: r['target_user_id'] ?? null,
-      orderId:      r['order_id']       ?? null,
-      isAdminRead:  Boolean(r['is_admin_read']),
-      createdAt:    r['created_at']     ?? '',
+      type:         r['type']      ?? 'INFO',
+      title:        r['title']     ?? '',
+      message:      r['message']   ?? r['body'] ?? '',
+      targetUserId: r['user_id']   ?? null,
+      orderId:      r['ref_id']    ?? null,
+      isAdminRead:  Boolean(r['is_read']),
+      createdAt:    r['created_at'] ?? '',
     }));
 
     return NextResponse.json({ notifications, unreadCount });
@@ -53,31 +53,32 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'title and message required' }, { status: 400 });
     }
 
-    const id = 'n-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7);
     const row = {
-      id,
-      type:           body.type ?? 'PROMO',
-      title:          body.title,
-      message:        body.message,
-      target_user_id: body.targetUserId ?? null,
-      order_id:       body.orderId      ?? null,
-      is_admin_read:  false,
-      is_user_read:   false,
-      created_at:     new Date().toISOString(),
+      type:     body.type ?? 'PROMO',
+      title:    body.title,
+      message:  body.message,
+      body:     body.message,
+      user_id:  body.targetUserId ?? null,
+      ref_id:   body.orderId      ?? null,
+      is_read:  false,
+      source:   'admin',
+      link:     null,
     };
 
-    const insertRes = await fetch(`${SB}/rest/v1/app_notifications`, {
+    const insertRes = await fetch(`${SB}/rest/v1/notifications`, {
       method: 'POST',
-      headers: { ...H, Prefer: 'return=minimal' },
+      headers: { ...H, Prefer: 'return=representation' },
       body: JSON.stringify(row),
       cache: 'no-store',
     });
 
     if (!insertRes.ok) {
       const errText = await insertRes.text();
-      // Table may not exist yet — return a helpful error
       return NextResponse.json({ error: `Supabase error: ${errText}` }, { status: 500 });
     }
+
+    const [inserted] = await insertRes.json() as Array<{ id: string }>;
+    const id = inserted?.id ?? 'unknown';
 
     // Send push notifications via Expo Push API if tokens supplied
     let pushResult: unknown = null;
@@ -111,7 +112,7 @@ export async function POST(req: NextRequest) {
 
 export async function DELETE() {
   try {
-    await fetch(`${SB}/rest/v1/app_notifications?is_admin_read=eq.true`, {
+    await fetch(`${SB}/rest/v1/notifications?is_read=eq.true`, {
       method: 'DELETE',
       headers: H,
       cache: 'no-store',
