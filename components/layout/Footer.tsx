@@ -24,18 +24,18 @@ const FOOTER_LINKS = {
   ],
 };
 
-// Trending search links boost SEO by linking to search results
-const TRENDING_SEARCHES = [
-  { label: 'Fresh Milk', href: '/search?q=milk' },
-  { label: 'Bread', href: '/search?q=bread' },
-  { label: 'Eggs', href: '/search?q=eggs' },
-  { label: 'Rice', href: '/search?q=rice' },
-  { label: 'Atta', href: '/search?q=atta' },
-  { label: 'Cold Drinks', href: '/search?q=cold+drinks' },
-  { label: 'Ice Cream', href: '/search?q=ice+cream' },
-  { label: 'Fruits', href: '/search?q=fruits' },
-  { label: 'Vegetables', href: '/search?q=vegetables' },
-  { label: 'Chips & Snacks', href: '/search?q=chips' },
+const SHOP_CATEGORIES = [
+  { label: 'Fruits',             href: '/category/fruits' },
+  { label: 'Vegetables',         href: '/category/vegetables' },
+  { label: 'Valluvam Products',  href: '/category/valluvam-products' },
+  { label: 'Nuts',               href: '/category/nuts' },
+  { label: 'Dry Fruits',         href: '/category/dry-fruits' },
+  { label: 'Spices',             href: '/category/spices' },
+  { label: 'Millets',            href: '/category/millets' },
+  { label: 'Oils',               href: '/category/cold-pressed-oils' },
+  { label: 'Palm Jaggery',       href: '/category/honey-jaggery' },
+  { label: 'Honey',              href: '/category/honey' },
+  { label: 'Ghee',               href: '/category/dairy-ghee' },
 ];
 
 export function Footer() {
@@ -46,16 +46,16 @@ export function Footer() {
       aria-label="Site footer"
     >
       <div className="mx-auto max-w-screen-xl px-4 py-10 md:px-6">
-        {/* ── Trending Searches (SEO) ─────────────────────────── */}
-        <section aria-labelledby="trending-heading" className="mb-8">
+        {/* ── Shop Categories ─────────────────────────── */}
+        <section aria-labelledby="categories-heading" className="mb-8">
           <h2
-            id="trending-heading"
+            id="categories-heading"
             className="mb-3 text-xs font-semibold uppercase tracking-wider text-neutral-500"
           >
-            Trending Searches
+            Shop by Category
           </h2>
           <ul className="flex flex-wrap gap-2" role="list">
-            {TRENDING_SEARCHES.map(({ label, href }) => (
+            {SHOP_CATEGORIES.map(({ label, href }) => (
               <li key={href}>
                 <Link
                   href={href}
@@ -91,7 +91,7 @@ export function Footer() {
               Fresh groceries delivered to your door in 24 hours.
             </p>
             <p className="mt-2 text-xs text-neutral-400">
-              Available in Mumbai, Delhi, Bangalore, Pune & more.
+              Delivering fresh & natural products across Tamil Nadu.
             </p>
 
             {/* FSSAI Compliance */}

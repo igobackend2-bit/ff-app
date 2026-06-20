@@ -1,11 +1,10 @@
-// Admin: List all orders — reads from Supabase REST (no Prisma)
+// Admin: List all orders — reads from ERP Supabase (no Prisma)
 import { NextRequest, NextResponse } from 'next/server';
 
-const SUPABASE_URL = process.env['NEXT_PUBLIC_SUPABASE_URL'] ?? '';
-const SUPABASE_SERVICE_KEY = process.env['SUPABASE_SERVICE_ROLE_KEY'] ?? process.env['NEXT_PUBLIC_SUPABASE_ANON_KEY'] ?? '';
+const SUPABASE_URL = 'https://qwiumswrbddwmlraktvy.supabase.co';
+const SUPABASE_SERVICE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF3aXVtc3dyYmRkd21scmFrdHZ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAxMjU3NTIsImV4cCI6MjA5NTcwMTc1Mn0.AsY045N7wHqMF_2P0-D2Ouzrkphjfkb4CP6ImhSm-tc';
 
 async function sbGet(path: string) {
-  if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) throw new Error('Supabase not configured');
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
     headers: {
       apikey: SUPABASE_SERVICE_KEY,
@@ -31,7 +30,7 @@ export async function GET(req: NextRequest) {
     const search = searchParams.get('q') ?? '';
 
     const offset = (page - 1) * limit;
-    let qs = `orders?select=*,order_items(*)&order=created_at.desc&limit=${limit}&offset=${offset}`;
+    let qs = `sales_orders?select=*&order=created_at.desc&limit=${limit}&offset=${offset}`;
     if (status) qs += `&status=eq.${status}`;
     if (search) qs += `&or=(id.ilike.*${search}*,customer_name.ilike.*${search}*)`;
 
@@ -40,22 +39,17 @@ export async function GET(req: NextRequest) {
     // Normalise to what the admin UI expects
     const formatted = (Array.isArray(orders) ? orders : []).map((o: Record<string, unknown>) => ({
       id: o['id'],
-      orderNumber: o['order_number'] ?? o['id'],
+      orderNumber: o['notes'] ? String(o['notes']).split('·')[0]?.replace('Order','').trim() : String(o['id']).slice(0,8),
       status: o['status'] ?? 'PLACED',
-      total: o['total'] ?? 0,
+      total: Number(o['total_amount'] ?? 0),
       createdAt: o['created_at'],
-      paymentMethod: o['payment_method'] ?? 'COD',
+      paymentMethod: o['notes'] ? String(o['notes']).split('Payment:')[1]?.trim() ?? 'COD' : 'COD',
       user: {
         name: o['customer_name'] ?? 'Customer',
-        phone: o['customer_phone'] ?? '',
+        phone: '',
       },
-      address: o['delivery_address'] ? { line1: o['delivery_address'] } : null,
-      items: Array.isArray(o['order_items']) ? o['order_items'].map((i: Record<string, unknown>) => ({
-        id: i['id'],
-        quantity: i['quantity'],
-        unitPrice: i['unit_price'] ?? 0,
-        product: { name: i['product_name'] ?? 'Product', imageUrls: i['image_url'] ? [i['image_url']] : [] },
-      })) : [],
+      address: o['delivery_address'] ? { line1: String(o['delivery_address']) } : null,
+      items: [],
     }));
 
     return NextResponse.json({ orders: formatted, total, page, pages: Math.ceil(total / limit) });

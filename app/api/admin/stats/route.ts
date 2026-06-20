@@ -1,22 +1,20 @@
 import { NextResponse } from 'next/server';
 
-const SUPABASE_URL = process.env['NEXT_PUBLIC_SUPABASE_URL'] ?? '';
-const SUPABASE_SERVICE_KEY = process.env['SUPABASE_SERVICE_ROLE_KEY'] ?? process.env['NEXT_PUBLIC_SUPABASE_ANON_KEY'] ?? '';
-const LEGACY_API = 'https://ff-app-pi.vercel.app/api';
+const SB  = 'https://qwiumswrbddwmlraktvy.supabase.co';
+const KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF3aXVtc3dyYmRkd21scmFrdHZ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAxMjU3NTIsImV4cCI6MjA5NTcwMTc1Mn0.AsY045N7wHqMF_2P0-D2Ouzrkphjfkb4CP6ImhSm-tc';
 
-export const revalidate = 30;
+export const dynamic = 'force-dynamic';
 
 async function sbCount(table: string, filter = '') {
-  if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) return 0;
   try {
-    const url = new URL(`${SUPABASE_URL}/rest/v1/${table}`);
+    const url = new URL(`${SB}/rest/v1/${table}`);
     url.searchParams.set('select', 'id');
     if (filter) filter.split('&').forEach((f) => {
       const [k, v] = f.split('=');
       if (k && v) url.searchParams.set(k, v);
     });
     const res = await fetch(url.toString(), {
-      headers: { apikey: SUPABASE_SERVICE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`, Prefer: 'count=exact' },
+      headers: { apikey: KEY, Authorization: `Bearer ${KEY}`, Prefer: 'count=exact' },
       cache: 'no-store',
     });
     const range = res.headers.get('content-range');
@@ -26,13 +24,11 @@ async function sbCount(table: string, filter = '') {
 
 export async function GET() {
   try {
-    const [orders, pendingOrders, productsRes] = await Promise.all([
-      sbCount('orders'),
-      sbCount('orders', 'status=eq.PLACED'),
-      fetch(`${LEGACY_API}/products?limit=1`, { cache: 'no-store' }).then((r) => r.json()).catch(() => ({ total: 0 })),
+    const [orders, pendingOrders, products] = await Promise.all([
+      sbCount('sales_orders'),
+      sbCount('sales_orders', 'status=eq.PLACED'),
+      sbCount('products'),
     ]);
-
-    const products = (productsRes as { total?: number }).total ?? 0;
 
     return NextResponse.json({
       data: {

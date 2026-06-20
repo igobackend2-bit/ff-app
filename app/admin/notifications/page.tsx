@@ -1,13 +1,17 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Bell, Send, Trash2, RefreshCw, CheckCheck, Package, AlertCircle, Tag } from 'lucide-react';
+import { Bell, Send, Trash2, RefreshCw, CheckCheck, Package, AlertCircle, Tag, Smartphone, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface Notification {
   id: string; type: string; title: string; message: string;
   targetUserId: string | null; orderId: string | null;
   isAdminRead: boolean; createdAt: string;
+}
+
+interface PushToken {
+  token: string; user_id: string | null; platform: string; updated_at: string;
 }
 
 const TYPE_STYLES: Record<string, string> = {
@@ -30,6 +34,13 @@ export default function AdminNotificationsPage() {
   const [form, setForm]                   = useState({ type: 'PROMO', title: '', message: '' });
   const [sending, setSending]             = useState(false);
   const [sendError, setSendError]         = useState('');
+  const [sendOk, setSendOk]              = useState('');
+
+  // Push notification state
+  const [pushTokens, setPushTokens]             = useState<PushToken[]>([]);
+  const [selectedTokens, setSelectedTokens]     = useState<Set<string>>(new Set());
+  const [pushMode, setPushMode]                 = useState<'all' | 'select'>('all');
+  const [pushLoading, setPushLoading]           = useState(false);
 
   const fetchNotifications = useCallback(async () => {
     setLoading(true);
@@ -43,7 +54,18 @@ export default function AdminNotificationsPage() {
     }
   }, []);
 
-  useEffect(() => { void fetchNotifications(); }, [fetchNotifications]);
+  const fetchPushTokens = useCallback(async () => {
+    setPushLoading(true);
+    try {
+      const res  = await fetch('/api/push-token');
+      const data = await res.json() as { tokens: PushToken[] };
+      setPushTokens(data.tokens ?? []);
+    } finally {
+      setPushLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { void fetchNotifications(); void fetchPushTokens(); }, [fetchNotifications, fetchPushTokens]);
 
   const markAllRead = async () => {
     await fetch('/api/admin/notifications/mark-all-read', { method: 'POST' });
@@ -59,17 +81,35 @@ export default function AdminNotificationsPage() {
   const sendBroadcast = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.title.trim() || !form.message.trim()) { setSendError('Title and message required'); return; }
-    setSendError('');
+    setSendError(''); setSendOk('');
     setSending(true);
     try {
+      // Determine push tokens to send to
+      let tokensToSend: string[] = [];
+      if (pushTokens.length > 0) {
+        if (pushMode === 'all') {
+          tokensToSend = pushTokens.map((t) => t.token);
+        } else {
+          tokensToSend = pushTokens.filter((t) => selectedTokens.has(t.token)).map((t) => t.token);
+        }
+      }
+
       const res = await fetch('/api/admin/notifications', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify(form),
+        body:    JSON.stringify({ ...form, pushTokens: tokensToSend }),
       });
+
       if (res.ok) {
+        const d = await res.json() as { pushResult?: unknown };
+        const pushed = tokensToSend.length;
+        setSendOk(pushed > 0
+          ? `Sent! Push notification delivered to ${pushed} device${pushed > 1 ? 's' : ''}.`
+          : 'Notification saved. No devices registered yet.');
         setForm({ type: 'PROMO', title: '', message: '' });
+        setSelectedTokens(new Set());
         void fetchNotifications();
+        void d; // suppress unused warning
       } else {
         const d = await res.json() as { error?: string };
         setSendError(d.error ?? 'Failed to send');
@@ -77,6 +117,14 @@ export default function AdminNotificationsPage() {
     } finally {
       setSending(false);
     }
+  };
+
+  const toggleToken = (token: string) => {
+    setSelectedTokens((prev) => {
+      const next = new Set(prev);
+      if (next.has(token)) next.delete(token); else next.add(token);
+      return next;
+    });
   };
 
   const timeAgo = (iso: string) => {
@@ -90,7 +138,7 @@ export default function AdminNotificationsPage() {
   };
 
   return (
-    <div className="mx-auto max-w-4xl">
+    <div className="mx-auto max-w-5xl">
       {/* Header */}
       <div className="mb-6 flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -105,7 +153,7 @@ export default function AdminNotificationsPage() {
           <div>
             <h1 className="text-2xl font-black text-neutral-900">Notifications</h1>
             <p className="text-sm text-neutral-500">
-              {unreadCount > 0 ? `${unreadCount} unread` : 'All caught up'}
+              {unreadCount > 0 ? `${unreadCount} unread` : 'All caught up'} · {pushTokens.length} device{pushTokens.length !== 1 ? 's' : ''} registered
             </p>
           </div>
         </div>
@@ -116,7 +164,7 @@ export default function AdminNotificationsPage() {
           <button onClick={() => void clearRead()} className="flex items-center gap-1.5 rounded-xl border border-red-100 bg-white px-3 py-2 text-xs font-semibold text-red-500 hover:bg-red-50">
             <Trash2 className="h-3.5 w-3.5" /> Clear read
           </button>
-          <button onClick={() => void fetchNotifications()} className="flex items-center gap-1.5 rounded-xl border border-neutral-200 bg-white px-3 py-2 text-xs font-semibold text-neutral-600 hover:bg-neutral-50">
+          <button onClick={() => { void fetchNotifications(); void fetchPushTokens(); }} className="flex items-center gap-1.5 rounded-xl border border-neutral-200 bg-white px-3 py-2 text-xs font-semibold text-neutral-600 hover:bg-neutral-50">
             <RefreshCw className="h-3.5 w-3.5" />
           </button>
         </div>
@@ -162,7 +210,7 @@ export default function AdminNotificationsPage() {
         </div>
 
         {/* Broadcast Form */}
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-2 space-y-4">
           <div className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
             <h2 className="mb-4 flex items-center gap-2 text-sm font-bold text-neutral-700">
               <Send className="h-4 w-4 text-primary-500" /> Send Broadcast
@@ -198,8 +246,72 @@ export default function AdminNotificationsPage() {
                   className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm focus:border-primary-500 focus:outline-none resize-none"
                 />
               </div>
+
+              {/* Push Target Selection */}
+              {pushTokens.length > 0 && (
+                <div>
+                  <label className="mb-1.5 block text-xs font-semibold text-neutral-600">
+                    <Smartphone className="mr-1 inline h-3.5 w-3.5" />Push to Devices
+                  </label>
+                  <div className="flex gap-2 mb-2">
+                    <button
+                      type="button"
+                      onClick={() => setPushMode('all')}
+                      className={cn('flex-1 rounded-lg border py-1.5 text-xs font-semibold transition-colors',
+                        pushMode === 'all'
+                          ? 'border-primary-500 bg-primary-50 text-primary-700'
+                          : 'border-neutral-200 text-neutral-500 hover:bg-neutral-50'
+                      )}
+                    >
+                      <Users className="mr-1 inline h-3 w-3" />All ({pushTokens.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPushMode('select')}
+                      className={cn('flex-1 rounded-lg border py-1.5 text-xs font-semibold transition-colors',
+                        pushMode === 'select'
+                          ? 'border-primary-500 bg-primary-50 text-primary-700'
+                          : 'border-neutral-200 text-neutral-500 hover:bg-neutral-50'
+                      )}
+                    >
+                      Select Users
+                    </button>
+                  </div>
+                  {pushMode === 'select' && (
+                    <div className="max-h-32 overflow-y-auto rounded-xl border border-neutral-200 divide-y divide-neutral-50">
+                      {pushTokens.map((t) => (
+                        <label key={t.token} className="flex cursor-pointer items-center gap-2 px-3 py-2 hover:bg-neutral-50">
+                          <input
+                            type="checkbox"
+                            checked={selectedTokens.has(t.token)}
+                            onChange={() => toggleToken(t.token)}
+                            className="h-3.5 w-3.5 accent-primary-600"
+                          />
+                          <Smartphone className="h-3 w-3 shrink-0 text-neutral-400" />
+                          <span className="truncate text-xs text-neutral-600">
+                            {t.user_id ? `User: ${t.user_id.slice(0, 12)}…` : 'Anonymous'} · {t.platform}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {pushTokens.length === 0 && !pushLoading && (
+                <div className="rounded-xl border border-amber-100 bg-amber-50 px-3 py-2">
+                  <p className="text-xs text-amber-700">
+                    <Smartphone className="mr-1 inline h-3 w-3" />
+                    No devices registered yet. Install the new APK to receive push notifications.
+                  </p>
+                </div>
+              )}
+
               {sendError && (
                 <p className="rounded-lg bg-red-50 px-3 py-2 text-xs font-medium text-red-600">{sendError}</p>
+              )}
+              {sendOk && (
+                <p className="rounded-lg bg-green-50 px-3 py-2 text-xs font-medium text-green-700">{sendOk}</p>
               )}
               <button
                 type="submit" disabled={sending}
@@ -209,14 +321,16 @@ export default function AdminNotificationsPage() {
                 {sending ? 'Sending…' : 'Send Notification'}
               </button>
             </form>
+          </div>
 
-            <div className="mt-4 rounded-xl border border-green-100 bg-green-50 p-3">
-              <p className="text-xs font-semibold text-green-700">✅ Live Broadcast</p>
-              <p className="mt-0.5 text-xs text-green-600">
-                Broadcast notifications (no target user) appear in <strong>every logged-in customer&apos;s</strong> notification bell instantly.
-                Order status updates go to the specific customer automatically.
-              </p>
-            </div>
+          {/* Info card */}
+          <div className="rounded-2xl border border-green-100 bg-green-50 p-4">
+            <p className="text-xs font-bold text-green-700 mb-1">How it works</p>
+            <ul className="space-y-1 text-xs text-green-600">
+              <li>• <strong>Web:</strong> Notification bell updates for all logged-in customers instantly</li>
+              <li>• <strong>APK Push:</strong> Sends sound notification to registered devices</li>
+              <li>• <strong>Select Users:</strong> Target specific devices only</li>
+            </ul>
           </div>
         </div>
       </div>

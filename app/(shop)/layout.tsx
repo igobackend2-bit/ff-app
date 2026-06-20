@@ -6,6 +6,10 @@ import { AuthModal } from '@/components/auth/AuthModal';
 import { WishlistDrawer } from '@/components/wishlist/WishlistDrawer';
 import { ProductDetailSheet } from '@/components/product/ProductDetailSheet';
 
+// Force fresh HTML every time — prevents CDN caching old footer/header
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 // Shop layout — wraps all consumer-facing pages
 // Header + main + BottomNav (mobile) + Footer
 export default function ShopLayout({ children }: { children: React.ReactNode }) {
