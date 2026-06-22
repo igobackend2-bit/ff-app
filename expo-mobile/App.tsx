@@ -2,6 +2,7 @@ import React, { useRef, useState } from 'react';
 import {
   StyleSheet,
   View,
+  Image,
   ActivityIndicator,
   BackHandler,
   Platform,
@@ -12,12 +13,45 @@ import {
 } from 'react-native';
 import { WebView, WebViewNavigation } from 'react-native-webview';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import * as Notifications from 'expo-notifications';
+import * as Device from 'expo-device';
 
 // ── IMPORTANT: Change this to your deployed production URL ────────────
-const APP_URL = 'https://ff-app-pi-ten.vercel.app';
+const APP_URL = 'https://ff-app-pi.vercel.app';
 // ─────────────────────────────────────────────────────────────────────
 
 const BRAND_GREEN = '#16a34a';
+
+// Show notifications even when app is foregrounded
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge:  true,
+  }),
+});
+
+async function registerForPushNotifications(): Promise<string | null> {
+  if (!Device.isDevice) return null; // emulators can't receive push
+
+  try {
+    const { status: existing } = await Notifications.getPermissionsAsync();
+    let finalStatus = existing;
+    if (existing !== 'granted') {
+      const { status } = await Notifications.requestPermissionsAsync();
+      finalStatus = status;
+    }
+    if (finalStatus !== 'granted') return null;
+
+    // Get Expo push token
+    const tokenData = await Notifications.getExpoPushTokenAsync({
+      projectId: '20591ce0-eadd-41cb-b09e-b57bb02088c6',
+    });
+    return tokenData.data;
+  } catch {
+    return null;
+  }
+}
 
 export default function App() {
   const webViewRef = useRef<WebView>(null);
@@ -25,6 +59,33 @@ export default function App() {
   const [initialLoaded, setInitialLoaded] = useState(false);
   const [error, setError]       = useState(false);
   const [canGoBack, setCanGoBack] = useState(false);
+
+  // ── Register push token on startup ──────────────────────────────────
+  React.useEffect(() => {
+    void (async () => {
+      const token = await registerForPushNotifications();
+      if (token) {
+        try {
+          await fetch(`${APP_URL}/api/push-token`, {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({ token, platform: Platform.OS }),
+          });
+        } catch { /* ignore — app works without push */ }
+      }
+    })();
+
+    // Listen for push notification taps — open the app to the right page
+    const sub = Notifications.addNotificationResponseReceivedListener((response) => {
+      const data = response.notification.request.content.data as Record<string, unknown>;
+      if (data?.url && webViewRef.current) {
+        webViewRef.current.injectJavaScript(
+          `window.location.href = '${String(data.url)}'; true;`
+        );
+      }
+    });
+    return () => sub.remove();
+  }, []);
 
   // ── Request Android permissions on startup ───────────────────────────────
   React.useEffect(() => {
@@ -95,29 +156,23 @@ export default function App() {
         }}
 
         // ── Performance ────────────────────────────────────────────────────
-        cacheEnabled={true}
+        cacheEnabled={false}
+        cacheMode="LOAD_NO_CACHE"
         domStorageEnabled={true}
         javaScriptEnabled={true}
         allowsInlineMediaPlayback={true}
         mediaPlaybackRequiresUserAction={false}
 
         // ── Location ──────────────────────────────────────────────────────
-        // Enables HTML5 navigator.geolocation inside the WebView
         geolocationEnabled={true}
 
         // ── Microphone & Camera permissions ───────────────────────────────
-        // Auto-grant mic/camera/location requests from the WebView
         onPermissionRequest={(e) => e.nativeEvent.request.grant(e.nativeEvent.resources)}
         mediaCapturePermissionGrantType="grantIfSameHostElseDeny"
 
-        // ── Razorpay / popups (FIX #4) ────────────────────────────────────
-        // Allow Razorpay and other payment gateways that open new windows
+        // ── Razorpay / popups ─────────────────────────────────────────────
         setSupportMultipleWindows={false}
-        // Keep Razorpay checkout.js working inside WebView
-        allowsInlineMediaPlayback={true}
-        // Allow all navigation including payment gateway redirects
         onShouldStartLoadWithRequest={(request) => {
-          // Allow Razorpay and UPI deep links
           const url = request.url;
           if (
             url.startsWith('upi://') ||
@@ -126,8 +181,6 @@ export default function App() {
             url.startsWith('gpay://') ||
             url.startsWith('bharatpe://')
           ) {
-            // These are UPI app deep links — can't open them in WebView
-            // They will be handled by the OS
             return false;
           }
           return true;
@@ -140,7 +193,6 @@ export default function App() {
         // ── Inject CSS & viewport ──────────────────────────────────────────
         injectedJavaScript={`
           (function() {
-            // Set app-like meta viewport
             var meta = document.querySelector('meta[name=viewport]');
             if (!meta) {
               meta = document.createElement('meta');
@@ -148,7 +200,6 @@ export default function App() {
               document.head.appendChild(meta);
             }
             meta.content = 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no';
-            // Hide scrollbars
             var style = document.createElement('style');
             style.textContent = '::-webkit-scrollbar { display: none; } body { -webkit-overflow-scrolling: touch; }';
             document.head.appendChild(style);
@@ -162,7 +213,11 @@ export default function App() {
 
       {loading && (
         <View style={styles.loadingOverlay}>
-          <Text style={styles.loadingLogo}>🌿</Text>
+          <Image
+            source={require('./assets/icon.png')}
+            style={styles.loadingLogo}
+            resizeMode="contain"
+          />
           <Text style={styles.loadingText}>Farmers Factory</Text>
           <ActivityIndicator size="large" color={BRAND_GREEN} style={{ marginTop: 20 }} />
         </View>
@@ -187,8 +242,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   loadingLogo: {
-    fontSize: 64,
-    marginBottom: 8,
+    width: 120,
+    height: 120,
+    marginBottom: 16,
   },
   loadingText: {
     fontSize: 24,
