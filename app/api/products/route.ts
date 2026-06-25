@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import type { ApiResponse, PaginatedResponse, Product } from '@/types';
 import { prisma } from '@/lib/db';
-import { cleanProductName, localizeImageUrls } from '@/lib/clean-name';
+import { cleanProductName, localizeImageUrls, localizeImageUrl } from '@/lib/clean-name';
 import { filterExtraProducts } from '@/lib/extra-products';
+import { db } from '@/lib/supabase';
 
 // Legacy live site — used as a read-only fallback when our DB is unreachable
 const LEGACY_SOURCE = 'https://ff-app-pi.vercel.app';
@@ -222,16 +223,72 @@ export async function GET(req: NextRequest) {
   } catch (err) {
     console.error('Products API error:', err);
 
-    // DB unreachable — serve live data from the legacy site instead
-    const sp = req.nextUrl.searchParams;
+    const sp       = req.nextUrl.searchParams;
+    const category = sp.get('category') ?? '';
+    const search   = sp.get('search') ?? '';
+    const featured = sp.get('filter') === 'featured';
+    const page     = Math.max(1, parseInt(sp.get('page') ?? '1', 10));
+    const limit    = Math.min(100, parseInt(sp.get('limit') ?? '20', 10));
+    const sort     = sp.get('sort') ?? 'relevance';
+    const offset   = (page - 1) * limit;
+
+    // ── Try ERP Supabase first — it supports proper category_slug filtering ──
+    try {
+      const { rows, total } = await db.getProducts({
+        category: category || undefined,
+        search:   search   || undefined,
+        featured: featured || undefined,
+        limit,
+        offset,
+        sort: sort === 'price-asc' ? 'price_asc' : sort === 'price-desc' ? 'price_desc' : sort === 'newest' ? 'new' : undefined,
+      });
+
+      const mapped: Product[] = (rows as any[]).map((p) => {
+        const imgs: string[] = (() => { try { return JSON.parse(p.image_urls ?? '[]'); } catch { return p.image_url ? [p.image_url] : []; } })();
+        return {
+          id:            p.id,
+          name:          cleanProductName(p.name, p.slug),
+          slug:          p.slug,
+          description:   p.description ?? null,
+          imageUrls:     localizeImageUrls(imgs.length ? imgs : (p.image_url ? [p.image_url] : [])),
+          blurDataUrls:  [],
+          categoryId:    p.category_id ?? '',
+          categoryName:  p.category ?? p.category_name ?? '',
+          categorySlug:  p.category_slug ?? '',
+          brandId:       p.brand_id ?? null,
+          brandName:     null,
+          sku:           p.sku ?? '',
+          mrp:           Number(p.mrp ?? p.price ?? 0),
+          price:         Number(p.price ?? 0),
+          unit:          p.unit ?? '',
+          tags:          (() => { try { return JSON.parse(p.tags ?? '[]'); } catch { return []; } })(),
+          isFeatured:    Boolean(p.is_featured),
+          inStock:       p.in_stock !== false,
+          averageRating: Number(p.average_rating ?? 0),
+          reviewCount:   Number(p.review_count ?? 0),
+          metaTitle:     null,
+          metaDescription: null,
+        };
+      });
+
+      const extras = filterExtraProducts({ category, search, featured });
+      const combined = page === 1
+        ? [...mapped, ...extras.filter((x) => !mapped.some((m) => m.slug === x.slug))]
+        : mapped;
+
+      return NextResponse.json<ApiResponse<PaginatedResponse<Product>>>({
+        data: { data: combined, total: total + (page === 1 ? extras.length : 0), page, limit, hasMore: offset + limit < total },
+        error: null,
+      });
+    } catch (erpErr) {
+      console.error('ERP Supabase products error:', erpErr);
+    }
+
+    // ── Last resort: proxy to legacy site (no category filtering guarantee) ──
     const proxied = await proxyFromLegacy(sp.toString());
     if (proxied) {
-      const extras = filterExtraProducts({
-        category: sp.get('category') ?? '',
-        search:   sp.get('search') ?? '',
-        featured: sp.get('filter') === 'featured',
-      });
-      if (extras.length > 0 && (parseInt(sp.get('page') ?? '1', 10) || 1) === 1) {
+      const extras = filterExtraProducts({ category, search, featured });
+      if (extras.length > 0 && page === 1) {
         const existingSlugs = new Set(proxied.data.map((x) => x.slug));
         proxied.data  = [...proxied.data, ...extras.filter((x) => !existingSlugs.has(x.slug))];
         proxied.total += extras.length;

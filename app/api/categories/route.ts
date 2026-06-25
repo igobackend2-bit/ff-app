@@ -71,7 +71,7 @@ export async function GET() {
         sortOrder:       c.sort_order ?? 0,
         metaTitle:       c.meta_title ?? null,
         metaDescription: c.meta_description ?? null,
-        _count:          { products: 0 },
+        _count:          c._count ?? { products: 0 },
       }));
 
       return NextResponse.json({ data: await injectExtras(data), error: null });

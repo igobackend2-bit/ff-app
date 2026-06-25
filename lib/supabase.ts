@@ -126,9 +126,11 @@ export const db = {
       opts.sort === 'price_desc' ? 'price.desc' :
       opts.sort === 'new' ? 'created_at.desc' : 'is_featured.desc';
 
+    // NOTE: products table has flat `category` / `category_slug` columns —
+    // there is no FK to a `categories` table, so embedding it throws PGRST200.
     const [rows, total] = await Promise.all([
       supabaseREST<Record<string, unknown>>('products', {
-        select: '*, categories(name, slug), brands(name)',
+        select: '*',
         filters: filters.join('&'),
         order,
         limit: opts.limit ?? 20,
@@ -142,29 +144,72 @@ export const db = {
 
   async getProductBySlug(slug: string) {
     const rows = await supabaseREST<Record<string, unknown>>('products', {
-      select: '*, categories(name, slug), brands(name)',
+      select: '*',
       filters: `slug=eq.${slug}&is_active=eq.true`,
       limit: 1,
     });
     return rows[0] ?? null;
   },
 
-  // Categories
+  // Categories — the `categories` table is empty, so derive the list from the
+  // distinct category/category_slug values on the products table.
   async getCategories() {
-    return supabaseREST<Record<string, unknown>>('categories', {
-      select: '*',
+    const rows = await supabaseREST<Record<string, unknown>>('products', {
+      select: 'category,category_slug,category_id,image_url',
       filters: 'is_active=eq.true',
-      order: 'sort_order.asc',
+      order: 'category_slug.asc',
     });
+
+    const bySlug = new Map<string, { name: string; id: string; image: string; count: number }>();
+    for (const r of rows as any[]) {
+      const slug = (r.category_slug ?? '').toString().trim();
+      const name = (r.category ?? '').toString().trim();
+      if (!slug || !name) continue;
+      const existing = bySlug.get(slug);
+      if (existing) {
+        existing.count += 1;
+      } else {
+        bySlug.set(slug, { name, id: r.category_id ?? slug, image: r.image_url ?? '', count: 1 });
+      }
+    }
+
+    let sort = 0;
+    return [...bySlug.entries()].map(([slug, v]) => ({
+      id:          v.id,
+      name:        v.name,
+      slug,
+      description: null,
+      image_url:   v.image,
+      icon_url:    null,
+      parent_id:   null,
+      sort_order:  sort++,
+      meta_title:  null,
+      meta_description: null,
+      _count:      { products: v.count },
+    }));
   },
 
   async getCategoryBySlug(slug: string) {
-    const rows = await supabaseREST<Record<string, unknown>>('categories', {
-      select: '*',
-      filters: `slug=eq.${slug}&is_active=eq.true`,
+    // Derived from products (no populated categories table)
+    const rows = await supabaseREST<Record<string, unknown>>('products', {
+      select: 'category,category_slug,category_id,image_url',
+      filters: `category_slug=eq.${slug}&is_active=eq.true`,
       limit: 1,
     });
-    return rows[0] ?? null;
+    const r = rows[0] as any;
+    if (!r) return null;
+    return {
+      id:          r.category_id ?? slug,
+      name:        r.category ?? slug,
+      slug,
+      description: null,
+      image_url:   r.image_url ?? '',
+      icon_url:    null,
+      parent_id:   null,
+      sort_order:  0,
+      meta_title:  null,
+      meta_description: null,
+    };
   },
 
   // Wishlist
