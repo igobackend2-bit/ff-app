@@ -2,9 +2,18 @@
 // Uses Supabase's PostgREST HTTP API directly — no npm package required.
 // All requests go to https://{project}.supabase.co/rest/v1/{table}
 
-const SUPABASE_URL = process.env['NEXT_PUBLIC_SUPABASE_URL'] ?? '';
-const SUPABASE_ANON_KEY = process.env['NEXT_PUBLIC_SUPABASE_ANON_KEY'] ?? '';
-const SUPABASE_SERVICE_KEY = process.env['SUPABASE_SERVICE_ROLE_KEY'] ?? SUPABASE_ANON_KEY;
+// ERP Supabase (active project) — used as a hard fallback because the
+// production env vars are currently blank, which would otherwise break every query.
+const ERP_URL = 'https://qwiumswrbddwmlraktvy.supabase.co';
+const ERP_ANON_KEY =
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF3aXVtc3dyYmRkd21scmFrdHZ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAxMjU3NTIsImV4cCI6MjA5NTcwMTc1Mn0.AsY045N7wHqMF_2P0-D2Ouzrkphjfkb4CP6ImhSm-tc';
+
+const ENV_URL = process.env['NEXT_PUBLIC_SUPABASE_URL'] ?? '';
+const ENV_KEY = process.env['NEXT_PUBLIC_SUPABASE_ANON_KEY'] ?? '';
+
+const SUPABASE_URL = ENV_URL.startsWith('https://') ? ENV_URL : ERP_URL;
+const SUPABASE_ANON_KEY = ENV_KEY.length > 10 ? ENV_KEY : ERP_ANON_KEY;
+const SUPABASE_SERVICE_KEY = process.env['SUPABASE_SERVICE_ROLE_KEY'] || SUPABASE_ANON_KEY;
 
 export const isSupabaseConfigured =
   SUPABASE_URL.startsWith('https://') && SUPABASE_ANON_KEY.length > 10;
