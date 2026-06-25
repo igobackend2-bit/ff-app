@@ -11,9 +11,15 @@ const ERP_ANON_KEY =
 const ENV_URL = process.env['NEXT_PUBLIC_SUPABASE_URL'] ?? '';
 const ENV_KEY = process.env['NEXT_PUBLIC_SUPABASE_ANON_KEY'] ?? '';
 
-const SUPABASE_URL = ENV_URL.startsWith('https://') ? ENV_URL : ERP_URL;
-const SUPABASE_ANON_KEY = ENV_KEY.length > 10 ? ENV_KEY : ERP_ANON_KEY;
-const SUPABASE_SERVICE_KEY = process.env['SUPABASE_SERVICE_ROLE_KEY'] || SUPABASE_ANON_KEY;
+// The production env vars point at the OLD paused customer project
+// (riroxkuzckuwsbhrcjkp — DNS no longer resolves). Only honour env values that
+// target the active ERP project; otherwise force the ERP project.
+const ENV_IS_ERP = ENV_URL.includes('qwiumswrbddwmlraktvy');
+const SUPABASE_URL = ENV_IS_ERP ? ENV_URL : ERP_URL;
+const SUPABASE_ANON_KEY = ENV_IS_ERP && ENV_KEY.length > 10 ? ENV_KEY : ERP_ANON_KEY;
+const SUPABASE_SERVICE_KEY = ENV_IS_ERP
+  ? (process.env['SUPABASE_SERVICE_ROLE_KEY'] || SUPABASE_ANON_KEY)
+  : SUPABASE_ANON_KEY;
 
 export const isSupabaseConfigured =
   SUPABASE_URL.startsWith('https://') && SUPABASE_ANON_KEY.length > 10;
