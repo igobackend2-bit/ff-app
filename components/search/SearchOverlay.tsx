@@ -463,9 +463,9 @@ export function SearchOverlay() {
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-bold text-amber-800 mb-1">Microphone access blocked</p>
                       <p className="text-[11px] text-amber-700 leading-relaxed">
-                        <strong>Step 1:</strong> Click the <strong>🔒 lock</strong> in the address bar<br/>
-                        <strong>Step 2:</strong> Find <strong>Microphone</strong> → if it shows <em>Allow</em>, click the <strong>×</strong> to reset it, then set to <strong>Allow</strong> again<br/>
-                        <strong>Step 3:</strong> Click <strong>Reload Page</strong> below, then try the mic again
+                        <strong>Step 1:</strong> Open your phone&apos;s <strong>Settings → Apps → Farmers Factory</strong><br/>
+                        <strong>Step 2:</strong> Tap <strong>Permissions → Microphone</strong> and set it to <strong>Allow</strong><br/>
+                        <strong>Step 3:</strong> Return here, tap <strong>Reload</strong> below, then try the mic again. You can also just type your search instead.
                       </p>
                       <div className="mt-2 flex flex-wrap gap-2">
                         <button

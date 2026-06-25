@@ -24,6 +24,9 @@ export function ProductCard({ product, priority = false }: ProductCardProps) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
 
+  // Falls back to the category emoji when a product image URL is broken/404
+  const [imgError, setImgError] = useState(false);
+
   const openSheet      = useProductDetailStore((s) => s.openSheet);
   const addItem        = useCartStore((s) => s.addItem);
   const updateQuantity = useCartStore((s) => s.updateQuantity);
@@ -124,7 +127,7 @@ export function ProductCard({ product, priority = false }: ProductCardProps) {
               outOfStock && 'grayscale',
             )}
           >
-            {product.imageUrls[0] ? (
+            {product.imageUrls[0] && !imgError ? (
               <Image
                 src={product.imageUrls[0]}
                 alt={product.name + ' ' + product.unit}
@@ -138,6 +141,7 @@ export function ProductCard({ product, priority = false }: ProductCardProps) {
                 loading={priority ? 'eager' : 'lazy'}
                 placeholder={product.blurDataUrls?.[0] ? 'blur' : 'empty'}
                 blurDataURL={product.blurDataUrls?.[0] ?? undefined}
+                onError={() => setImgError(true)}
               />
             ) : (
               <div className="flex h-full items-center justify-center text-4xl" aria-hidden="true">

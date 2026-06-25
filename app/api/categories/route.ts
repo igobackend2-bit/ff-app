@@ -54,21 +54,30 @@ export async function GET() {
   } catch (err) {
     console.error('Categories API error:', err);
 
-    // DB unreachable — proxy from the legacy live site
+    // DB unreachable (DB_DISABLED in production) — read from ERP Supabase directly
     try {
-      const res = await fetch('https://ff-app-pi.vercel.app/api/categories', {
-        cache: 'no-store',
-        signal: AbortSignal.timeout(8000),
-      });
-      if (res.ok) {
-        const json = (await res.json()) as { data: Category[] };
-        if (json.data) {
-          const { localizeImageUrl } = await import('@/lib/clean-name');
-          json.data = json.data.map((c) => ({ ...c, imageUrl: c.imageUrl ? localizeImageUrl(c.imageUrl) : c.imageUrl }));
-          return NextResponse.json({ data: await injectExtras(json.data), error: null });
-        }
-      }
-    } catch { /* fall through */ }
+      const { db } = await import('@/lib/supabase');
+      const { localizeImageUrl } = await import('@/lib/clean-name');
+      const rows = await db.getCategories();
+
+      const data = (rows as any[]).map((c) => ({
+        id:              c.id,
+        name:            c.name,
+        slug:            c.slug,
+        description:     c.description ?? null,
+        imageUrl:        c.image_url ? localizeImageUrl(c.image_url) : (c.image_url ?? null),
+        iconUrl:         c.icon_url ?? null,
+        parentId:        c.parent_id ?? null,
+        sortOrder:       c.sort_order ?? 0,
+        metaTitle:       c.meta_title ?? null,
+        metaDescription: c.meta_description ?? null,
+        _count:          { products: 0 },
+      }));
+
+      return NextResponse.json({ data: await injectExtras(data), error: null });
+    } catch (sbErr) {
+      console.error('ERP Supabase categories error:', sbErr);
+    }
 
     return NextResponse.json<ApiResponse<Category[]>>({ data: [], error: 'Failed to load categories' }, { status: 500 });
   }
