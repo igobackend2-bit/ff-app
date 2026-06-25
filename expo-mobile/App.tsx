@@ -14,7 +14,7 @@ import {
 import { WebView, WebViewNavigation } from 'react-native-webview';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-const APP_URL = 'https://ff-app-pi.vercel.app';
+const APP_URL = 'https://ff-app-pi-ten.vercel.app';
 const BRAND_GREEN = '#16a34a';
 
 export default function App() {
