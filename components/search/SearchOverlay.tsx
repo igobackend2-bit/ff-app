@@ -60,9 +60,44 @@ function useVoiceSearch(onResult: (text: string) => void) {
   const onResultRef    = useRef(onResult);
 
   useEffect(() => { onResultRef.current = onResult; }, [onResult]);
+
+  // True when running inside the Farmers Factory Android app (WebView)
+  const isNativeApp =
+    typeof navigator !== 'undefined' && /FarmersFactory-Android/.test(navigator.userAgent);
+
   useEffect(() => {
-    setSupported(!!(window.SpeechRecognition ?? window.webkitSpeechRecognition));
-  }, []);
+    // In the native app, voice is handled by the native speech recognizer.
+    setSupported(isNativeApp || !!(window.SpeechRecognition ?? window.webkitSpeechRecognition));
+  }, [isNativeApp]);
+
+  // ── Native app bridge: receive results/errors from React Native ──
+  useEffect(() => {
+    if (!isNativeApp) return;
+    const w = window as unknown as Record<string, unknown>;
+    w['__ffVoiceResult'] = (text: string) => {
+      releaseWarmNoop();
+      setListening(false);
+      const transcript = (text ?? '').replace(/[.,!?;:]+$/, '').trim();
+      if (transcript) { onResultRef.current(transcript); setError(''); }
+    };
+    w['__ffVoiceError'] = (code: string) => {
+      setListening(false);
+      if (code === 'permission' || code === 'not-allowed') { setPermDenied(true); setError('blocked'); }
+      else if (code === 'no-speech') setError('no-speech');
+      else setError('sr-retry');
+    };
+    w['__ffVoiceState'] = (s: string) => { setListening(s === 'start'); };
+    return () => { delete w['__ffVoiceResult']; delete w['__ffVoiceError']; delete w['__ffVoiceState']; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isNativeApp]);
+
+  const releaseWarmNoop = () => {};
+
+  /** Post a message to the React Native host (Farmers Factory app). */
+  const postToNative = (payload: Record<string, unknown>) => {
+    const rnw = (window as unknown as { ReactNativeWebView?: { postMessage(s: string): void } }).ReactNativeWebView;
+    rnw?.postMessage(JSON.stringify(payload));
+  };
 
   const releaseWarm = useCallback(() => {
     warmStreamRef.current?.getTracks().forEach((t) => t.stop());
@@ -86,6 +121,15 @@ function useVoiceSearch(onResult: (text: string) => void) {
    *  it, permission becomes 'granted' and SR starts cleanly.
    */
   const start = useCallback(async () => {
+    // Native app: hand off to the device speech recognizer
+    if (isNativeApp) {
+      setPermDenied(false);
+      setError('');
+      setListening(true);
+      postToNative({ type: 'FF_VOICE_START' });
+      return;
+    }
+
     const SR = window.SpeechRecognition ?? window.webkitSpeechRecognition;
     if (!SR) { setError('not-supported'); return; }
 
@@ -171,10 +215,12 @@ function useVoiceSearch(onResult: (text: string) => void) {
   }, [releaseWarm]);
 
   const stop = useCallback(() => {
+    if (isNativeApp) { postToNative({ type: 'FF_VOICE_STOP' }); setListening(false); return; }
     recognitionRef.current?.stop();
     releaseWarm();
     setListening(false);
-  }, [releaseWarm]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [releaseWarm, isNativeApp]);
 
   const reset = useCallback(() => {
     recognitionRef.current?.stop();

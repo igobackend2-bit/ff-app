@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { WebView, WebViewNavigation } from 'react-native-webview';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Voice from '@react-native-voice/voice';
 
 const APP_URL = 'https://ff-app-pi-ten.vercel.app';
 const BRAND_GREEN = '#16a34a';
@@ -34,6 +35,54 @@ export default function App() {
       PermissionsAndroid.PERMISSIONS.CAMERA,
     ]).catch(() => {});
   }, []);
+
+  // ── Native voice search — bridges device speech recognition into the web app ──
+  const injectVoice = (fn: string, arg?: string) => {
+    const a = arg !== undefined ? JSON.stringify(arg) : '';
+    webViewRef.current?.injectJavaScript(`window.${fn} && window.${fn}(${a}); true;`);
+  };
+
+  React.useEffect(() => {
+    Voice.onSpeechStart  = () => injectVoice('__ffVoiceState', 'start');
+    Voice.onSpeechEnd    = () => injectVoice('__ffVoiceState', 'end');
+    Voice.onSpeechResults = (e) => {
+      const text = e.value?.[0] ?? '';
+      if (text) injectVoice('__ffVoiceResult', text);
+    };
+    Voice.onSpeechError = (e) => {
+      const code = e.error?.code ?? '';
+      const mapped =
+        /permission|denied/i.test(String(code)) ? 'permission' :
+        /no.?match|no.?speech|7|6/i.test(String(code)) ? 'no-speech' : 'error';
+      injectVoice('__ffVoiceError', mapped);
+    };
+    return () => { Voice.destroy().then(Voice.removeAllListeners).catch(() => {}); };
+  }, []);
+
+  const startVoice = async () => {
+    try {
+      if (Platform.OS === 'android') {
+        const granted = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
+          {
+            title: 'Microphone permission',
+            message: 'Farmers Factory needs the microphone for voice search.',
+            buttonPositive: 'Allow',
+          },
+        );
+        if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
+          injectVoice('__ffVoiceError', 'permission');
+          return;
+        }
+      }
+      await Voice.destroy().catch(() => {});
+      await Voice.start('en-IN');
+    } catch {
+      injectVoice('__ffVoiceError', 'error');
+    }
+  };
+
+  const stopVoice = async () => { try { await Voice.stop(); } catch { /* ignore */ } };
 
   // Android hardware back button — go back in WebView history
   React.useEffect(() => {
@@ -82,6 +131,14 @@ export default function App() {
         style={styles.webview}
 
         onNavigationStateChange={(state: WebViewNavigation) => setCanGoBack(state.canGoBack)}
+
+        onMessage={(event) => {
+          try {
+            const data = JSON.parse(event.nativeEvent.data) as { type?: string };
+            if (data.type === 'FF_VOICE_START') void startVoice();
+            else if (data.type === 'FF_VOICE_STOP') void stopVoice();
+          } catch { /* ignore non-JSON messages */ }
+        }}
 
         onLoadStart={() => { if (!initialLoaded) setLoading(true); }}
         onLoadEnd={() => { setLoading(false); setInitialLoaded(true); }}
