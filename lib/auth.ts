@@ -3,9 +3,13 @@ import CredentialsProvider from 'next-auth/providers/credentials';
 import { PrismaAdapter } from '@next-auth/prisma-adapter';
 import { prisma } from '@/lib/db';
 
+export const AUTH_SECRET = process.env['AUTH_SECRET'] ?? process.env['NEXTAUTH_SECRET'] ?? 'ff-dev-secret';
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: PrismaAdapter(prisma),
-  session: { strategy: 'jwt' },
+  session: { strategy: 'jwt', maxAge: 30 * 24 * 60 * 60 },
+  secret: AUTH_SECRET,
+  trustHost: true,
   pages: { signIn: '/login' },
   providers: [
     CredentialsProvider({

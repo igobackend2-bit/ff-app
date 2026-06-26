@@ -1,8 +1,47 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { signIn } from '@/lib/auth';
+import { encode } from 'next-auth/jwt';
+import { signIn, AUTH_SECRET } from '@/lib/auth';
 import { prisma } from '@/lib/db';
+
+// NextAuth v5 session cookie name (Secure prefix on HTTPS / production)
+const SESSION_COOKIE =
+  process.env['NODE_ENV'] === 'production'
+    ? '__Secure-authjs.session-token'
+    : 'authjs.session-token';
+const SESSION_MAX_AGE = 30 * 24 * 60 * 60; // 30 days
+
+/**
+ * Manually mint the NextAuth JWT session cookie. Calling signIn(redirect:false)
+ * inside a route handler does not reliably persist the cookie, which left users
+ * "logged in" on the client but unauthenticated server-side (orders → 401).
+ */
+async function setSessionCookie(
+  res: NextResponse,
+  user: { id: string; name?: unknown; email?: unknown; phone?: unknown },
+) {
+  const token = await encode({
+    token: {
+      sub:   String(user.id),
+      id:    String(user.id),
+      name:  (user.name as string) ?? null,
+      email: (user.email as string) ?? null,
+      phone: (user.phone as string) ?? null,
+    },
+    secret: AUTH_SECRET,
+    salt:   SESSION_COOKIE,
+    maxAge: SESSION_MAX_AGE,
+  });
+
+  res.cookies.set(SESSION_COOKIE, token, {
+    httpOnly: true,
+    sameSite: 'lax',
+    path: '/',
+    secure: process.env['NODE_ENV'] === 'production',
+    maxAge: SESSION_MAX_AGE,
+  });
+}
 
 const otpVerifySchema = z.object({
   phone:    z.string().regex(/^\+91[6-9]\d{9}$/, 'Invalid phone number'),
@@ -73,6 +112,8 @@ export async function POST(req: NextRequest) {
 
       const okRes = NextResponse.json({ message: 'Logged in successfully', user });
       okRes.cookies.set('ff_otp_tok', '', { httpOnly: true, path: '/', maxAge: 0 });
+      // Persist the real NextAuth session cookie so server-side auth() works
+      await setSessionCookie(okRes, user as { id: string; name?: unknown; email?: unknown; phone?: unknown });
       return okRes;
     } catch (error: unknown) {
       // Auth.js v5 throws CredentialsSignin on wrong OTP
