@@ -12,16 +12,31 @@ interface Params      { slug: string }
 interface SearchParams { sort?: string; brand?: string; tags?: string; page?: string }
 
 async function getCategory(slug: string) {
+  // Read directly from the data layer — avoids an internal HTTP fetch to a
+  // deployment URL that is behind Vercel's SSO protection wall.
   try {
-    const baseUrl =
-      process.env['NEXT_PUBLIC_APP_URL'] ??
-      (process.env['VERCEL_URL'] ? `https://${process.env['VERCEL_URL']}` : 'http://localhost:3000');
-    const res = await fetch(`${baseUrl}/api/categories/${slug}`, {
-      next: { revalidate: 300 },
-    });
-    if (!res.ok) return null;
-    const json = await res.json() as { data: unknown };
-    return json.data ?? null;
+    // Hardcoded extra categories (Meat & Seafood, Nuts, Dry Fruits, etc.)
+    const { getExtraCategories } = await import('@/lib/extra-products');
+    const extra = getExtraCategories().find((c) => c.slug === slug);
+    if (extra) return extra;
+
+    const { db } = await import('@/lib/supabase');
+    const { localizeImageUrl, cleanCategoryName } = await import('@/lib/clean-name');
+    const r = (await db.getCategoryBySlug(slug)) as any;
+    if (!r) return null;
+    return {
+      id:          r.id,
+      name:        cleanCategoryName(r.name, slug),
+      slug,
+      description: r.description ?? null,
+      imageUrl:    r.image_url ? localizeImageUrl(r.image_url) : (r.image_url ?? ''),
+      iconUrl:     null,
+      parentId:    null,
+      sortOrder:   r.sort_order ?? 0,
+      metaTitle:   null,
+      metaDescription: null,
+      _count:      { products: 0 },
+    };
   } catch {
     return null;
   }

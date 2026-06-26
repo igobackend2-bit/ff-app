@@ -47,22 +47,38 @@ export async function GET(
   } catch (err) {
     console.error('Category slug API error:', err);
 
-    // DB unreachable — proxy from the legacy live site
+    // DB unreachable (DB_DISABLED) — derive the category from ERP Supabase products
     try {
       const { slug } = await params;
-      const res = await fetch(`https://ff-app-pi.vercel.app/api/categories/${encodeURIComponent(slug)}`, {
-        cache: 'no-store',
-        signal: AbortSignal.timeout(8000),
-      });
-      if (res.ok) {
-        const json = (await res.json()) as { data: Category | null };
-        if (json.data) return NextResponse.json({ data: json.data, error: null });
+
+      // Hardcoded extra categories (Meat, Nuts, Dry Fruits, etc.)
+      const { getExtraCategories } = await import('@/lib/extra-products');
+      const extra = getExtraCategories().find((c) => c.slug === slug);
+      if (extra) return NextResponse.json({ data: extra, error: null });
+
+      const { db } = await import('@/lib/supabase');
+      const { localizeImageUrl, cleanCategoryName } = await import('@/lib/clean-name');
+      const r = (await db.getCategoryBySlug(slug)) as any;
+      if (r) {
+        const category: Category & { _count?: { products: number } } = {
+          id:              r.id,
+          name:            cleanCategoryName(r.name, slug),
+          slug,
+          description:     r.description ?? null,
+          imageUrl:        r.image_url ? localizeImageUrl(r.image_url) : (r.image_url ?? ''),
+          iconUrl:         null,
+          parentId:        null,
+          sortOrder:       r.sort_order ?? 0,
+          metaTitle:       null,
+          metaDescription: null,
+        };
+        return NextResponse.json({ data: category, error: null });
       }
     } catch { /* fall through */ }
 
     return NextResponse.json<ApiResponse<null>>(
       { data: null, error: 'Failed to fetch category' },
-      { status: 500 },
+      { status: 404 },
     );
   }
 }
