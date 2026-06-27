@@ -508,20 +508,30 @@ export function SearchOverlay() {
                     <MicOff className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-bold text-amber-800 mb-1">Microphone access blocked</p>
-                      <p className="text-[11px] text-amber-700 leading-relaxed">
-                        <strong>Step 1:</strong> Open your phone&apos;s <strong>Settings → Apps → Farmers Factory</strong><br/>
-                        <strong>Step 2:</strong> Tap <strong>Permissions → Microphone</strong> and set it to <strong>Allow</strong><br/>
-                        <strong>Step 3:</strong> Return here, tap <strong>Reload</strong> below, then try the mic again. You can also just type your search instead.
-                      </p>
+                      {typeof navigator !== 'undefined' && /FarmersFactory-Android/.test(navigator.userAgent) ? (
+                        <p className="text-[11px] text-amber-700 leading-relaxed">
+                          <strong>Step 1:</strong> Open <strong>Settings → Apps → Farmers Factory</strong><br/>
+                          <strong>Step 2:</strong> Tap <strong>Permissions → Microphone → Allow</strong><br/>
+                          <strong>Step 3:</strong> Come back and tap the mic button again.
+                        </p>
+                      ) : (
+                        <p className="text-[11px] text-amber-700 leading-relaxed">
+                          <strong>Step 1:</strong> Open your phone&apos;s <strong>Settings → Apps → Farmers Factory</strong><br/>
+                          <strong>Step 2:</strong> Tap <strong>Permissions → Microphone</strong> and set it to <strong>Allow</strong><br/>
+                          <strong>Step 3:</strong> Return here and tap the mic again. You can also just type your search instead.
+                        </p>
+                      )}
                       <div className="mt-2 flex flex-wrap gap-2">
                         <button
                           onClick={() => { voice.clearError(); void voice.start(); }}
                           className="rounded-xl bg-amber-600 px-3 py-1.5 text-[11px] font-bold text-white hover:bg-amber-700 active:scale-95 transition-all"
                         >Try Again</button>
-                        <button
-                          onClick={() => window.location.reload()}
-                          className="rounded-xl border border-amber-300 bg-white px-3 py-1.5 text-[11px] font-bold text-amber-700 hover:bg-amber-50 active:scale-95 transition-all"
-                        >Reload Page</button>
+                        {typeof navigator === 'undefined' || !/FarmersFactory-Android/.test(navigator.userAgent) ? (
+                          <button
+                            onClick={() => window.location.reload()}
+                            className="rounded-xl border border-amber-300 bg-white px-3 py-1.5 text-[11px] font-bold text-amber-700 hover:bg-amber-50 active:scale-95 transition-all"
+                          >Reload Page</button>
+                        ) : null}
                       </div>
                     </div>
                     <button onClick={voice.clearError} className="shrink-0 text-amber-400 hover:text-amber-600 mt-0.5">

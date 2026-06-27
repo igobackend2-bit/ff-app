@@ -166,9 +166,27 @@ export const db = {
     return rows[0] ?? null;
   },
 
-  // Categories — the `categories` table is empty, so derive the list from the
-  // distinct category/category_slug values on the products table.
+  // Categories — derive from distinct category_slug values on products table.
+  // Only the 9 categories the store sells; ordered as the user specified.
   async getCategories() {
+    // Allowed slugs in display order. Any slug not in this list is hidden.
+    const ALLOWED_ORDER = [
+      'fruits',
+      'vegetables',
+      'dry-fruits',
+      'nuts',
+      'cold-pressed-oils',
+      'millets',
+      'spices',
+      'honey',
+      'dairy-ghee',
+      'palm-jaggery',
+      // fallback slug variants in case the DB uses different names
+      'oils',
+      'ghee',
+    ];
+    const ALLOWED_SET = new Set(ALLOWED_ORDER);
+
     const rows = await supabaseREST<Record<string, unknown>>('products', {
       select: 'category,category_slug,category_id,image_url',
       filters: 'is_active=eq.true',
@@ -179,7 +197,7 @@ export const db = {
     for (const r of rows as any[]) {
       const slug = (r.category_slug ?? '').toString().trim();
       const name = (r.category ?? '').toString().trim();
-      if (!slug || !name) continue;
+      if (!slug || !name || !ALLOWED_SET.has(slug)) continue;
       const existing = bySlug.get(slug);
       if (existing) {
         existing.count += 1;
@@ -188,19 +206,23 @@ export const db = {
       }
     }
 
-    let sort = 0;
-    return [...bySlug.entries()].map(([slug, v]) => ({
-      id:          v.id,
-      name:        v.name,
+    // Sort by the user-defined order
+    const sorted = ALLOWED_ORDER
+      .map((slug) => [slug, bySlug.get(slug)] as const)
+      .filter(([, v]) => !!v);
+
+    return sorted.map(([slug, v], i) => ({
+      id:          v!.id,
+      name:        v!.name,
       slug,
       description: null,
-      image_url:   v.image,
+      image_url:   v!.image,
       icon_url:    null,
       parent_id:   null,
-      sort_order:  sort++,
+      sort_order:  i,
       meta_title:  null,
       meta_description: null,
-      _count:      { products: v.count },
+      _count:      { products: v!.count },
     }));
   },
 

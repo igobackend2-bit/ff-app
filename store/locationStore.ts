@@ -52,7 +52,7 @@ export const useLocationStore = create<LocationState>()(
 
       detectLocation: async () => {
         if (typeof navigator === 'undefined' || !navigator.geolocation) {
-          set({ locationError: 'Geolocation not supported by your browser.' });
+          set({ locationError: 'Geolocation not supported on this device.' });
           return;
         }
 
@@ -109,7 +109,7 @@ export const useLocationStore = create<LocationState>()(
         } catch (err) {
           let message = 'Location detection failed. Please try again.';
           if (err instanceof GeolocationPositionError) {
-            if (err.code === 1) message = 'Location access denied. Please enable location permissions in your browser.';
+            if (err.code === 1) message = 'Location access denied. Go to Settings → Apps → Farmers Factory → Permissions → Location → Allow.';
             else if (err.code === 2) message = 'Location unavailable. Please check your device.';
             else if (err.code === 3) message = 'Location request timed out. Please try again.';
           }

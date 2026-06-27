@@ -21,7 +21,7 @@ export async function CategoryGrid() {
 
   return (
     <div className="grid grid-cols-4 gap-2 sm:grid-cols-6 md:grid-cols-8">
-      {categories.slice(0, 8).map((cat) => (
+      {categories.map((cat) => (
         <CategoryCard key={cat.id} category={cat} />
       ))}
     </div>
