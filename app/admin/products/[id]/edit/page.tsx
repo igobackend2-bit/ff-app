@@ -30,6 +30,16 @@ function getYoutubeThumbnail(url: string): string {
   return match ? `https://img.youtube.com/vi/${match[1]}/mqdefault.jpg` : '';
 }
 
+function ImgWithFallback({ src, alt, className }: { src: string; alt: string; className?: string }) {
+  const [err, setErr] = useState(false);
+  if (err) return (
+    <div className={`flex items-center justify-center bg-neutral-100 ${className ?? ''}`}>
+      <ImageIcon className="h-8 w-8 text-neutral-300" />
+    </div>
+  );
+  return <img src={src} alt={alt} className={className} onError={() => setErr(true)} />;
+}
+
 function StarRating({ value, onChange }: { value: number; onChange: (v: number) => void }) {
   const [hovered, setHovered] = useState<number | null>(null);
   return (
@@ -275,7 +285,7 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
                         </>
                       ) : (
                         <>
-                          <img src={url} alt={`Image ${idx + 1}`} className="h-full w-full object-cover" />
+                          <ImgWithFallback src={url} alt={`Image ${idx + 1}`} className="h-full w-full object-cover" />
                           {idx === 0 && (
                             <span className="absolute bottom-0 left-0 right-0 bg-primary-600 py-0.5 text-center text-[9px] font-bold text-white">
                               MAIN

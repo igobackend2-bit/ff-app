@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 const SB  = 'https://qwiumswrbddwmlraktvy.supabase.co';
 const KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF3aXVtc3dyYmRkd21scmFrdHZ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAxMjU3NTIsImV4cCI6MjA5NTcwMTc1Mn0.AsY045N7wHqMF_2P0-D2Ouzrkphjfkb4CP6ImhSm-tc';
-const H   = { apikey: KEY, Authorization: `Bearer ${KEY}`, 'Content-Type': 'application/json', Prefer: 'return=representation' };
+const H   = { apikey: KEY, Authorization: `Bearer ${KEY}`, 'Content-Type': 'application/json' };
 
 function parseImageUrls(raw: unknown): string[] {
   if (Array.isArray(raw)) return raw as string[];
@@ -82,14 +82,13 @@ export async function PATCH(
 
     const res = await fetch(
       `${SB}/rest/v1/products?id=eq.${encodeURIComponent(id)}`,
-      { method: 'PATCH', headers: H, body: JSON.stringify(patch), cache: 'no-store' },
+      { method: 'PATCH', headers: { ...H, Prefer: 'return=minimal' }, body: JSON.stringify(patch), cache: 'no-store' },
     );
     if (!res.ok) {
       const errText = await res.text();
       return NextResponse.json({ error: errText }, { status: res.status });
     }
-    const rows: Record<string, unknown>[] = await res.json();
-    return NextResponse.json({ product: rows[0] ? mapRow(rows[0]) : { id } });
+    return NextResponse.json({ product: { id } });
   } catch (err) {
     console.error('[admin/products/:id PATCH]', err);
     return NextResponse.json({ error: String(err) }, { status: 500 });

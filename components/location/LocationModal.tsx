@@ -316,13 +316,23 @@ export function LocationModal() {
                           ? <Loader2 className="h-5 w-5 animate-spin text-white" />
                           : <Navigation className="h-5 w-5 text-white" />}
                       </div>
-                      <div>
+                      <div className="min-w-0 flex-1">
                         <p className="text-sm font-bold text-primary-800">
                           {isLocating ? 'Detecting your location...' : 'Use my Current Location'}
                         </p>
-                        <p className="text-xs text-primary-600">
-                          {locationError ? locationError : 'Using GPS'}
+                        <p className="text-xs text-primary-600 break-words">
+                          {locationError
+                            ? locationError
+                            : 'Tap to detect your GPS location'}
                         </p>
+                        {locationError && !isLocating && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); window.location.reload(); }}
+                            className="mt-1 text-xs font-bold underline text-primary-700"
+                          >
+                            Reload App
+                          </button>
+                        )}
                       </div>
                     </button>
                   </div>

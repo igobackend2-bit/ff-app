@@ -80,9 +80,18 @@ export async function POST(req: NextRequest) {
     const [inserted] = await insertRes.json() as Array<{ id: string }>;
     const id = inserted?.id ?? 'unknown';
 
-    // Send push notifications via Expo Push API if tokens supplied
+    // Send push notifications via Expo Push API — fetch registered tokens from DB
     let pushResult: unknown = null;
-    const tokens: string[] = body.pushTokens ?? [];
+    let tokens: string[] = body.pushTokens ?? [];
+    if (tokens.length === 0) {
+      try {
+        const tr = await fetch(`${SB}/rest/v1/push_tokens?select=token&is_active=eq.true`, { headers: H, cache: 'no-store' });
+        if (tr.ok) {
+          const rows = await tr.json() as Array<{ token: string }>;
+          tokens = rows.map((r) => r.token).filter(Boolean);
+        }
+      } catch { /* ignore */ }
+    }
     if (tokens.length > 0) {
       try {
         const messages = tokens.map((to) => ({

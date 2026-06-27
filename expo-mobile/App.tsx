@@ -10,10 +10,22 @@ import {
   Text,
   TouchableOpacity,
   PermissionsAndroid,
+  Alert,
 } from 'react-native';
 import { WebView, WebViewNavigation } from 'react-native-webview';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Voice from '@react-native-voice/voice';
+import * as Device from 'expo-device';
+import * as Notifications from 'expo-notifications';
+
+// Show notification banners while app is in foreground
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: true,
+  }),
+});
 
 const APP_URL = 'https://ff-app-pi-ten.vercel.app';
 const BRAND_GREEN = '#16a34a';
@@ -25,7 +37,7 @@ export default function App() {
   const [error, setError]             = useState(false);
   const [canGoBack, setCanGoBack]     = useState(false);
 
-  // Request Android permissions on startup
+  // Request Android permissions + register for push notifications on startup
   React.useEffect(() => {
     if (Platform.OS !== 'android') return;
     PermissionsAndroid.requestMultiple([
@@ -34,6 +46,38 @@ export default function App() {
       PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
       PermissionsAndroid.PERMISSIONS.CAMERA,
     ]).catch(() => {});
+
+    // Register for Expo push notifications
+    void (async () => {
+      try {
+        if (!Device.isDevice) return;
+        const { status: existing } = await Notifications.getPermissionsAsync();
+        let finalStatus = existing;
+        if (existing !== 'granted') {
+          const { status } = await Notifications.requestPermissionsAsync();
+          finalStatus = status;
+        }
+        if (finalStatus !== 'granted') return;
+
+        const tokenData = await Notifications.getExpoPushTokenAsync();
+        const pushToken = tokenData.data;
+
+        // Register this token with the server so admin broadcasts reach us
+        await fetch(`${APP_URL}/api/admin/push-tokens`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token: pushToken, platform: 'android' }),
+        }).catch(() => {});
+      } catch { /* ignore */ }
+    })();
+
+    // Listen for incoming notifications when app is open
+    const sub = Notifications.addNotificationReceivedListener((notification) => {
+      const title = notification.request.content.title ?? '';
+      const body  = notification.request.content.body  ?? '';
+      if (title || body) Alert.alert(title, body);
+    });
+    return () => sub.remove();
   }, []);
 
   // ── Native voice search — bridges device speech recognition into the web app ──
