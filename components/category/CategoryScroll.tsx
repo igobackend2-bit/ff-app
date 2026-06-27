@@ -8,43 +8,40 @@ import type { Category } from '@/types';
 const SHOW_SLUGS = [
   'fruits',
   'vegetables',
-  'valluvam',
   'dry-fruits',
   'nuts',
-  'spices',
   'cold-pressed-oils',
   'millets',
-  'dairy-ghee',
+  'spices',
   'honey',
-  'seeds-health-mix',
+  'dairy-ghee',
+  'palm-jaggery',
 ];
 
 const EMOJI: Record<string, string> = {
   'fruits':            '🍎',
   'vegetables':        '🥦',
-  'valluvam':          '🫙',
   'dry-fruits':        '🌰',
   'nuts':              '🥜',
-  'spices':            '🌶',
   'cold-pressed-oils': '🫒',
   'millets':           '🌾',
-  'dairy-ghee':        '🧈',
+  'spices':            '🌶',
   'honey':             '🍯',
-  'seeds-health-mix':  '🌱',
+  'dairy-ghee':        '🧈',
+  'palm-jaggery':      '🟤',
 };
 
 const RING_COLOR: Record<string, string> = {
   'fruits':            'border-red-200 bg-red-50',
   'vegetables':        'border-green-200 bg-green-50',
-  'valluvam':          'border-amber-200 bg-amber-50',
   'dry-fruits':        'border-orange-200 bg-orange-50',
   'nuts':              'border-yellow-200 bg-yellow-50',
-  'spices':            'border-red-300 bg-red-50',
   'cold-pressed-oils': 'border-yellow-300 bg-yellow-50',
   'millets':           'border-lime-200 bg-lime-50',
-  'dairy-ghee':        'border-amber-100 bg-amber-50',
+  'spices':            'border-red-300 bg-red-50',
   'honey':             'border-yellow-300 bg-yellow-50',
-  'seeds-health-mix':  'border-teal-200 bg-teal-50',
+  'dairy-ghee':        'border-amber-100 bg-amber-50',
+  'palm-jaggery':      'border-amber-300 bg-amber-50',
 };
 
 function CategoryCircle({ cat, isActive }: { cat: Category; isActive: boolean }) {

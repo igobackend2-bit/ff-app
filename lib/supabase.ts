@@ -181,9 +181,10 @@ export const db = {
       'honey',
       'dairy-ghee',
       'palm-jaggery',
-      // fallback slug variants in case the DB uses different names
+      // fallback slug variants in case the DB uses slightly different naming
       'oils',
       'ghee',
+      'dry-fruits-seeds',
     ];
     const ALLOWED_SET = new Set(ALLOWED_ORDER);
 

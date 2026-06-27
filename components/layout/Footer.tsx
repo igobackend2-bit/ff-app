@@ -25,17 +25,16 @@ const FOOTER_LINKS = {
 };
 
 const SHOP_CATEGORIES = [
-  { label: 'Fruits',             href: '/category/fruits' },
-  { label: 'Vegetables',         href: '/category/vegetables' },
-  { label: 'Valluvam Products',  href: '/category/valluvam-products' },
-  { label: 'Nuts',               href: '/category/nuts' },
-  { label: 'Dry Fruits',         href: '/category/dry-fruits' },
-  { label: 'Spices',             href: '/category/spices' },
-  { label: 'Millets',            href: '/category/millets' },
-  { label: 'Oils',               href: '/category/cold-pressed-oils' },
-  { label: 'Palm Jaggery',       href: '/category/honey-jaggery' },
-  { label: 'Honey',              href: '/category/honey' },
-  { label: 'Ghee',               href: '/category/dairy-ghee' },
+  { label: 'Fruits',       href: '/category/fruits' },
+  { label: 'Vegetables',   href: '/category/vegetables' },
+  { label: 'Dry Fruits',   href: '/category/dry-fruits' },
+  { label: 'Nuts',         href: '/category/nuts' },
+  { label: 'Oils',         href: '/category/cold-pressed-oils' },
+  { label: 'Millets',      href: '/category/millets' },
+  { label: 'Spices',       href: '/category/spices' },
+  { label: 'Honey',        href: '/category/honey' },
+  { label: 'Ghee',         href: '/category/dairy-ghee' },
+  { label: 'Palm Jaggery', href: '/category/palm-jaggery' },
 ];
 
 export function Footer() {
