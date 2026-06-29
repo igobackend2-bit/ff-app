@@ -14,7 +14,11 @@ export async function GET() {
       `${SB}/rest/v1/notifications?select=*&order=created_at.desc&limit=20`,
       { headers: H, cache: 'no-store' },
     );
-    if (!res.ok) return NextResponse.json({ notifications: [], unreadCount: 0 });
+    if (!res.ok) {
+      const errText = await res.text().catch(() => 'unknown');
+      console.error('[notifications/user] Supabase error', res.status, errText);
+      return NextResponse.json({ notifications: [], unreadCount: 0, _error: errText });
+    }
 
     const rows = await res.json() as Array<Record<string, unknown>>;
 
