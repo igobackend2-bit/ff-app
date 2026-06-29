@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useCallback } from 'react';
 import {
   StyleSheet,
   View,
@@ -11,24 +11,19 @@ import {
   TouchableOpacity,
   PermissionsAndroid,
   Alert,
+  AppState,
+  AppStateStatus,
 } from 'react-native';
 import { WebView, WebViewNavigation } from 'react-native-webview';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Voice from '@react-native-voice/voice';
-import * as Device from 'expo-device';
-import * as Notifications from 'expo-notifications';
-
-// Show notification banners while app is in foreground
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-  }),
-});
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const APP_URL = 'https://ff-app-pi-ten.vercel.app';
+const SB      = 'https://qwiumswrbddwmlraktvy.supabase.co';
+const SB_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF3aXVtc3dyYmRkd21scmFrdHZ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAxMjU3NTIsImV4cCI6MjA5NTcwMTc1Mn0.AsY045N7wHqMF_2P0-D2Ouzrkphjfkb4CP6ImhSm-tc';
 const BRAND_GREEN = '#16a34a';
+const LAST_NOTIF_KEY = 'ff_last_notif_ts';
 
 export default function App() {
   const webViewRef = useRef<WebView>(null);
@@ -37,48 +32,49 @@ export default function App() {
   const [error, setError]             = useState(false);
   const [canGoBack, setCanGoBack]     = useState(false);
 
-  // Request Android permissions + register for push notifications on startup
-  React.useEffect(() => {
-    if (Platform.OS !== 'android') return;
-    PermissionsAndroid.requestMultiple([
-      PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
-      PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION,
-      PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
-      PermissionsAndroid.PERMISSIONS.CAMERA,
-    ]).catch(() => {});
-
-    // Register for Expo push notifications
-    void (async () => {
-      try {
-        if (!Device.isDevice) return;
-        const { status: existing } = await Notifications.getPermissionsAsync();
-        let finalStatus = existing;
-        if (existing !== 'granted') {
-          const { status } = await Notifications.requestPermissionsAsync();
-          finalStatus = status;
+  // Fetch recent admin notifications and show any new ones as alerts
+  const checkNotifications = useCallback(async () => {
+    try {
+      const lastTs = await AsyncStorage.getItem(LAST_NOTIF_KEY).catch(() => null) ?? '1970-01-01T00:00:00Z';
+      const res = await fetch(
+        `${SB}/rest/v1/notifications?select=id,title,message,created_at&order=created_at.desc&limit=5`,
+        { headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` } },
+      );
+      if (!res.ok) return;
+      const rows = await res.json() as Array<{ id: string; title: string; message: string; created_at: string }>;
+      const newRows = rows.filter((r) => r.created_at > lastTs);
+      if (newRows.length > 0) {
+        // Save the latest timestamp
+        await AsyncStorage.setItem(LAST_NOTIF_KEY, newRows[0]!.created_at).catch(() => {});
+        // Show each new notification as an alert (most recent first)
+        for (const r of newRows) {
+          Alert.alert(r.title ?? 'Farmers Factory', r.message ?? '');
         }
-        if (finalStatus !== 'granted') return;
-
-        const tokenData = await Notifications.getExpoPushTokenAsync();
-        const pushToken = tokenData.data;
-
-        // Register this token with the server so admin broadcasts reach us
-        await fetch(`${APP_URL}/api/admin/push-tokens`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ token: pushToken, platform: 'android' }),
-        }).catch(() => {});
-      } catch { /* ignore */ }
-    })();
-
-    // Listen for incoming notifications when app is open
-    const sub = Notifications.addNotificationReceivedListener((notification) => {
-      const title = notification.request.content.title ?? '';
-      const body  = notification.request.content.body  ?? '';
-      if (title || body) Alert.alert(title, body);
-    });
-    return () => sub.remove();
+      }
+    } catch { /* ignore network errors */ }
   }, []);
+
+  // Request Android permissions on startup + check for notifications
+  React.useEffect(() => {
+    if (Platform.OS === 'android') {
+      PermissionsAndroid.requestMultiple([
+        PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+        PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION,
+        PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
+        PermissionsAndroid.PERMISSIONS.CAMERA,
+      ]).catch(() => {});
+    }
+
+    // Check on startup
+    void checkNotifications();
+
+    // Check again every time the app comes to foreground
+    const handleAppState = (next: AppStateStatus) => {
+      if (next === 'active') void checkNotifications();
+    };
+    const sub = AppState.addEventListener('change', handleAppState);
+    return () => sub.remove();
+  }, [checkNotifications]);
 
   // ── Native voice search — bridges device speech recognition into the web app ──
   const injectVoice = (fn: string, arg?: string) => {
