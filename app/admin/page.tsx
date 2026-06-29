@@ -70,6 +70,12 @@ export default function AdminDashboard() {
   const [topProducts, setTopProducts] = useState<Product[]>([]);
   const [topLoading, setTopLoading] = useState(true);
 
+  // Delivery minimum order config
+  const [minOrder, setMinOrder]       = useState(600);
+  const [minInput, setMinInput]       = useState('600');
+  const [minSaving, setMinSaving]     = useState(false);
+  const [minSaved,  setMinSaved]      = useState(false);
+
   // Load stats on mount
   useEffect(() => {
     fetch('/api/admin/stats')
@@ -78,6 +84,30 @@ export default function AdminDashboard() {
       .catch(() => setStats(null))
       .finally(() => setStatsLoading(false));
   }, []);
+
+  // Load delivery config
+  useEffect(() => {
+    fetch('/api/admin/delivery-config')
+      .then((r) => r.json())
+      .then((d: { min_order_amount?: number }) => {
+        if (d.min_order_amount) { setMinOrder(d.min_order_amount); setMinInput(String(d.min_order_amount)); }
+      })
+      .catch(() => {});
+  }, []);
+
+  const saveMinOrder = async () => {
+    const val = Number(minInput);
+    if (isNaN(val) || val < 0) return;
+    setMinSaving(true); setMinSaved(false);
+    try {
+      await fetch('/api/admin/delivery-config', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ min_order_amount: val }),
+      });
+      setMinOrder(val); setMinSaved(true);
+      setTimeout(() => setMinSaved(false), 3000);
+    } catch { /* ignore */ } finally { setMinSaving(false); }
+  };
 
   // Load top rated products
   useEffect(() => {
@@ -346,6 +376,36 @@ export default function AdminDashboard() {
             })}
           </div>
         )}
+      </div>
+
+      {/* ── Delivery Minimum Order Setting ── */}
+      <div className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
+        <h2 className="mb-1 text-base font-bold text-neutral-900">🚚 Minimum Order Amount</h2>
+        <p className="mb-4 text-xs text-neutral-400">
+          Customers must reach this cart value before placing an order. Currently: <strong>₹{minOrder}</strong>
+        </p>
+        <div className="flex items-center gap-3">
+          <div className="relative flex-1 max-w-xs">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-neutral-500">₹</span>
+            <input
+              type="number"
+              value={minInput}
+              onChange={(e) => setMinInput(e.target.value)}
+              min={0}
+              className="w-full rounded-xl border border-neutral-200 bg-neutral-50 py-2.5 pl-8 pr-3 text-sm font-bold focus:border-primary-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary-100"
+              placeholder="e.g. 600"
+            />
+          </div>
+          <button
+            onClick={() => void saveMinOrder()}
+            disabled={minSaving}
+            className="flex items-center gap-2 rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-primary-700 disabled:opacity-60"
+          >
+            {minSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+            {minSaving ? 'Saving…' : minSaved ? '✓ Saved' : 'Save'}
+          </button>
+        </div>
+        {minSaved && <p className="mt-2 text-xs font-semibold text-emerald-600">✓ Minimum order updated to ₹{minOrder}</p>}
       </div>
     </div>
   );

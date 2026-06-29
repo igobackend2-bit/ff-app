@@ -52,6 +52,17 @@ export function CheckoutForm() {
 
   const deliveryFee = subtotal >= 199 ? 0 : 25;
   const total       = subtotal + deliveryFee;
+  const [minOrder,  setMinOrder]  = useState(600);
+
+  // Load configurable minimum order amount
+  useEffect(() => {
+    fetch('/api/delivery-config')
+      .then((r) => r.json())
+      .then((d: { min_order_amount?: number }) => { if (d.min_order_amount) setMinOrder(d.min_order_amount); })
+      .catch(() => {});
+  }, []);
+
+  const belowMinimum = subtotal < minOrder;
 
   const [payMethod,     setPayMethod]     = useState<'COD' | 'RAZORPAY'>('COD');
   const [placingCod,    setPlacingCod]    = useState(false);
@@ -397,13 +408,24 @@ export function CheckoutForm() {
           </div>
         )}
 
+        {/* Minimum order warning */}
+        {belowMinimum && (
+          <div className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" />
+            <p className="text-sm font-semibold text-amber-700">
+              Minimum order is {formatPrice(minOrder)}. Add{' '}
+              <span className="font-black">{formatPrice(minOrder - subtotal)}</span> more to place your order.
+            </p>
+          </div>
+        )}
+
         {/* Place Order / Razorpay */}
         {payMethod === 'COD' ? (
           <button
             type="button"
             onClick={() => void handleCodOrder()}
-            disabled={placingCod}
-            className="flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-primary-600 text-base font-black text-white shadow-lg shadow-primary-200 transition-all hover:bg-primary-700 active:scale-[0.98] disabled:opacity-60"
+            disabled={placingCod || belowMinimum}
+            className="flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-primary-600 text-base font-black text-white shadow-lg shadow-primary-200 transition-all hover:bg-primary-700 active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed"
           >
             {placingCod
               ? <><Loader2 className="h-5 w-5 animate-spin" /> Placing Order...</>
@@ -415,6 +437,7 @@ export function CheckoutForm() {
             address={addressPayload}
             items={items}
             onValidateAddress={validateAddr}
+            disabled={belowMinimum}
           />
         )}
       </div>

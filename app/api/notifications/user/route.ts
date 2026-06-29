@@ -1,66 +1,36 @@
-// GET /api/notifications/user  — returns order-status notifications for logged-in user
+// GET /api/notifications/user — reads admin broadcast notifications from ERP Supabase
+// (Prisma is disabled in production via DB_DISABLED=1, so we go direct to Supabase)
 import { NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
-import { prisma } from '@/lib/db';
 
-type RawNotif = {
-  id: string; type: string; title: string; message: string;
-  targetUserId: string | null; orderId: string | null;
-  isAdminRead: number; isUserRead?: number; createdAt: string;
-};
+const SB  = 'https://qwiumswrbddwmlraktvy.supabase.co';
+const KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF3aXVtc3dyYmRkd21scmFrdHZ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAxMjU3NTIsImV4cCI6MjA5NTcwMTc1Mn0.AsY045N7wHqMF_2P0-D2Ouzrkphjfkb4CP6ImhSm-tc';
+const H   = { apikey: KEY, Authorization: `Bearer ${KEY}` };
 
-async function ensureTable() {
-  // Create table with ALL columns including isUserRead from the start
-  await prisma.$executeRawUnsafe(`
-    CREATE TABLE IF NOT EXISTS AppNotification (
-      id TEXT PRIMARY KEY, type TEXT NOT NULL DEFAULT 'INFO',
-      title TEXT NOT NULL, message TEXT NOT NULL,
-      targetUserId TEXT, orderId TEXT,
-      isAdminRead INTEGER NOT NULL DEFAULT 0,
-      isUserRead  INTEGER NOT NULL DEFAULT 0,
-      createdAt TEXT NOT NULL
-    )
-  `);
-  // Add isUserRead if table existed before without it
-  try {
-    await prisma.$executeRawUnsafe(
-      `ALTER TABLE AppNotification ADD COLUMN isUserRead INTEGER NOT NULL DEFAULT 0`,
-    );
-  } catch { /* already exists — fine */ }
-}
+export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
-    const session = await auth();
-    const userId  = (session?.user as { id?: string })?.id;
-    if (!userId) return NextResponse.json({ notifications: [], unreadCount: 0 });
-
-    await ensureTable();
-
-    const rows = await prisma.$queryRawUnsafe<RawNotif[]>(
-      `SELECT * FROM AppNotification WHERE (targetUserId = ? OR targetUserId IS NULL) ORDER BY createdAt DESC LIMIT 30`,
-      userId,
+    const res = await fetch(
+      `${SB}/rest/v1/notifications?select=*&order=created_at.desc&limit=20`,
+      { headers: H, cache: 'no-store' },
     );
+    if (!res.ok) return NextResponse.json({ notifications: [], unreadCount: 0 });
 
-    // Unread count — isolated catch so notifications still show even if col is missing
-    let unreadCount = 0;
-    try {
-      const unread = await prisma.$queryRawUnsafe<{ cnt: number }[]>(
-        `SELECT COUNT(*) AS cnt FROM AppNotification WHERE (targetUserId = ? OR targetUserId IS NULL) AND isUserRead = 0`,
-        userId,
-      );
-      unreadCount = Number(unread[0]?.cnt ?? 0);
-    } catch {
-      unreadCount = rows.length; // fallback: treat all as unread
-    }
+    const rows = await res.json() as Array<Record<string, unknown>>;
 
-    return NextResponse.json({
-      notifications: rows.map((r) => ({
-        ...r,
-        isRead: (r.isUserRead ?? 0) === 1,
-      })),
-      unreadCount,
-    });
+    const notifications = rows.map((r) => ({
+      id:           String(r['id'] ?? ''),
+      type:         String(r['type'] ?? 'INFO'),
+      title:        String(r['title'] ?? ''),
+      message:      String(r['message'] ?? r['body'] ?? ''),
+      isRead:       Boolean(r['is_read']),
+      createdAt:    String(r['created_at'] ?? ''),
+      targetUserId: null,
+      orderId:      null,
+    }));
+
+    const unreadCount = notifications.filter((n) => !n.isRead).length;
+    return NextResponse.json({ notifications, unreadCount });
   } catch (err) {
     console.error('[notifications/user]', err);
     return NextResponse.json({ notifications: [], unreadCount: 0 });
