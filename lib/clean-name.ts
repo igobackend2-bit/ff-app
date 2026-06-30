@@ -63,11 +63,27 @@ export function localizeImageUrls(urls: string[] | undefined | null): string[] {
 }
 
 // Category name overrides — keyed by category slug
+// These FORCE the correct display name regardless of what's in the DB category column
 const CATEGORY_NAME_FIXES: Record<string, string> = {
-  'valluvam':          'Naatu Sarkarai & Karupatti',
-  'naadu-sarkarai':    'Naatu Sarkarai',
-  'naatu-sarkarai':    'Naatu Sarkarai',
-  'palm-jaggery':      'Palm Jaggery (Karupatti)',
+  // Primary display slugs — always correct
+  'fruits':            'Fruits',
+  'vegetables':        'Vegetables',
+  'dry-fruits':        'Dry Fruits',
+  'dry-fruits-seeds':  'Dry Fruits & Seeds',
+  'nuts':              'Nuts',
+  'cold-pressed-oils': 'Cold-Pressed Oils',
+  'oils':              'Oils',
+  'millets':           'Millets',
+  'spices':            'Spices',
+  'honey':             'Honey',
+  'dairy-ghee':        'Dairy & Ghee',
+  'ghee':              'Ghee',
+  'palm-jaggery':      'Palm Jaggery',
+  // Legacy slugs that must NOT appear in UI
+  'valluvam':          'Traditional Products',
+  'naadu-sarkarai':    'Jaggery',
+  'naatu-sarkarai':    'Jaggery',
+  'seeds-health-mix':  'Seeds & Health Mix',
 };
 
 export function cleanCategoryName(name: string, slug?: string): string {

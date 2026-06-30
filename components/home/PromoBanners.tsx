@@ -64,13 +64,31 @@ export function PromoBanners() {
 
   if (banners.length === 0) return null;
 
+  // Expand banners: if a banner has screenshot1/screenshot2, create separate virtual cards
+  const cards: BannerSlide[] = [];
+  for (const b of banners) {
+    if (b.screenshot1 || b.screenshot2) {
+      // Each screenshot becomes its own ad card
+      if (b.screenshot1) cards.push({ ...b, id: `${b.id}-ss1`, imageUrl: b.screenshot1 });
+      if (b.screenshot2) cards.push({ ...b, id: `${b.id}-ss2`, imageUrl: b.screenshot2 });
+    } else if (b.imageUrl) {
+      cards.push(b);
+    }
+  }
+
+  // Fall back to original banners if no screenshot expansion happened
+  const display = cards.length > 0 ? cards : banners;
+  const shown = display.slice(0, 2);
+
+  if (shown.length === 0) return null;
+
   return (
     <section className="mb-8" aria-label="Promotions">
       <div className={cn(
         'grid gap-3',
-        banners.length === 1 ? 'grid-cols-1' : 'grid-cols-2',
+        shown.length === 1 ? 'grid-cols-1' : 'grid-cols-2',
       )}>
-        {banners.slice(0, 2).map((b) => (
+        {shown.map((b) => (
           <PromoCard key={b.id} banner={b} />
         ))}
       </div>
