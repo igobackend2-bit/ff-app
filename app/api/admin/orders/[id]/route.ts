@@ -1,50 +1,39 @@
-// Admin: Get / Update single order + stock restore on cancel + notifications
+// Admin: Update order status — uses ERP Supabase (Prisma is DB_DISABLED=1 in production)
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
 
-const VALID_STATUSES = [
-  'PLACED', 'CONFIRMED', 'PICKING', 'OUT_FOR_DELIVERY', 'DELIVERED', 'CANCELLED', 'REFUNDED',
-];
+const SB  = 'https://qwiumswrbddwmlraktvy.supabase.co';
+const KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF3aXVtc3dyYmRkd21scmFrdHZ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAxMjU3NTIsImV4cCI6MjA5NTcwMTc1Mn0.AsY045N7wHqMF_2P0-D2Ouzrkphjfkb4CP6ImhSm-tc';
+const H   = { apikey: KEY, Authorization: `Bearer ${KEY}`, 'Content-Type': 'application/json' };
+
+const VALID_STATUSES = ['PLACED','CONFIRMED','PICKING','OUT_FOR_DELIVERY','DELIVERED','CANCELLED','REFUNDED'];
 
 const STATUS_LABELS: Record<string, string> = {
-  PLACED: 'placed', CONFIRMED: 'confirmed', PICKING: 'being picked',
-  OUT_FOR_DELIVERY: 'out for delivery', DELIVERED: 'delivered',
-  CANCELLED: 'cancelled', REFUNDED: 'refunded',
+  PLACED: 'Order Placed', CONFIRMED: 'Confirmed', PICKING: 'Picking Items',
+  OUT_FOR_DELIVERY: 'Out for Delivery', DELIVERED: 'Delivered',
+  CANCELLED: 'Cancelled', REFUNDED: 'Refunded',
 };
-
-async function ensureNotifTable() {
-  await prisma.$executeRawUnsafe(`
-    CREATE TABLE IF NOT EXISTS AppNotification (
-      id TEXT PRIMARY KEY, type TEXT NOT NULL DEFAULT 'INFO',
-      title TEXT NOT NULL, message TEXT NOT NULL,
-      targetUserId TEXT, orderId TEXT,
-      isAdminRead INTEGER NOT NULL DEFAULT 0,
-      isUserRead  INTEGER NOT NULL DEFAULT 0,
-      createdAt TEXT NOT NULL
-    )
-  `);
-  try { await prisma.$executeRawUnsafe(`ALTER TABLE AppNotification ADD COLUMN isUserRead INTEGER NOT NULL DEFAULT 0`); } catch { /* exists */ }
-}
 
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const { id } = await params;
   try {
-    const { id } = await params;
-    const order = await prisma.order.findUnique({
-      where: { id },
-      include: {
-        user:    { select: { id: true, name: true, phone: true } },
-        items:   { include: { product: true } },
-        address: true,
-      },
-    });
-    if (!order) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-    return NextResponse.json({ order });
+    // Try orders table first, then sales_orders
+    const res = await fetch(`${SB}/rest/v1/orders?id=eq.${id}&select=*&limit=1`, { headers: H, cache: 'no-store' });
+    if (res.ok) {
+      const rows = await res.json() as unknown[];
+      if (rows.length > 0) return NextResponse.json({ order: rows[0] });
+    }
+    // Fallback to sales_orders
+    const res2 = await fetch(`${SB}/rest/v1/sales_orders?id=eq.${id}&select=*&limit=1`, { headers: H, cache: 'no-store' });
+    if (res2.ok) {
+      const rows2 = await res2.json() as unknown[];
+      if (rows2.length > 0) return NextResponse.json({ order: rows2[0] });
+    }
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
   } catch (err) {
-    console.error('[admin/orders/:id GET]', err);
-    return NextResponse.json({ error: 'Server error' }, { status: 500 });
+    return NextResponse.json({ error: String(err) }, { status: 500 });
   }
 }
 
@@ -52,105 +41,58 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const { id } = await params;
   try {
-    const { id } = await params;
-    const body   = await req.json() as { status?: string };
+    const body = await req.json() as { status?: string };
     const { status } = body;
 
     if (!status || !VALID_STATUSES.includes(status)) {
-      return NextResponse.json(
-        { error: `status must be one of: ${VALID_STATUSES.join(', ')}` },
-        { status: 400 },
-      );
+      return NextResponse.json({ error: `status must be one of: ${VALID_STATUSES.join(', ')}` }, { status: 400 });
     }
 
-    // Fetch current order + items BEFORE updating (needed for stock restore)
-    const current = await prisma.order.findUnique({
-      where: { id },
-      include: { items: true },
+    // Update in orders table
+    const r1 = await fetch(`${SB}/rest/v1/orders?id=eq.${id}`, {
+      method: 'PATCH',
+      headers: { ...H, Prefer: 'return=representation' },
+      body: JSON.stringify({ status, updated_at: new Date().toISOString() }),
+      cache: 'no-store',
     });
-    if (!current) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    const updated1 = r1.ok ? await r1.json() as unknown[] : [];
 
-    // Update status
-    const order = await prisma.order.update({
-      where: { id },
-      data:  { status },
-      select: { id: true, status: true, updatedAt: true, orderNumber: true, userId: true },
+    // Update in sales_orders table too (admin UI reads from there)
+    await fetch(`${SB}/rest/v1/sales_orders?id=eq.${id}`, {
+      method: 'PATCH',
+      headers: { ...H, Prefer: 'return=minimal' },
+      body: JSON.stringify({ status }),
+      cache: 'no-store',
     });
 
-    // ── Inventory decrease: first time order leaves PLACED ──────────────────
-    // Triggers on CONFIRMED, PICKING, OUT_FOR_DELIVERY, or DELIVERED
-    // (catches cases where CONFIRMED step is skipped)
-    const STORE_ID = 'main-store';
-    const DECREASE_TRIGGERS = ['CONFIRMED', 'PICKING', 'OUT_FOR_DELIVERY', 'DELIVERED'];
-    if (current.status === 'PLACED' && DECREASE_TRIGGERS.includes(status)) {
-      for (const item of current.items) {
-        try {
-          const existing = await prisma.inventory.findUnique({
-            where: { productId_darkStoreId: { productId: item.productId, darkStoreId: STORE_ID } },
-          });
-          if (existing) {
-            const newQty = Math.max(0, existing.quantity - item.quantity);
-            await prisma.inventory.update({
-              where: { productId_darkStoreId: { productId: item.productId, darkStoreId: STORE_ID } },
-              data:  { quantity: newQty },
-            });
-            if (newQty === 0) {
-              await prisma.product.update({ where: { id: item.productId }, data: { inStock: false } });
-            }
-          } else {
-            // No inventory record — create one at 0 so it shows out of stock
-            await prisma.inventory.create({
-              data: { productId: item.productId, darkStoreId: STORE_ID, quantity: 0, threshold: 10 },
-            });
-            await prisma.product.update({ where: { id: item.productId }, data: { inStock: false } });
-          }
-        } catch (sErr) {
-          console.error('[stock-decrease]', sErr);
-        }
-      }
-    }
+    const orderData = updated1[0] as Record<string, unknown> | undefined;
 
-    // ── Restore inventory if order was CANCELLED ─────────────────────────────
-    if (status === 'CANCELLED' && current.status !== 'CANCELLED') {
-      for (const item of current.items) {
-        try {
-          const existing = await prisma.inventory.findUnique({
-            where: { productId_darkStoreId: { productId: item.productId, darkStoreId: STORE_ID } },
-          });
-          if (existing) {
-            await prisma.inventory.update({
-              where: { productId_darkStoreId: { productId: item.productId, darkStoreId: STORE_ID } },
-              data:  { quantity: existing.quantity + item.quantity },
-            });
-          }
-          await prisma.product.update({ where: { id: item.productId }, data: { inStock: true } });
-        } catch (sErr) {
-          console.error('[stock-restore]', sErr);
-        }
-      }
-    }
-
-    // ── Create status-change notification ────────────────────────────────────
+    // Insert status-change notification into notifications table
     try {
-      await ensureNotifTable();
-      const nid   = 'n-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7);
-      const label = STATUS_LABELS[status] ?? status.toLowerCase();
-      await prisma.$executeRawUnsafe(
-        `INSERT INTO AppNotification (id,type,title,message,targetUserId,orderId,isAdminRead,isUserRead,createdAt)
-         VALUES (?,?,?,?,?,?,0,0,?)`,
-        nid, 'ORDER_STATUS',
-        `Order #${order.orderNumber} ${label}`,
-        `Your order #${order.orderNumber} has been ${label}.`,
-        order.userId, order.id, new Date().toISOString(),
-      );
-    } catch (nErr) {
-      console.error('[notif-status]', nErr);
-    }
+      const label = STATUS_LABELS[status] ?? status;
+      const orderNum = orderData?.['order_number'] ?? id.slice(0, 8);
+      const userId = orderData?.['user_id'] ?? null;
 
-    return NextResponse.json({ order });
+      await fetch(`${SB}/rest/v1/notifications`, {
+        method: 'POST',
+        headers: { ...H, Prefer: 'return=minimal' },
+        body: JSON.stringify({
+          type:    'ORDER_STATUS',
+          title:   `Order #${orderNum} — ${label}`,
+          message: `Your order #${orderNum} status has been updated to: ${label}`,
+          user_id: userId,
+          source:  'admin',
+          is_read: false,
+        }),
+        cache: 'no-store',
+      });
+    } catch { /* non-critical */ }
+
+    return NextResponse.json({ order: { id, status } });
   } catch (err) {
     console.error('[admin/orders/:id PATCH]', err);
-    return NextResponse.json({ error: 'Server error' }, { status: 500 });
+    return NextResponse.json({ error: String(err) }, { status: 500 });
   }
 }
