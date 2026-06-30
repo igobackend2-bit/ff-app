@@ -1,10 +1,10 @@
 'use client';
 
-import { useCallback } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import * as Dialog from '@radix-ui/react-dialog';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, ShoppingCart, ArrowRight, Truck, Minus, Plus } from 'lucide-react';
+import { X, ShoppingCart, ArrowRight, Truck } from 'lucide-react';
 import { useCartStore } from '@/store/cartStore';
 import { cn, formatPrice } from '@/lib/utils';
 import { CartItem } from './CartItem';
@@ -16,9 +16,19 @@ export function CartDrawer() {
   const subtotal = useCartStore((s) => s.subtotal());
   const isEmpty = useCartStore((s) => s.isEmpty());
 
+  const [minOrder, setMinOrder] = useState(600);
+
+  useEffect(() => {
+    fetch('/api/delivery-config')
+      .then((r) => r.json())
+      .then((d: { min_order_amount?: number }) => { if (d.min_order_amount) setMinOrder(d.min_order_amount); })
+      .catch(() => {});
+  }, []);
+
   const FREE_DELIVERY_THRESHOLD = 199;
   const deliveryFee = subtotal >= FREE_DELIVERY_THRESHOLD ? 0 : 25;
   const amountToFreeDelivery = FREE_DELIVERY_THRESHOLD - subtotal;
+  const belowMinimum = subtotal < minOrder;
 
   const handleOpenChange = useCallback(
     (open: boolean) => { if (!open) closeDrawer(); },
@@ -164,20 +174,31 @@ export function CartDrawer() {
                           <span>{formatPrice(subtotal + deliveryFee)}</span>
                         </div>
                       </div>
-                      <Dialog.Close asChild>
-                        <Link
-                          href="/checkout"
-                          className={cn(
-                            'flex w-full items-center justify-center gap-2',
-                            'rounded-2xl bg-primary-600 py-4',
-                            'text-base font-black text-white shadow-lg shadow-primary-200',
-                            'transition-all active:scale-[0.98] hover:bg-primary-700',
-                          )}
-                        >
-                          Proceed to Checkout
-                          <ArrowRight className="h-5 w-5" />
-                        </Link>
-                      </Dialog.Close>
+                      {belowMinimum ? (
+                        <div className="rounded-2xl bg-amber-50 border border-amber-200 px-4 py-3 text-center">
+                          <p className="text-sm font-bold text-amber-700">
+                            Minimum order is {formatPrice(minOrder)}
+                          </p>
+                          <p className="text-xs text-amber-600 mt-0.5">
+                            Add {formatPrice(minOrder - subtotal)} more to checkout
+                          </p>
+                        </div>
+                      ) : (
+                        <Dialog.Close asChild>
+                          <Link
+                            href="/checkout"
+                            className={cn(
+                              'flex w-full items-center justify-center gap-2',
+                              'rounded-2xl bg-primary-600 py-4',
+                              'text-base font-black text-white shadow-lg shadow-primary-200',
+                              'transition-all active:scale-[0.98] hover:bg-primary-700',
+                            )}
+                          >
+                            Proceed to Checkout
+                            <ArrowRight className="h-5 w-5" />
+                          </Link>
+                        </Dialog.Close>
+                      )}
                     </div>
                   </>
                 )}

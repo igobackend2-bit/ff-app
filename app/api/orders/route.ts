@@ -3,16 +3,16 @@ import { z } from 'zod';
 import { auth } from '@/lib/auth';
 import { syncOrderToERP } from '@/lib/erp-sync';
 
-const SB_URL  = process.env['NEXT_PUBLIC_SUPABASE_URL'] ?? '';
-const SB_SERV = process.env['SUPABASE_SERVICE_ROLE_KEY'] ?? '';
-const SB_ANON = process.env['NEXT_PUBLIC_SUPABASE_ANON_KEY'] ?? '';
+// Always use ERP Supabase (the active project) — customer Supabase is paused
+const SB_URL  = 'https://qwiumswrbddwmlraktvy.supabase.co';
+const SB_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF3aXVtc3dyYmRkd21scmFrdHZ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAxMjU3NTIsImV4cCI6MjA5NTcwMTc1Mn0.AsY045N7wHqMF_2P0-D2Ouzrkphjfkb4CP6ImhSm-tc';
 
 async function sbFetch<T>(
   table: string,
   opts: { method?: string; select?: string; filters?: string; body?: unknown; serviceRole?: boolean } = {},
 ): Promise<T[]> {
-  const { method = 'GET', select = '*', filters = '', body, serviceRole = false } = opts;
-  const key = serviceRole ? SB_SERV : SB_ANON;
+  const { method = 'GET', select = '*', filters = '', body } = opts;
+  const key = SB_KEY;
   const url = new URL(`${SB_URL}/rest/v1/${table}`);
   if (method === 'GET') {
     url.searchParams.set('select', select);
