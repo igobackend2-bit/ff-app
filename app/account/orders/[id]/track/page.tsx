@@ -85,10 +85,27 @@ export default function OrderTrackPage() {
     return () => clearInterval(interval);
   }, [fetchTracking]);
 
+  const TopHeader = ({ title, subtitle }: { title: string; subtitle?: string }) => (
+    <div className="sticky top-0 z-10 flex h-14 items-center gap-3 border-b border-neutral-100 bg-white px-4">
+      <button
+        onClick={() => router.back()}
+        className="flex h-9 w-9 items-center justify-center rounded-xl border border-neutral-200 hover:bg-neutral-50"
+        aria-label="Go back"
+      >
+        <ChevronLeft className="h-4 w-4" />
+      </button>
+      <div className="flex-1">
+        <p className="text-sm font-bold text-neutral-900">{title}</p>
+        {subtitle && <p className="text-xs text-neutral-500">{subtitle}</p>}
+      </div>
+    </div>
+  );
+
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-neutral-50">
-        <div className="flex flex-col items-center gap-3">
+      <div className="min-h-screen bg-neutral-50">
+        <TopHeader title={`Track Order #${orderId.slice(0, 8).toUpperCase()}`} />
+        <div className="flex flex-col items-center justify-center gap-3 py-24">
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary-200 border-t-primary-600" />
           <p className="text-sm text-neutral-500">Loading tracking info…</p>
         </div>
@@ -98,12 +115,15 @@ export default function OrderTrackPage() {
 
   if (error || !data) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-neutral-50 p-6">
-        <Package className="h-12 w-12 text-neutral-300" />
-        <p className="text-center text-sm font-medium text-neutral-600">{error || 'Order not found'}</p>
-        <Link href="/account/orders" className="rounded-xl bg-primary-600 px-6 py-2.5 text-sm font-bold text-white hover:bg-primary-700">
-          Back to Orders
-        </Link>
+      <div className="min-h-screen bg-neutral-50">
+        <TopHeader title="Track Order" />
+        <div className="flex flex-col items-center justify-center gap-4 p-6 py-24">
+          <Package className="h-12 w-12 text-neutral-300" />
+          <p className="text-center text-sm font-medium text-neutral-600">{error || 'Order not found'}</p>
+          <Link href="/account/orders" className="rounded-xl bg-primary-600 px-6 py-2.5 text-sm font-bold text-white hover:bg-primary-700">
+            Back to Orders
+          </Link>
+        </div>
       </div>
     );
   }

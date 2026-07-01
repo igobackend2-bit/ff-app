@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic';
 export async function GET() {
   try {
     const res = await fetch(
-      `${SB}/rest/v1/notifications?select=*&type=neq.SYSTEM_CONFIG&order=created_at.desc&limit=20`,
+      `${SB}/rest/v1/notifications?select=*&type=neq.SYSTEM_CONFIG&type=neq.USER_PROFILE&order=created_at.desc&limit=20`,
       { headers: H, cache: 'no-store' },
     );
     if (!res.ok) {

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { auth } from '@/lib/auth';
 import { syncOrderToERP } from '@/lib/erp-sync';
+import { saveProfileName } from '@/lib/user-profile';
 
 // Always use ERP Supabase (the active project) — customer Supabase is paused
 const SB_URL  = 'https://qwiumswrbddwmlraktvy.supabase.co';
@@ -130,6 +131,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Invalid request' }, { status: 400 });
     }
     const { items, paymentMethod, address } = parsed.data;
+
+    // Sync the delivery name to the customer's profile so it shows on next login
+    const sessionPhone = (session?.user as { phone?: string | null } | undefined)?.phone;
+    if (sessionPhone) void saveProfileName(sessionPhone, address.fullName);
 
     // Use prices from cart (client-provided) — no DB lookup needed
     const subtotal    = items.reduce((s, i) => s + i.unitPrice * i.quantity, 0);

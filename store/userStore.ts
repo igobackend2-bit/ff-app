@@ -32,6 +32,15 @@ export const useUserStore = create<UserState>()(
         set((state) => ({
           user: state.user ? { ...state.user, ...partial } : null,
         }));
+        if (partial.name) {
+          try {
+            await fetch('/api/user/profile', {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ name: partial.name }),
+            });
+          } catch { /* local state already updated; server sync best-effort */ }
+        }
       },
       isLoggedIn: () => get().user !== null,
     }),

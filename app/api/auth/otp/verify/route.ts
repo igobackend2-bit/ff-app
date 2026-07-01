@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { encode } from 'next-auth/jwt';
 import { signIn, AUTH_SECRET } from '@/lib/auth';
 import { prisma } from '@/lib/db';
+import { getProfileName, saveProfileName } from '@/lib/user-profile';
 
 // NextAuth v5 session cookie name (Secure prefix on HTTPS / production)
 const SESSION_COOKIE =
@@ -98,9 +99,18 @@ export async function POST(req: NextRequest) {
       } catch { /* DB unavailable — fall back to JWT-only user below */ }
 
       if (!user) {
+        // If a name was explicitly given (signup), persist it. Otherwise, load
+        // whatever name was previously saved for this phone (profile edit or checkout).
+        let resolvedName = name;
+        if (resolvedName) {
+          void saveProfileName(phone, resolvedName);
+        } else {
+          resolvedName = (await getProfileName(phone).catch(() => null)) ?? undefined;
+        }
+
         user = {
           id:            `phone:${phone}`,
-          name:          name || `Farmer ${phone.slice(-4)}`,
+          name:          resolvedName || `Farmer ${phone.slice(-4)}`,
           email:         null,
           phone,
           avatarUrl:     null,
