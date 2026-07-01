@@ -90,11 +90,11 @@ export default function HelpPage() {
           <h2 className="mb-1 font-black text-lg">Still need help?</h2>
           <p className="mb-4 text-sm text-emerald-100">Our support team is available 7 days a week, 8 AM – 10 PM.</p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <a href="tel:+918000000000" className="flex items-center justify-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-bold text-emerald-700 hover:bg-emerald-50 transition-colors">
-              <Phone className="h-4 w-4" /> +91 80000 00000
+            <a href="tel:+918925878327" className="flex items-center justify-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-bold text-emerald-700 hover:bg-emerald-50 transition-colors">
+              <Phone className="h-4 w-4" /> +91 89258 78327
             </a>
-            <a href="mailto:support@farmersfactory.in" className="flex items-center justify-center gap-2 rounded-xl bg-white/20 px-4 py-2.5 text-sm font-bold text-white hover:bg-white/30 transition-colors">
-              <Mail className="h-4 w-4" /> support@farmersfactory.in
+            <a href="mailto:info.thefarmersfactory@gmail.com" className="flex items-center justify-center gap-2 rounded-xl bg-white/20 px-4 py-2.5 text-sm font-bold text-white hover:bg-white/30 transition-colors">
+              <Mail className="h-4 w-4" /> info.thefarmersfactory@gmail.com
             </a>
           </div>
         </div>

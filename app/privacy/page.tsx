@@ -16,7 +16,7 @@ const SECTIONS = [
   { title: "7. Children's Privacy", body: 'Our services are not directed to children under 13. We do not knowingly collect personal data from children. If you believe we have inadvertently collected such data, please contact us immediately.' },
   { title: '8. Security', body: 'We implement industry-standard security measures including HTTPS, encrypted storage, and access controls. Despite best efforts, no transmission over the Internet is 100% secure.' },
   { title: '9. Changes to This Policy', body: 'We may update this policy from time to time. We will notify you via email or in-app notification for material changes. Continued use of our services after the changes means you accept the updated policy.' },
-  { title: '10. Contact', body: 'For privacy-related queries, write to: privacy@farmersfactory.in or Farmers Factory Technologies Pvt. Ltd., 12th Floor, Prestige Tech Park, Marathahalli, Bangalore – 560037.' },
+  { title: '10. Contact', body: 'For privacy-related queries, write to: info.thefarmersfactory@gmail.com or Farmers Factory, No 17, Kovalan Street, 2nd Main Road, Uthandi Kanathur, Chennai – 600119.' },
 ];
 
 export default function PrivacyPage() {

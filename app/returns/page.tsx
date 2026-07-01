@@ -31,7 +31,7 @@ export default function ReturnsPage() {
           { title: '3. Refund Process', body: 'Approved refunds are credited within 2–3 business days to the original payment method. UPI and wallet refunds are typically instant. COD orders receive a refund to your Farmers Factory wallet for use on the next order (or bank transfer on request).' },
           { title: '4. Replacements', body: 'For quality issues on fresh produce, we will send a replacement with your next order at no extra delivery charge. You can also opt for a full refund instead.' },
           { title: '5. Non-Refundable Items', body: 'Products that have been consumed or significantly used, items marked "Final Sale", and incorrect orders placed by the customer (wrong item selected) are not eligible for return.' },
-          { title: '6. Contact Us', body: 'For any return-related queries, contact us at support@farmersfactory.in or call +91 80000 00000 (8 AM – 10 PM, 7 days a week).' },
+          { title: '6. Contact Us', body: 'For any return-related queries, contact us at info.thefarmersfactory@gmail.com or call +91 89258 78327 (8 AM – 10 PM, 7 days a week).' },
         ].map(({ title, body }) => (
           <section key={title}>
             <h2 className="mb-2 font-black text-neutral-900">{title}</h2>

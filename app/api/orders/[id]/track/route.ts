@@ -1,8 +1,8 @@
 // Customer: Live order tracking status
 import { NextRequest, NextResponse } from 'next/server';
 
-const SB_URL  = process.env['NEXT_PUBLIC_SUPABASE_URL'] ?? '';
-const SB_SERV = process.env['SUPABASE_SERVICE_ROLE_KEY'] ?? '';
+const SB_URL  = 'https://qwiumswrbddwmlraktvy.supabase.co';
+const SB_SERV = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF3aXVtc3dyYmRkd21scmFrdHZ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAxMjU3NTIsImV4cCI6MjA5NTcwMTc1Mn0.AsY045N7wHqMF_2P0-D2Ouzrkphjfkb4CP6ImhSm-tc';
 
 const STATUS_STEPS = [
   { key: 'PLACED',           label: 'Order Placed',     emoji: '🛒', desc: 'Your order has been received.' },
@@ -100,14 +100,27 @@ export async function GET(
       cache: 'no-store',
     });
 
-    if (!res.ok) {
+    let order: any = null;
+    if (res.ok) {
+      const rows = await res.json() as any[];
+      if (rows.length) order = rows[0];
+    }
+
+    // Fallback: check sales_orders (ERP table) if not found in orders
+    if (!order) {
+      const res2 = await fetch(
+        `${SB_URL}/rest/v1/sales_orders?id=eq.${id}&select=id,status,total,total_amount,created_at,delivery_address&limit=1`,
+        { headers: { apikey: key, Authorization: `Bearer ${key}`, Accept: 'application/json' }, cache: 'no-store' },
+      );
+      if (res2.ok) {
+        const rows2 = await res2.json() as any[];
+        if (rows2.length) order = rows2[0];
+      }
+    }
+
+    if (!order) {
       return NextResponse.json({ error: 'Order not found' }, { status: 404 });
     }
-    const rows = await res.json() as any[];
-    if (!rows.length) {
-      return NextResponse.json({ error: 'Order not found' }, { status: 404 });
-    }
-    const order = rows[0] as any;
 
     // Fetch order items
     let items: any[] = [];

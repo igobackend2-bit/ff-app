@@ -28,7 +28,7 @@ export default function SupportPage() {
     'address': 'You can add or edit addresses under My Account > Saved Addresses.',
     'payment': 'We accept UPI, credit/debit cards, net banking, and Cash on Delivery up to Rs. 2,000.',
     'quality': 'If you received a damaged or poor-quality product, tap "Report Issue" on your order within 24 hours.',
-    'contact': 'Call us at +91 80000 00000 or email support@farmersfactory.in — we are available 8 AM to 10 PM every day.',
+    'contact': 'Call us at +91 89258 78327 or email info.thefarmersfactory@gmail.com — we are available 8 AM to 10 PM every day.',
   };
 
   const handleSend = () => {
@@ -43,7 +43,7 @@ export default function SupportPage() {
       const key = Object.keys(AUTO_REPLIES).find(k => lower.includes(k));
       const reply = key
         ? AUTO_REPLIES[key]
-        : 'Thanks for reaching out! For this query, please contact us at support@farmersfactory.in or call +91 80000 00000.';
+        : 'Thanks for reaching out! For this query, please contact us at info.thefarmersfactory@gmail.com or call +91 89258 78327.';
       setMessages(prev => [...prev, { from: 'bot', text: reply ?? '' }]);
       setSending(false);
     }, 700);
@@ -116,24 +116,24 @@ export default function SupportPage() {
         <section>
           <h2 className="mb-4 font-black text-neutral-900">Contact Us Directly</h2>
           <div className="grid gap-3 sm:grid-cols-2">
-            <a href="tel:+918000000000"
+            <a href="tel:+918925878327"
               className="flex items-center gap-3 rounded-2xl border border-neutral-100 bg-white p-4 shadow-sm hover:border-emerald-200 transition-colors">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50">
                 <Phone className="h-5 w-5 text-emerald-600" />
               </div>
               <div>
                 <p className="text-xs font-bold uppercase tracking-wider text-neutral-400">Call / WhatsApp</p>
-                <p className="font-bold text-neutral-900">+91 80000 00000</p>
+                <p className="font-bold text-neutral-900">+91 89258 78327</p>
               </div>
             </a>
-            <a href="mailto:support@farmersfactory.in"
+            <a href="mailto:info.thefarmersfactory@gmail.com"
               className="flex items-center gap-3 rounded-2xl border border-neutral-100 bg-white p-4 shadow-sm hover:border-emerald-200 transition-colors">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50">
                 <Mail className="h-5 w-5 text-blue-600" />
               </div>
               <div>
                 <p className="text-xs font-bold uppercase tracking-wider text-neutral-400">Email</p>
-                <p className="font-bold text-neutral-900">support@farmersfactory.in</p>
+                <p className="font-bold text-neutral-900">info.thefarmersfactory@gmail.com</p>
               </div>
             </a>
           </div>

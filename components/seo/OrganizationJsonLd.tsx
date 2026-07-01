@@ -26,7 +26,8 @@ export function OrganizationJsonLd() {
         contactPoint: {
           '@type': 'ContactPoint',
           contactType: 'customer support',
-          email: 'support@farmersfactory.in',
+          email: 'info.thefarmersfactory@gmail.com',
+          telephone: '+91-89258-78327',
           availableLanguage: ['English', 'Hindi'],
         },
         sameAs: [

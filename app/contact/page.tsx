@@ -5,11 +5,27 @@ import { Phone, Mail, MapPin, Clock, Send } from 'lucide-react';
 
 export default function ContactPage() {
   const [sent, setSent] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState('');
   const [form, setForm] = useState({ name: '', email: '', phone: '', subject: '', message: '' });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSent(true);
+    setSending(true);
+    setError('');
+    try {
+      const res = await fetch('/api/contact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      });
+      if (!res.ok) throw new Error('Failed to send');
+      setSent(true);
+    } catch {
+      setError('Could not send your message. Please try again or contact us directly.');
+    } finally {
+      setSending(false);
+    }
   };
 
   const inp = 'h-10 w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3 text-sm placeholder:text-neutral-400 focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-100';
@@ -28,10 +44,9 @@ export default function ContactPage() {
           <div className="space-y-4">
             <h2 className="text-xl font-black text-neutral-900">Get in Touch</h2>
             {[
-              { icon: Phone, label: 'Phone / WhatsApp', value: '+91 80000 00000', href: 'tel:+918000000000' },
-              { icon: Mail, label: 'Email Support', value: 'support@farmersfactory.in', href: 'mailto:support@farmersfactory.in' },
-              { icon: Mail, label: 'Business Enquiries', value: 'business@farmersfactory.in', href: 'mailto:business@farmersfactory.in' },
-              { icon: MapPin, label: 'Head Office', value: '12th Floor, Prestige Tech Park, Marathahalli, Bangalore – 560037', href: null },
+              { icon: Phone, label: 'Phone / WhatsApp', value: '+91 89258 78327', href: 'tel:+918925878327' },
+              { icon: Mail, label: 'Email Support', value: 'info.thefarmersfactory@gmail.com', href: 'mailto:info.thefarmersfactory@gmail.com' },
+              { icon: MapPin, label: 'Head Office', value: 'No 17, Kovalan Street, 2nd Main Road, Uthandi Kanathur, Chennai – 600119', href: null },
               { icon: Clock, label: 'Support Hours', value: 'Monday – Sunday: 8 AM – 10 PM IST', href: null },
             ].map(({ icon: Icon, label, value, href }) => (
               <div key={label} className="flex items-start gap-3 rounded-2xl bg-white p-4 shadow-sm">
@@ -87,8 +102,9 @@ export default function ContactPage() {
                     <textarea required rows={4} placeholder="Tell us how we can help..." value={form.message} onChange={e => setForm(f => ({...f, message: e.target.value}))}
                       className="w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2.5 text-sm placeholder:text-neutral-400 focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-100 resize-none" />
                   </div>
-                  <button type="submit" className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 py-3 text-sm font-bold text-white hover:bg-emerald-700 transition-colors">
-                    <Send className="h-4 w-4" /> Send Message
+                  {error && <p className="text-sm font-semibold text-red-600">{error}</p>}
+                  <button type="submit" disabled={sending} className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 py-3 text-sm font-bold text-white hover:bg-emerald-700 transition-colors disabled:opacity-60">
+                    <Send className="h-4 w-4" /> {sending ? 'Sending…' : 'Send Message'}
                   </button>
                 </form>
               </>

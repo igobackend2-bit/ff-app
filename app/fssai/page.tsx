@@ -50,7 +50,7 @@ export default function FSSAIPage() {
           { title: 'Our Food Safety Commitment', body: 'Farmers Factory adheres to all food safety standards prescribed by FSSAI. We maintain temperature-controlled storage, follow strict hygiene protocols, and conduct regular audits at our fulfilment centres.' },
           { title: 'Product Labelling', body: 'All packaged food products sold through Farmers Factory are labelled in accordance with FSSAI regulations, including nutritional information, ingredients, allergen declarations, and best-before dates.' },
           { title: 'Grievance Redressal', body: 'For food-safety related complaints, you may also approach the FSSAI directly at https://foscos.fssai.gov.in or the National Consumer Helpline at 1800-11-4000.' },
-          { title: 'Regulatory Contact', body: 'For regulatory enquiries, contact our Compliance Officer at compliance@farmersfactory.in or at our registered office: 12th Floor, Prestige Tech Park, Marathahalli, Bangalore – 560037.' },
+          { title: 'Regulatory Contact', body: 'For regulatory enquiries, contact our Compliance Officer at info.thefarmersfactory@gmail.com or at our registered office: No 17, Kovalan Street, 2nd Main Road, Uthandi Kanathur, Chennai – 600119.' },
         ].map(({ title, body }) => (
           <section key={title} className="rounded-2xl border border-neutral-100 bg-white p-5 shadow-sm">
             <h2 className="mb-2 font-black text-neutral-900">{title}</h2>
