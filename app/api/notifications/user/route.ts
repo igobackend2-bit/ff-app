@@ -22,16 +22,27 @@ export async function GET() {
 
     const rows = await res.json() as Array<Record<string, unknown>>;
 
-    const notifications = rows.map((r) => ({
-      id:           String(r['id'] ?? ''),
-      type:         String(r['type'] ?? 'INFO'),
-      title:        String(r['title'] ?? ''),
-      message:      String(r['message'] ?? r['body'] ?? ''),
-      isRead:       Boolean(r['is_read']),
-      createdAt:    String(r['created_at'] ?? ''),
-      targetUserId: null,
-      orderId:      null,
-    }));
+    // Deduplicate: keep only the newest row per (type+title+message) combination
+    const seen = new Set<string>();
+    const notifications: Array<{
+      id: string; type: string; title: string; message: string;
+      isRead: boolean; createdAt: string; targetUserId: null; orderId: null;
+    }> = [];
+    for (const r of rows) {
+      const key = `${r['type']}|${r['title']}|${r['message'] ?? r['body']}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      notifications.push({
+        id:           String(r['id'] ?? ''),
+        type:         String(r['type'] ?? 'INFO'),
+        title:        String(r['title'] ?? ''),
+        message:      String(r['message'] ?? r['body'] ?? ''),
+        isRead:       Boolean(r['is_read']),
+        createdAt:    String(r['created_at'] ?? ''),
+        targetUserId: null,
+        orderId:      null,
+      });
+    }
 
     const unreadCount = notifications.filter((n) => !n.isRead).length;
     return NextResponse.json({ notifications, unreadCount });

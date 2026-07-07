@@ -121,8 +121,19 @@ export function Header() {
   const openNotifications = () => {
     setNotifOpen(true);
     setUnreadCount(0);
-    // Mark all as read
     fetch('/api/notifications/user/mark-read', { method: 'POST' }).catch(() => null);
+  };
+
+  const markAllRead = () => {
+    setNotifs((prev) => prev.map((n) => ({ ...n, isRead: true })));
+    setUnreadCount(0);
+    fetch('/api/notifications/user/mark-read', { method: 'POST' }).catch(() => null);
+  };
+
+  const clearAll = () => {
+    setNotifs([]);
+    setUnreadCount(0);
+    fetch('/api/notifications/user/clear', { method: 'DELETE' }).catch(() => null);
   };
 
   // Delayed Login Popup logic
@@ -351,9 +362,27 @@ export function Header() {
                   <div className="absolute right-0 mt-2 z-50 w-80 origin-top-right rounded-2xl border border-neutral-100 bg-white shadow-xl ring-1 ring-black/5 animate-in fade-in zoom-in duration-200">
                     <div className="flex items-center justify-between border-b border-neutral-50 px-4 py-3">
                       <p className="text-sm font-bold text-neutral-900">Notifications</p>
-                      <button onClick={() => setNotifOpen(false)} className="text-neutral-400 hover:text-neutral-600">
-                        <span className="text-xs">✕</span>
-                      </button>
+                      <div className="flex items-center gap-2">
+                        {notifs.some((n) => !n.isRead) && (
+                          <button
+                            onClick={markAllRead}
+                            className="text-[11px] font-semibold text-primary-600 hover:text-primary-700"
+                          >
+                            Mark all read
+                          </button>
+                        )}
+                        {notifs.length > 0 && (
+                          <button
+                            onClick={clearAll}
+                            className="text-[11px] font-semibold text-red-500 hover:text-red-600"
+                          >
+                            Clear all
+                          </button>
+                        )}
+                        <button onClick={() => setNotifOpen(false)} className="text-neutral-400 hover:text-neutral-600 ml-1">
+                          <span className="text-xs">✕</span>
+                        </button>
+                      </div>
                     </div>
                     <div className="max-h-80 overflow-y-auto">
                       {notifs.length === 0 ? (
