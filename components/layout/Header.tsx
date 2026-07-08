@@ -100,16 +100,31 @@ export function Header() {
   const { openLocationModal, openSearch, openAuthModal } = useUIStore();
   const { user, isLoggedIn } = useUserStore();
 
-  // Fetch user notifications when logged in
+  // localStorage key for dismissed notification IDs
+  const DISMISSED_KEY = 'ff_dismissed_notifs';
+
+  const getDismissed = (): Set<string> => {
+    try { return new Set(JSON.parse(localStorage.getItem(DISMISSED_KEY) ?? '[]') as string[]); }
+    catch { return new Set(); }
+  };
+
+  const saveDismissed = (ids: Set<string>) => {
+    try { localStorage.setItem(DISMISSED_KEY, JSON.stringify([...ids])); } catch { /* ignore */ }
+  };
+
+  // Fetch user notifications, filtering out dismissed ones
   useEffect(() => {
     if (!mounted || !userHydrated) return;
     if (!isLoggedIn()) return;
+
     const fetchNotifs = () => {
       fetch('/api/notifications/user')
         .then((r) => r.json())
         .then((d: { notifications: UserNotif[]; unreadCount: number }) => {
-          setNotifs(d.notifications ?? []);
-          setUnreadCount(d.unreadCount ?? 0);
+          const dismissed = getDismissed();
+          const visible = (d.notifications ?? []).filter((n) => !dismissed.has(n.id));
+          setNotifs(visible);
+          setUnreadCount(visible.filter((n) => !n.isRead).length);
         })
         .catch(() => null);
     };
@@ -120,6 +135,8 @@ export function Header() {
 
   const openNotifications = () => {
     setNotifOpen(true);
+    // Mark all visible as read in state
+    setNotifs((prev) => prev.map((n) => ({ ...n, isRead: true })));
     setUnreadCount(0);
     fetch('/api/notifications/user/mark-read', { method: 'POST' }).catch(() => null);
   };
@@ -130,10 +147,23 @@ export function Header() {
     fetch('/api/notifications/user/mark-read', { method: 'POST' }).catch(() => null);
   };
 
+  const dismissNotif = (id: string) => {
+    setNotifs((prev) => {
+      const next = prev.filter((n) => n.id !== id);
+      setUnreadCount(next.filter((n) => !n.isRead).length);
+      return next;
+    });
+    const dismissed = getDismissed();
+    dismissed.add(id);
+    saveDismissed(dismissed);
+  };
+
   const clearAll = () => {
+    const dismissed = getDismissed();
+    notifs.forEach((n) => dismissed.add(n.id));
+    saveDismissed(dismissed);
     setNotifs([]);
     setUnreadCount(0);
-    fetch('/api/notifications/user/clear', { method: 'DELETE' }).catch(() => null);
   };
 
   // Delayed Login Popup logic
@@ -405,6 +435,13 @@ export function Header() {
                               <p className="text-xs text-neutral-500 leading-snug mt-0.5">{n.message}</p>
                               <p className="text-[10px] text-neutral-400 mt-1">{timeAgo(n.createdAt)}</p>
                             </div>
+                            <button
+                              onClick={() => dismissNotif(n.id)}
+                              className="shrink-0 mt-0.5 text-neutral-300 hover:text-neutral-500 text-xs leading-none"
+                              aria-label="Dismiss notification"
+                            >
+                              ✕
+                            </button>
                           </div>
                         ))
                       )}
