@@ -3,7 +3,11 @@ node_modules/
 *.bat
 *.md
 ios/
-android/
+android/.gradle/
+android/build/
+android/app/build/
+android/.cxx/
+android/local.properties
 .expo/
 dist/
 web-build/
