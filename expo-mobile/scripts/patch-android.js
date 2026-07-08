@@ -23,12 +23,33 @@ function patch(filePath, description, fn) {
 
 const nm = path.join(__dirname, '..', 'node_modules');
 
+// Replaces `${marker} = {` through its true matching closing brace (brace-counted,
+// not regex-guessed) so nested blocks of arbitrary depth/indentation are fully consumed.
+function replaceBalancedBlock(src, marker, replacement) {
+  const start = src.indexOf(marker);
+  if (start === -1) return src;
+  const braceStart = src.indexOf('{', start);
+  if (braceStart === -1) return src;
+  let depth = 0;
+  for (let i = braceStart; i < src.length; i++) {
+    if (src[i] === '{') depth++;
+    else if (src[i] === '}') {
+      depth--;
+      if (depth === 0) {
+        return src.slice(0, start) + replacement + src.slice(i + 1);
+      }
+    }
+  }
+  return src; // unbalanced — leave untouched rather than corrupt the file
+}
+
 // ── 1. expo-modules-core: make useExpoPublishing a no-op ──────────────────
 patch(
   path.join(nm, 'expo-modules-core', 'android', 'ExpoModulesCorePlugin.gradle'),
   'expo-modules-core useExpoPublishing no-op',
-  (src) => src.replace(
-    /ext\.useExpoPublishing\s*=\s*\{[\s\S]*?\n  \}/m,
+  (src) => replaceBalancedBlock(
+    src,
+    'ext.useExpoPublishing =',
     'ext.useExpoPublishing = { /* no-op — disabled for AGP 8 compatibility */ }',
   ),
 );
