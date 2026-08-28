@@ -131,13 +131,18 @@ export function Footer() {
         </div>
 
         {/* ── Bottom bar ──────────────────────────────────────── */}
-        <div className="mt-8 flex flex-col items-center justify-between gap-3 border-t border-neutral-200 pt-6 text-xs text-neutral-500 sm:flex-row">
-          <p>
-            © {new Date().getFullYear()} Farmers Factory Technologies Pvt. Ltd. All rights reserved.
+        <div className="mt-8 space-y-2 border-t border-neutral-200 pt-6 text-xs text-neutral-500">
+          <p className="text-center sm:text-left">
+            Farmers Factory is one of the brands of IGO Precision Farming Pvt Ltd.
           </p>
-          <p>
-            Made with ❤️ in India · CIN: U74999MH2024PTC000001
-          </p>
+          <div className="flex flex-col items-center justify-between gap-3 sm:flex-row">
+            <p>
+              © {new Date().getFullYear()} IGO Precision Farming Pvt Ltd. All rights reserved.
+            </p>
+            <p>
+              Made with ❤️ in India · CIN: U74999MH2024PTC000001
+            </p>
+          </div>
         </div>
       </div>
     </footer>

@@ -5,7 +5,12 @@
 // table (type=USER_PROFILE) so this works even before that table's SQL is run.
 const SB  = 'https://qwiumswrbddwmlraktvy.supabase.co';
 const KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF3aXVtc3dyYmRkd21scmFrdHZ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAxMjU3NTIsImV4cCI6MjA5NTcwMTc1Mn0.AsY045N7wHqMF_2P0-D2Ouzrkphjfkb4CP6ImhSm-tc';
-const H   = { apikey: KEY, Authorization: `Bearer ${KEY}`, 'Content-Type': 'application/json' };
+// Reads can use the public anon key; writes need the service-role key to get
+// past row-level security (anon INSERT/UPSERT on these tables is denied, which
+// is why saved names never persisted). Falls back to anon if the env is unset.
+const SKEY = process.env['SUPABASE_SERVICE_ROLE_KEY'] || KEY;
+const H   = { apikey: KEY,  Authorization: `Bearer ${KEY}`,  'Content-Type': 'application/json' };
+const WH  = { apikey: SKEY, Authorization: `Bearer ${SKEY}`, 'Content-Type': 'application/json' };
 
 export async function getProfileName(phone: string): Promise<string | null> {
   if (!phone) return null;
@@ -13,7 +18,7 @@ export async function getProfileName(phone: string): Promise<string | null> {
   try {
     const r = await fetch(
       `${SB}/rest/v1/customer_profiles?phone=eq.${encodeURIComponent(phone)}&select=name&limit=1`,
-      { headers: H, cache: 'no-store' },
+      { headers: WH, cache: 'no-store' },
     );
     if (r.ok) {
       const rows = await r.json() as Array<{ name: string }>;
@@ -24,7 +29,7 @@ export async function getProfileName(phone: string): Promise<string | null> {
   try {
     const r = await fetch(
       `${SB}/rest/v1/notifications?type=eq.USER_PROFILE&title=eq.${encodeURIComponent(phone)}&select=message&order=created_at.desc&limit=1`,
-      { headers: H, cache: 'no-store' },
+      { headers: WH, cache: 'no-store' },
     );
     if (r.ok) {
       const rows = await r.json() as Array<{ message: string }>;
@@ -36,7 +41,7 @@ export async function getProfileName(phone: string): Promise<string | null> {
   try {
     const r = await fetch(
       `${SB}/rest/v1/orders?customer_phone=eq.${encodeURIComponent(phone)}&select=customer_name&order=created_at.desc&limit=1`,
-      { headers: H, cache: 'no-store' },
+      { headers: WH, cache: 'no-store' },
     );
     if (r.ok) {
       const rows = await r.json() as Array<{ customer_name: string }>;
@@ -55,27 +60,29 @@ export async function saveProfileName(phone: string, name: string): Promise<void
   try {
     const r = await fetch(`${SB}/rest/v1/customer_profiles`, {
       method: 'POST',
-      headers: { ...H, Prefer: 'resolution=merge-duplicates' },
-      body: JSON.stringify({ phone, name: trimmed }),
+      headers: { ...WH, Prefer: 'resolution=merge-duplicates' },
+      body: JSON.stringify({ phone, name: trimmed, updated_at: new Date().toISOString() }),
       cache: 'no-store',
     });
     if (r.ok) saved = true;
-  } catch { /* fall through */ }
+    else console.warn('[user-profile] customer_profiles upsert failed:', r.status, (await r.text()).slice(0, 160));
+  } catch (e) { console.warn('[user-profile] customer_profiles error:', String(e).slice(0, 120)); }
 
   if (!saved) {
     await fetch(
       `${SB}/rest/v1/notifications?type=eq.USER_PROFILE&title=eq.${encodeURIComponent(phone)}`,
-      { method: 'DELETE', headers: H, cache: 'no-store' },
+      { method: 'DELETE', headers: WH, cache: 'no-store' },
     ).catch(() => {});
 
-    await fetch(`${SB}/rest/v1/notifications`, {
+    const r = await fetch(`${SB}/rest/v1/notifications`, {
       method: 'POST',
-      headers: { ...H, Prefer: 'return=minimal' },
+      headers: { ...WH, Prefer: 'return=minimal' },
       body: JSON.stringify({
         type: 'USER_PROFILE', title: phone,
         message: trimmed, is_read: true, source: 'system',
       }),
       cache: 'no-store',
-    }).catch(() => {});
+    }).catch((e) => { console.warn('[user-profile] notifications fallback error:', String(e).slice(0, 120)); return null; });
+    if (r && !r.ok) console.warn('[user-profile] notifications fallback failed:', r.status, (await r.text()).slice(0, 160));
   }
 }

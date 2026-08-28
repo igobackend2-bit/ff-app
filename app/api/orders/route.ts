@@ -56,14 +56,24 @@ const orderSchema = z.object({
 export async function GET(req: NextRequest) {
   try {
     const session = await auth();
-    const userId  = (session?.user as { id?: string })?.id;
+    const sUser   = session?.user as { id?: string; phone?: string | null } | undefined;
+    const userId  = sUser?.id;
     if (!userId) return NextResponse.json({ data: [], error: 'Not authenticated' }, { status: 401 });
+
+    // Phone from the session id ("phone:+91XXXXXXXXXX") or the session field.
+    const phone = sUser?.phone || (userId.startsWith('phone:') ? userId.slice(6) : '');
+
+    // Match orders saved under the stable id OR the customer's phone number, so
+    // history shows on every re-login regardless of how user_id was stored.
+    const orFilter = phone
+      ? `or=(user_id.eq.${userId},customer_phone.eq.${phone})`
+      : `user_id=eq.${userId}`;
 
     let orders: any[] = [];
     try {
       orders = await sbFetch<Record<string, unknown>>('orders', {
         select:      'id,order_number,status,payment_status,payment_method,subtotal,delivery_fee,total_amount,delivery_address,created_at',
-        filters:     `user_id=eq.${userId}&order=created_at.desc&limit=50`,
+        filters:     `${orFilter}&order=created_at.desc&limit=50`,
         serviceRole: true,
       });
     } catch (sbErr) {

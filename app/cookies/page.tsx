@@ -23,7 +23,7 @@ export default function CookiesPage() {
       </div>
       <div className="mx-auto max-w-screen-md px-4 py-12 md:px-6 space-y-8">
         <p className="text-sm text-neutral-600 leading-relaxed">
-          This policy explains how Farmers Factory Technologies Pvt. Ltd. uses cookies and similar technologies on our website and app. By using our services, you consent to the use of cookies as described below.
+          This policy explains how IGO Precision Farming Pvt Ltd uses cookies and similar technologies on our website and app. By using our services, you consent to the use of cookies as described below.
         </p>
 
         <section>

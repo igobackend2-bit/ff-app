@@ -17,7 +17,7 @@ export default function FSSAIPage() {
           </div>
         </div>
         <h1 className="mb-2 text-3xl font-black">FSSAI Compliance</h1>
-        <p className="text-emerald-100">Farmers Factory is a licensed food business under the Food Safety and Standards Authority of India.</p>
+        <p className="text-emerald-100">Farmers Factory, a brand of IGO Precision Farming Pvt Ltd, is a licensed food business under the Food Safety and Standards Authority of India.</p>
       </div>
 
       <div className="mx-auto max-w-screen-md px-4 py-12 md:px-6 space-y-6">
@@ -30,8 +30,8 @@ export default function FSSAIPage() {
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             {[
-              { label: 'Licence Number',    value: '10021022001234' },
-              { label: 'Business Name',     value: 'Farmers Factory Technologies Pvt. Ltd.' },
+              { label: 'Licence Number',    value: '12426008000403' },
+              { label: 'Business Name',     value: 'IGO Precision Farming Pvt Ltd' },
               { label: 'Licence Type',      value: 'Central Licence (Food Business Operator)' },
               { label: 'Category',          value: 'Retail / E-commerce Food Distribution' },
               { label: 'Valid Until',       value: '31 December 2027' },

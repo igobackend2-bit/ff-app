@@ -33,6 +33,7 @@ export function OtpLoginForm({ onSuccess }: OtpLoginFormProps = {}) {
   const [otp, setOtp]             = useState('');
   const [otpToken, setOtpToken]   = useState('');
   const [displayName, setDisplayName] = useState('');
+  const [isNewUser, setIsNewUser] = useState(false);
 
   const [isLoading, setIsLoading]   = useState(false);
   const [phoneError, setPhoneError] = useState('');
@@ -76,6 +77,7 @@ export function OtpLoginForm({ onSuccess }: OtpLoginFormProps = {}) {
       if (checkCt.includes('application/json')) {
         const checkData = await checkRes.json() as { exists: boolean; name: string | null };
         if (checkData.exists && checkData.name) setDisplayName(checkData.name);
+        setIsNewUser(!checkData.exists);
       }
 
       // Send OTP
@@ -108,6 +110,7 @@ export function OtpLoginForm({ onSuccess }: OtpLoginFormProps = {}) {
     e.preventDefault();
     setOtpError('');
     if (!/^\d{6}$/.test(otp)) { setOtpError('Enter the 6-digit OTP'); return; }
+    if (isNewUser && !displayName.trim()) { setOtpError('Please enter your name'); return; }
     setIsLoading(true);
     try {
       const res = await fetch('/api/auth/otp/verify', {
@@ -117,6 +120,7 @@ export function OtpLoginForm({ onSuccess }: OtpLoginFormProps = {}) {
           phone: `+91${phone.trim().replace(/\D/g, '')}`,
           otp,
           otpToken: otpToken || undefined,
+          name: displayName.trim() || undefined,
         }),
       });
       const data = await res.json() as { user?: import('@/types').User & { id: string }; error?: string };
@@ -297,6 +301,29 @@ export function OtpLoginForm({ onSuccess }: OtpLoginFormProps = {}) {
                   Change
                 </button>
               </div>
+
+              {/* Name — first-time numbers only */}
+              {isNewUser && (
+                <div className="space-y-2">
+                  <label htmlFor="signup-name" className="block text-[13px] font-bold uppercase tracking-wider text-neutral-500 ml-1">
+                    Your Name
+                  </label>
+                  <input
+                    id="signup-name"
+                    type="text"
+                    autoComplete="name"
+                    value={displayName}
+                    onChange={(e) => { setDisplayName(e.target.value); setOtpError(''); }}
+                    placeholder="e.g. Priya Sharma"
+                    className={cn(
+                      'flex h-14 w-full items-center rounded-2xl border bg-white px-4 text-base transition-all duration-300',
+                      'placeholder:text-neutral-400 focus:outline-none',
+                      'focus:ring-4 focus:ring-primary-600/10 focus:border-primary-600',
+                      'border-neutral-200 hover:border-neutral-300',
+                    )}
+                  />
+                </div>
+              )}
 
               {/* OTP field */}
               <div className="space-y-4">

@@ -28,7 +28,7 @@ export default function PrivacyPage() {
       </div>
       <div className="mx-auto max-w-screen-md px-4 py-12 md:px-6 space-y-7">
         <p className="text-sm text-neutral-600 leading-relaxed">
-          Farmers Factory Technologies Pvt. Ltd. ("Farmers Factory", "we", "us", or "our") is committed to protecting your privacy. This policy explains what data we collect, why, and how we use it when you use our website or app.
+          IGO Precision Farming Pvt Ltd — which operates Farmers Factory as one of its brands ("Farmers Factory", "we", "us", or "our") — is committed to protecting your privacy. This policy explains what data we collect, why, and how we use it when you use our website or app.
         </p>
         {SECTIONS.map(({ title, body }) => (
           <section key={title}>

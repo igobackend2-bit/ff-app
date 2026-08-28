@@ -51,9 +51,9 @@ export const metadata: Metadata = {
     'Order fresh groceries, vegetables, fruits and daily essentials online. Get 24-hour delivery from Farmers Factory.',
   applicationName: 'Farmers Factory',
   keywords: ['grocery delivery', '24 hour delivery', 'online grocery', 'quick commerce', 'farm fresh'],
-  authors: [{ name: 'Farmers Factory Technologies' }],
-  creator: 'Farmers Factory Technologies Pvt. Ltd.',
-  publisher: 'Farmers Factory Technologies Pvt. Ltd.',
+  authors: [{ name: 'IGO Precision Farming Pvt Ltd' }],
+  creator: 'IGO Precision Farming Pvt Ltd',
+  publisher: 'IGO Precision Farming Pvt Ltd',
 
   // PWA
   manifest: '/manifest.webmanifest',

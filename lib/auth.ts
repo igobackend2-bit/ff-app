@@ -2,6 +2,7 @@ import NextAuth from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import { PrismaAdapter } from '@next-auth/prisma-adapter';
 import { prisma } from '@/lib/db';
+import { getProfileName, saveProfileName } from '@/lib/user-profile';
 
 export const AUTH_SECRET = process.env['AUTH_SECRET'] ?? process.env['NEXTAUTH_SECRET'] ?? 'ff-dev-secret';
 
@@ -72,24 +73,38 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         if (!verified) return null;
 
-        // ── 3. Find or create user — JWT-only fallback when DB is down ─────
-        const fallbackName = name || (phone ? `Farmer ${phone.slice(-4)}` : 'Farmer');
+        // ── 3. Phone flow: deterministic identity, no DB writes ────────────
+        // The customer Postgres (Prisma) is intentionally offline in prod, and
+        // touching it here risked minting a fresh cuid() on every login — a new
+        // "account" each time. One phone number == one stable id, always.
+        if (phone) {
+          // Recover the name saved for this phone (profile edit / checkout /
+          // previous signup) so returning users keep their name & history.
+          let resolvedName = name?.trim() || '';
+          if (!resolvedName) {
+            resolvedName = (await getProfileName(phone).catch(() => null)) ?? '';
+          } else {
+            // First-time or updated name — persist it for next login.
+            void saveProfileName(phone, resolvedName);
+          }
+          return {
+            id:    `phone:${phone}`,
+            name:  resolvedName || `Farmer ${phone.slice(-4)}`,
+            email: null,
+            phone,
+          };
+        }
+
+        // ── Email flow (unchanged) — JWT-only fallback when DB is down ─────
+        const fallbackName = name || 'Farmer';
         try {
           let user = email
             ? await prisma.user.findUnique({ where: { email } })
             : null;
 
-          if (!user && phone) {
-            user = await prisma.user.findUnique({ where: { phone } });
-          }
-
           if (!user) {
             user = await prisma.user.create({
-              data: {
-                phone:  phone  || undefined,
-                email:  email  || undefined,
-                name:   fallbackName,
-              },
+              data: { email: email || undefined, name: fallbackName },
             });
           } else if (name && !user.name) {
             user = await prisma.user.update({
@@ -102,10 +117,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         } catch (dbErr) {
           console.warn('[auth] DB unavailable — issuing JWT-only session:', String(dbErr).slice(0, 200));
           return {
-            id:    `phone:${phone}`,
+            id:    email ? `email:${email}` : 'anon',
             name:  fallbackName,
             email: email || null,
-            phone: phone || null,
+            phone: null,
           };
         }
       },
