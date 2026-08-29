@@ -90,9 +90,11 @@ export function OtpLoginForm({ onSuccess }: OtpLoginFormProps = {}) {
       if (!ct.includes('application/json')) {
         throw new Error(`Server error (${res.status}). Please try again.`);
       }
-      const data = await res.json() as { error?: string; otpToken?: string };
+      const data = await res.json() as { error?: string; otpToken?: string; devOtp?: string };
       if (!res.ok) throw new Error(data.error ?? 'Failed to send OTP');
       if (data.otpToken) setOtpToken(data.otpToken);
+      // Test mode (no SMS gateway): server returns the OTP so it can be pre-filled.
+      if (data.devOtp) setOtp(data.devOtp);
 
       setStep('otp');
       startCooldown();

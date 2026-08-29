@@ -45,20 +45,21 @@ async function sendViaApitxt(phone: string, otp: string): Promise<{ ok: boolean;
   }
 }
 
-/** Send OTP SMS — APITxT first (DLT-approved), Fast2SMS fallback, console in dev. */
-async function sendSmsOtp(phone: string, otp: string): Promise<{ ok: boolean; error?: string }> {
+/** Send OTP SMS — APITxT first (DLT-approved), Fast2SMS fallback, console in dev.
+ *  `delivered` is true only when a real SMS provider accepted the message. */
+async function sendSmsOtp(phone: string, otp: string): Promise<{ ok: boolean; delivered: boolean; error?: string }> {
   if (process.env['APITXT_API_KEY']) {
     const result = await sendViaApitxt(phone, otp);
-    if (result.ok) return result;
+    if (result.ok) return { ok: true, delivered: true };
     // fall through to Fast2SMS if configured
   }
 
   const apiKey = process.env['FAST2SMS_API_KEY'];
 
   if (!apiKey) {
-    // Development fallback — print OTP in server logs
+    // No SMS provider configured — log the OTP so it can still be retrieved.
     console.log(`[OTP][DEV] Phone: ${phone} | OTP: ${otp}`);
-    return { ok: true };
+    return { ok: true, delivered: false };
   }
 
   // Strip to 10 digits (Fast2SMS expects plain number, no country code)
@@ -77,14 +78,14 @@ async function sendSmsOtp(phone: string, otp: string): Promise<{ ok: boolean; er
     if (!data.return) {
       const msg = data.message?.[0] ?? `HTTP ${res.status}`;
       console.error('[OTP][Fast2SMS]', msg);
-      return { ok: false, error: msg };
+      return { ok: false, delivered: false, error: msg };
     }
 
-    return { ok: true };
+    return { ok: true, delivered: true };
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error('[OTP][Fast2SMS] Fetch error:', msg);
-    return { ok: false, error: msg };
+    return { ok: false, delivered: false, error: msg };
   }
 }
 
@@ -132,7 +133,7 @@ export async function POST(req: NextRequest) {
     const otpToken  = Buffer.from(`${phone}|${expires}|${signature}`).toString('base64url');
 
     // Deliver OTP via SMS
-    const { ok, error } = await sendSmsOtp(phone, otp);
+    const { ok, delivered, error } = await sendSmsOtp(phone, otp);
 
     if (!ok) {
       return NextResponse.json(
@@ -141,7 +142,17 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const response = NextResponse.json({ message: 'OTP sent to your mobile', smsSent: true, otpToken });
+    // When no SMS provider delivered the message, surface the OTP in the
+    // response so testing can proceed. Guard with OTP_TEST_MODE=1 so this is
+    // opt-in and easy to switch off once a real SMS gateway is configured.
+    const testOtp = !delivered && process.env['OTP_TEST_MODE'] === '1' ? otp : undefined;
+
+    const response = NextResponse.json({
+      message:  delivered ? 'OTP sent to your mobile' : 'OTP generated (SMS gateway not configured)',
+      smsSent:  delivered,
+      ...(testOtp ? { devOtp: testOtp } : {}),
+      otpToken,
+    });
     // Cookie fallback — verify works even if the client doesn't echo otpToken back
     response.cookies.set('ff_otp_tok', otpToken, {
       httpOnly: true,
