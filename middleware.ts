@@ -43,6 +43,10 @@ export function middleware(request: NextRequest) {
   if (isProtected) {
     const ffAuth = request.cookies.get('ff_auth');
     const sessionToken =
+      // NextAuth v5 (Auth.js) names — what /api/auth/otp/verify actually sets
+      request.cookies.get('authjs.session-token') ??
+      request.cookies.get('__Secure-authjs.session-token') ??
+      // v4 fallbacks
       request.cookies.get('next-auth.session-token') ??
       request.cookies.get('__Secure-next-auth.session-token');
 
