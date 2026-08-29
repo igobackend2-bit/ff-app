@@ -1,9 +1,12 @@
 // Admin notifications — uses ERP Supabase `notifications` table (no Prisma / DB_DISABLED safe)
 import { NextRequest, NextResponse } from 'next/server';
 
-const SB  = 'https://qwiumswrbddwmlraktvy.supabase.co';
-const KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF3aXVtc3dyYmRkd21scmFrdHZ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAxMjU3NTIsImV4cCI6MjA5NTcwMTc1Mn0.AsY045N7wHqMF_2P0-D2Ouzrkphjfkb4CP6ImhSm-tc';
-const H   = { apikey: KEY, Authorization: `Bearer ${KEY}`, 'Content-Type': 'application/json' };
+const SB   = 'https://qwiumswrbddwmlraktvy.supabase.co';
+const KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF3aXVtc3dyYmRkd21scmFrdHZ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAxMjU3NTIsImV4cCI6MjA5NTcwMTc1Mn0.AsY045N7wHqMF_2P0-D2Ouzrkphjfkb4CP6ImhSm-tc';
+// Writes need service-role — the notifications table has RLS that blocks anon INSERT.
+const WKEY = process.env['SUPABASE_SERVICE_ROLE_KEY'] || KEY;
+const H    = { apikey: KEY,  Authorization: `Bearer ${KEY}`,  'Content-Type': 'application/json' };
+const WH   = { apikey: WKEY, Authorization: `Bearer ${WKEY}`, 'Content-Type': 'application/json' };
 
 export const dynamic = 'force-dynamic';
 
@@ -67,7 +70,7 @@ export async function POST(req: NextRequest) {
 
     const insertRes = await fetch(`${SB}/rest/v1/notifications`, {
       method: 'POST',
-      headers: { ...H, Prefer: 'return=representation' },
+      headers: { ...WH, Prefer: 'return=representation' },
       body: JSON.stringify(row),
       cache: 'no-store',
     });

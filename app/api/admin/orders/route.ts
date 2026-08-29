@@ -2,7 +2,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 const SUPABASE_URL = 'https://qwiumswrbddwmlraktvy.supabase.co';
-const SUPABASE_SERVICE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF3aXVtc3dyYmRkd21scmFrdHZ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAxMjU3NTIsImV4cCI6MjA5NTcwMTc1Mn0.AsY045N7wHqMF_2P0-D2Ouzrkphjfkb4CP6ImhSm-tc';
+const SUPABASE_SERVICE_KEY =
+  process.env['SUPABASE_SERVICE_ROLE_KEY'] ||
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF3aXVtc3dyYmRkd21scmFrdHZ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAxMjU3NTIsImV4cCI6MjA5NTcwMTc1Mn0.AsY045N7wHqMF_2P0-D2Ouzrkphjfkb4CP6ImhSm-tc';
 
 async function sbGet(path: string) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
@@ -43,7 +45,11 @@ export async function GET(req: NextRequest) {
       status: o['status'] ?? 'PLACED',
       total: Number(o['total_amount'] ?? 0),
       createdAt: o['created_at'],
-      paymentMethod: o['notes'] ? String(o['notes']).split('Payment:')[1]?.trim() ?? 'COD' : 'COD',
+      paymentMethod: String(
+        o['payment_mode'] ?? o['payment_method'] ??
+        (o['notes'] ? String(o['notes']).split('Payment:')[1]?.trim() : '') ?? 'COD',
+      ).toUpperCase() || 'COD',
+      paymentStatus: o['payment_status'] ?? o['payment_state'] ?? 'unpaid',
       user: {
         name: o['customer_name'] ?? 'Customer',
         phone: '',

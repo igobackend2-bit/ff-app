@@ -115,6 +115,7 @@ export async function GET(req: NextRequest) {
       createdAt:     o.created_at,
       items: (itemsByOrder[o.id] ?? []).map((i: any) => ({
         id:        i.id,
+        productId: i.product_id ?? '',
         name:      i.product_name ?? '',
         unit:      'kg',
         slug:      i.product_id ?? '',

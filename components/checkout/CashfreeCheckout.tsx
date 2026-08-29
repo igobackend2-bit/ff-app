@@ -2,7 +2,6 @@
 
 import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import Script from 'next/script';
 import { Loader2, Lock } from 'lucide-react';
 import { useCartStore } from '@/store/cartStore';
 import { useUIStore } from '@/store/uiStore';
@@ -40,17 +39,41 @@ export function CashfreeCheckout({ amount, items, address, onValidateAddress, di
   const clearCart = useCartStore((s) => s.clearCart);
   const addToast  = useUIStore((s) => s.addToast);
 
-  const [isScriptLoaded, setIsScriptLoaded] = useState(false);
-  const [isProcessing, setIsProcessing]     = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  // Load the Cashfree SDK on demand — don't gate the button on a <Script onLoad>
+  // callback that is unreliable inside the Android WebView.
+  const ensureSdk = useCallback(async (): Promise<boolean> => {
+    if (typeof window.Cashfree === 'function') return true;
+    await new Promise<void>((resolve) => {
+      const existing = document.getElementById('cashfree-sdk') as HTMLScriptElement | null;
+      if (existing) { existing.addEventListener('load', () => resolve()); return; }
+      const s = document.createElement('script');
+      s.id = 'cashfree-sdk';
+      s.src = 'https://sdk.cashfree.com/js/v3/cashfree.js';
+      s.async = true;
+      s.onload = () => resolve();
+      s.onerror = () => resolve();
+      document.head.appendChild(s);
+    });
+    // give the global a tick to attach
+    for (let i = 0; i < 20 && typeof window.Cashfree !== 'function'; i++) {
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    return typeof window.Cashfree === 'function';
+  }, []);
 
   const handlePayment = useCallback(async () => {
     if (!onValidateAddress()) return;
-    if (!isScriptLoaded || typeof window.Cashfree !== 'function') {
-      addToast({ title: 'Payment not ready. Please wait a moment.', variant: 'error' });
+    setIsProcessing(true);
+
+    const ready = await ensureSdk();
+    if (!ready) {
+      addToast({ title: 'Could not load the payment gateway. Check your connection and retry.', variant: 'error' });
+      setIsProcessing(false);
       return;
     }
 
-    setIsProcessing(true);
     try {
       // 1. Create the order (Supabase record)
       const orderRes = await fetch('/api/orders', {
@@ -121,18 +144,13 @@ export function CashfreeCheckout({ amount, items, address, onValidateAddress, di
       addToast({ title: err instanceof Error ? err.message : 'Payment failed', variant: 'error' });
       setIsProcessing(false);
     }
-  }, [isScriptLoaded, items, amount, address, onValidateAddress, clearCart, addToast, router]);
+  }, [ensureSdk, items, amount, address, onValidateAddress, clearCart, addToast, router]);
 
   return (
     <>
-      <Script
-        src="https://sdk.cashfree.com/js/v3/cashfree.js"
-        strategy="lazyOnload"
-        onLoad={() => setIsScriptLoaded(true)}
-      />
       <button
         onClick={() => void handlePayment()}
-        disabled={isProcessing || !isScriptLoaded || disabled}
+        disabled={isProcessing || disabled}
         className={cn(
           'flex h-14 w-full items-center justify-center gap-2 rounded-2xl',
           'bg-primary-600 text-base font-bold text-white transition-colors hover:bg-primary-700',

@@ -74,11 +74,16 @@ export function OrderList() {
   }, [userId]);
 
   const handleReorder = (order: Order) => {
-    order.items.forEach((item) => {
+    const items = (order.items ?? []).filter((i) => (i.productId || i.slug) && i.name);
+    if (items.length === 0) {
+      addToast({ title: 'This order has no saved items to reorder.', variant: 'error' });
+      return;
+    }
+    items.forEach((item) => {
       // API returns flat items: name, unit, slug, imageUrls are top-level
       addItem(
         {
-          id: item.productId,
+          id: (item.productId || item.slug) as string,
           name: item.name,
           slug: item.slug,
           unit: item.unit,

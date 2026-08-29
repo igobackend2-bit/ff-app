@@ -2,7 +2,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 const SB_URL  = 'https://qwiumswrbddwmlraktvy.supabase.co';
-const SB_SERV = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF3aXVtc3dyYmRkd21scmFrdHZ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAxMjU3NTIsImV4cCI6MjA5NTcwMTc1Mn0.AsY045N7wHqMF_2P0-D2Ouzrkphjfkb4CP6ImhSm-tc';
+// The literal is only the ANON key; RLS blocks it, so /track always 404'd.
+// Prefer the real service-role key from env.
+const SB_SERV =
+  process.env['SUPABASE_SERVICE_ROLE_KEY'] ||
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF3aXVtc3dyYmRkd21scmFrdHZ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAxMjU3NTIsImV4cCI6MjA5NTcwMTc1Mn0.AsY045N7wHqMF_2P0-D2Ouzrkphjfkb4CP6ImhSm-tc';
 
 const STATUS_STEPS = [
   { key: 'PLACED',           label: 'Order Placed',     emoji: '🛒', desc: 'Your order has been received.' },
@@ -92,9 +96,11 @@ export async function GET(
       ));
     }
 
-    // Try Supabase REST API
+    // Try Supabase REST API — match by UUID id OR the human order number.
     const key = SB_SERV;
-    const url = `${SB_URL}/rest/v1/orders?id=eq.${id}&select=id,status,total,total_amount,created_at,delivery_address&limit=1`;
+    const isUuid = /^[0-9a-f-]{36}$/i.test(id);
+    const filter = isUuid ? `id=eq.${id}` : `order_number=eq.${encodeURIComponent(id)}`;
+    const url = `${SB_URL}/rest/v1/orders?${filter}&select=id,status,total,total_amount,created_at,delivery_address&limit=1`;
     const res = await fetch(url, {
       headers: { apikey: key, Authorization: `Bearer ${key}`, Accept: 'application/json' },
       cache: 'no-store',
@@ -122,11 +128,11 @@ export async function GET(
       return NextResponse.json({ error: 'Order not found' }, { status: 404 });
     }
 
-    // Fetch order items
+    // Fetch order items — key off the resolved order id, not the URL param.
     let items: any[] = [];
     try {
       const itemsRes = await fetch(
-        `${SB_URL}/rest/v1/order_items?order_id=eq.${id}&select=product_name,quantity,unit_price`,
+        `${SB_URL}/rest/v1/order_items?order_id=eq.${order.id}&select=product_name,quantity,unit_price`,
         { headers: { apikey: key, Authorization: `Bearer ${key}`, Accept: 'application/json' }, cache: 'no-store' },
       );
       if (itemsRes.ok) items = await itemsRes.json() as any[];
