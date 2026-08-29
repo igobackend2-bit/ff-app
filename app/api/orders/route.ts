@@ -6,14 +6,17 @@ import { saveProfileName } from '@/lib/user-profile';
 
 // Always use ERP Supabase (the active project) — customer Supabase is paused
 const SB_URL  = 'https://qwiumswrbddwmlraktvy.supabase.co';
-const SB_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF3aXVtc3dyYmRkd21scmFrdHZ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAxMjU3NTIsImV4cCI6MjA5NTcwMTc1Mn0.AsY045N7wHqMF_2P0-D2Ouzrkphjfkb4CP6ImhSm-tc';
+const SB_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF3aXVtc3dyYmRkd21scmFrdHZ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAxMjU3NTIsImV4cCI6MjA5NTcwMTc1Mn0.AsY045N7wHqMF_2P0-D2Ouzrkphjfkb4CP6ImhSm-tc';
+// Writes (order + items) need the service-role key to get past RLS — otherwise
+// every insert 401s and the order silently degrades to a non-persisted local id.
+const SB_SERVICE = process.env['SUPABASE_SERVICE_ROLE_KEY'] || SB_ANON;
 
 async function sbFetch<T>(
   table: string,
   opts: { method?: string; select?: string; filters?: string; body?: unknown; serviceRole?: boolean } = {},
 ): Promise<T[]> {
-  const { method = 'GET', select = '*', filters = '', body } = opts;
-  const key = SB_KEY;
+  const { method = 'GET', select = '*', filters = '', body, serviceRole = false } = opts;
+  const key = serviceRole ? SB_SERVICE : SB_ANON;
   const url = new URL(`${SB_URL}/rest/v1/${table}`);
   if (method === 'GET') {
     url.searchParams.set('select', select);
@@ -42,7 +45,7 @@ const orderSchema = z.object({
     unitPrice: z.number().min(0).optional().default(0),
     imageUrl:  z.string().optional(),
   })).min(1),
-  paymentMethod: z.enum(['COD', 'RAZORPAY', 'UPI']).default('COD'),
+  paymentMethod: z.enum(['COD', 'RAZORPAY', 'UPI', 'CASHFREE']).default('COD'),
   address: z.object({
     fullName: z.string().min(1),
     phone:    z.string().min(10),
@@ -174,7 +177,8 @@ export async function POST(req: NextRequest) {
           delivery_address: deliveryAddress,
           delivery_pincode: address.pincode,
           payment_method:   paymentMethod.toLowerCase(),
-          payment_status:   paymentMethod === 'COD' ? 'unpaid' : 'paid',
+          // Online payments start unpaid; the gateway verify step flips this to 'paid'.
+          payment_status:   'unpaid',
           status:           'PLACED',
           source:           'app',
         },
@@ -199,7 +203,8 @@ export async function POST(req: NextRequest) {
       }
     } catch (sbErr) {
       // Supabase unavailable — log order details for merchant, continue with local ID
-      console.warn('[POST /api/orders] Supabase unavailable — local order:', {
+      console.warn('[POST /api/orders] Supabase insert failed:', String(sbErr).slice(0, 400));
+      console.warn('[POST /api/orders] local order:', {
         orderNumber,
         customer: address.fullName,
         phone:    address.phone,

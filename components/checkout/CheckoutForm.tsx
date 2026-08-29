@@ -13,8 +13,8 @@ import {
   CheckCircle2, ChevronDown, ChevronUp, AlertTriangle, Navigation,
 } from 'lucide-react';
 
-const RazorpayCheckout = dynamic(
-  () => import('./RazorpayCheckout').then((m) => m.RazorpayCheckout),
+const CashfreeCheckout = dynamic(
+  () => import('./CashfreeCheckout').then((m) => m.CashfreeCheckout),
   { ssr: false, loading: () => <div className="h-14 animate-pulse rounded-2xl bg-neutral-100" /> },
 );
 
@@ -64,7 +64,7 @@ export function CheckoutForm() {
 
   const belowMinimum = subtotal < minOrder;
 
-  const [payMethod,     setPayMethod]     = useState<'COD' | 'RAZORPAY'>('COD');
+  const [payMethod,     setPayMethod]     = useState<'COD' | 'CASHFREE'>('COD');
   const [placingCod,    setPlacingCod]    = useState(false);
   const [orderError,    setOrderError]    = useState('');
   const [addrOpen,      setAddrOpen]      = useState(true);
@@ -368,7 +368,7 @@ export function CheckoutForm() {
           <div className="grid gap-3 sm:grid-cols-2">
             {([
               { id: 'COD',      label: 'Cash on Delivery', icon: Banknote,   desc: 'Pay when you receive'  },
-              { id: 'RAZORPAY', label: 'Pay Online',        icon: CreditCard, desc: 'Cards, UPI, Wallets'   },
+              { id: 'CASHFREE', label: 'Pay Online',        icon: CreditCard, desc: 'Cards, UPI, Wallets'   },
             ] as const).map(({ id, label, icon: Icon, desc }) => (
               <button
                 key={id}
@@ -419,7 +419,7 @@ export function CheckoutForm() {
           </div>
         )}
 
-        {/* Place Order / Razorpay */}
+        {/* Place Order / Pay Online */}
         {payMethod === 'COD' ? (
           <button
             type="button"
@@ -432,7 +432,7 @@ export function CheckoutForm() {
               : <><Truck className="h-5 w-5" /> Place Order — Pay on Delivery</>}
           </button>
         ) : (
-          <RazorpayCheckout
+          <CashfreeCheckout
             amount={total}
             address={addressPayload}
             items={items}
