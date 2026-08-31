@@ -51,16 +51,16 @@ export async function POST(req: NextRequest) {
     const { productId } = (await req.json()) as { productId: string };
     const r = await fetch(`${SB}/rest/v1/${TABLE}`, {
       method: 'POST',
-      headers: { ...H, Prefer: 'resolution=merge-duplicates,return=minimal' },
+      headers: { ...H, Prefer: 'resolution=merge-duplicates,return=representation' },
       body: JSON.stringify({ user_key: userId, product_id: productId }),
       cache: 'no-store',
     });
+    const bodyText = await r.text();
     if (!r.ok) {
-      const t = (await r.text()).slice(0, 250);
-      console.warn('[wishlist POST]', r.status, t);
-      return NextResponse.json({ data: null, error: t }, { status: 502 });
+      console.warn('[wishlist POST]', r.status, bodyText.slice(0, 250));
+      return NextResponse.json({ data: null, error: bodyText.slice(0, 250) }, { status: 502 });
     }
-    return NextResponse.json({ data: { added: true }, error: null });
+    return NextResponse.json({ data: { added: true, row: bodyText.slice(0, 200) }, error: null });
   } catch (err) {
     console.error('[wishlist POST]', err);
     return NextResponse.json({ data: null, error: String(err).slice(0, 200) }, { status: 500 });
