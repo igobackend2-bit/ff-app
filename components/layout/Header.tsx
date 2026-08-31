@@ -118,7 +118,7 @@ export function Header() {
     if (!isLoggedIn()) return;
 
     const fetchNotifs = () => {
-      fetch('/api/notifications/user')
+      fetch('/api/notifications/user', { cache: 'no-store' })
         .then((r) => r.json())
         .then((d: { notifications: UserNotif[]; unreadCount: number }) => {
           const dismissed = getDismissed();
@@ -129,7 +129,7 @@ export function Header() {
         .catch(() => null);
     };
     fetchNotifs();
-    const timer = setInterval(fetchNotifs, 30_000);
+    const timer = setInterval(fetchNotifs, 12_000);
     return () => clearInterval(timer);
   }, [mounted, userHydrated, isLoggedIn]);
 

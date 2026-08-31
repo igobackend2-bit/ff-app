@@ -89,7 +89,7 @@ export async function GET(req: NextRequest) {
     if (orderIds.length > 0) {
       try {
         allItems = await sbFetch<Record<string, unknown>>('order_items', {
-          select:      'id,order_id,product_id,product_name,quantity,unit_price,total',
+          select:      'id,order_id,product_id,quantity,unit_price,total,products(name,unit,image_url,image_urls)',
           filters:     `order_id=in.(${orderIds.join(',')})`,
           serviceRole: true,
         });
@@ -116,10 +116,11 @@ export async function GET(req: NextRequest) {
       items: (itemsByOrder[o.id] ?? []).map((i: any) => ({
         id:        i.id,
         productId: i.product_id ?? '',
-        name:      i.product_name ?? '',
-        unit:      'kg',
+        name:      i.products?.name ?? i.product_name ?? 'Item',
+        unit:      i.products?.unit ?? 'kg',
         slug:      i.product_id ?? '',
-        imageUrls: [],
+        imageUrls: i.products?.image_urls?.length ? i.products.image_urls
+                   : i.products?.image_url ? [i.products.image_url] : [],
         quantity:  i.quantity,
         unitPrice: Number(i.unit_price ?? 0),
       })),
@@ -189,18 +190,19 @@ export async function POST(req: NextRequest) {
         savedOrderId = newOrder.id;
         savedOrderNumber = newOrder.order_number ?? orderNumber;
 
+        // order_items columns: id, order_id, product_id, quantity, unit_price, total
+        // (there is NO product_name column — name is resolved via the products join on read)
         await sbFetch('order_items', {
           method:      'POST',
           serviceRole: true,
           body: items.map((i) => ({
-            order_id:     newOrder.id,
-            product_id:   i.productId,
-            product_name: i.name ?? '',
-            quantity:     i.quantity,
-            unit_price:   i.unitPrice,
-            total:        i.unitPrice * i.quantity,
+            order_id:   newOrder.id,
+            product_id: i.productId,
+            quantity:   i.quantity,
+            unit_price: i.unitPrice,
+            total:      i.unitPrice * i.quantity,
           })),
-        }).catch(() => {/* items table may not exist yet */});
+        }).catch((e) => { console.warn('[POST /api/orders] order_items insert failed:', String(e).slice(0, 300)); });
       }
     } catch (sbErr) {
       // Supabase unavailable — log order details for merchant, continue with local ID

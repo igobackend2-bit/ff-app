@@ -126,6 +126,12 @@ export async function GET(req: NextRequest) {
     const limit    = Math.min(100, parseInt(searchParams.get('limit') ?? '20', 10));
     const offset   = (page - 1) * limit;
 
+    // When Prisma is disabled/absent (production), skip straight to the Supabase
+    // path so admin edits (stock, delete, price) are what customers actually see.
+    if (process.env['DB_DISABLED'] === '1' || !process.env['DATABASE_URL']) {
+      throw new Error('prisma-disabled: use Supabase path');
+    }
+
     // Build where clause — only show active products
     const where: Record<string, any> = { isActive: true };
 

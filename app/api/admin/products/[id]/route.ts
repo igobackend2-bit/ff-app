@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 const SB  = 'https://qwiumswrbddwmlraktvy.supabase.co';
-const KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF3aXVtc3dyYmRkd21scmFrdHZ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAxMjU3NTIsImV4cCI6MjA5NTcwMTc1Mn0.AsY045N7wHqMF_2P0-D2Ouzrkphjfkb4CP6ImhSm-tc';
+const KEY = process.env['SUPABASE_SERVICE_ROLE_KEY'] || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF3aXVtc3dyYmRkd21scmFrdHZ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAxMjU3NTIsImV4cCI6MjA5NTcwMTc1Mn0.AsY045N7wHqMF_2P0-D2Ouzrkphjfkb4CP6ImhSm-tc';
 const H   = { apikey: KEY, Authorization: `Bearer ${KEY}`, 'Content-Type': 'application/json' };
 
 function parseImageUrls(raw: unknown): string[] {
@@ -91,6 +91,38 @@ export async function PATCH(
     return NextResponse.json({ product: { id } });
   } catch (err) {
     console.error('[admin/products/:id PATCH]', err);
+    return NextResponse.json({ error: String(err) }, { status: 500 });
+  }
+}
+
+// DELETE /api/admin/products/[id] — soft-delete (is_active=false) so it drops
+// out of the customer app immediately without breaking order_items FKs.
+export async function DELETE(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  try {
+    const { id } = await params;
+    let res = await fetch(
+      `${SB}/rest/v1/products?id=eq.${encodeURIComponent(id)}`,
+      { method: 'PATCH', headers: { ...H, Prefer: 'return=minimal' },
+        body: JSON.stringify({ is_active: false, in_stock: false }), cache: 'no-store' },
+    );
+    // If the column doesn't exist, fall back to a hard delete.
+    if (!res.ok && res.status === 400) {
+      res = await fetch(
+        `${SB}/rest/v1/products?id=eq.${encodeURIComponent(id)}`,
+        { method: 'DELETE', headers: { ...H, Prefer: 'return=minimal' }, cache: 'no-store' },
+      );
+    }
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error('[admin/products/:id DELETE]', res.status, errText.slice(0, 200));
+      return NextResponse.json({ error: errText }, { status: res.status });
+    }
+    return NextResponse.json({ ok: true, id });
+  } catch (err) {
+    console.error('[admin/products/:id DELETE]', err);
     return NextResponse.json({ error: String(err) }, { status: 500 });
   }
 }

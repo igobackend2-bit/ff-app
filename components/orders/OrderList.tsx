@@ -43,7 +43,7 @@ export function OrderList() {
         } catch { /* ignore */ }
 
         const headers: HeadersInit = userId ? { 'x-user-id': userId } : {};
-        const res = await fetch('/api/orders', { headers });
+        const res = await fetch('/api/orders', { headers, cache: 'no-store' });
         if (res.status === 401) {
           // Show local orders even if not authenticated on server
           if (localOrders.length > 0) { setOrders(localOrders); return; }
@@ -73,8 +73,26 @@ export function OrderList() {
     void fetchOrders();
   }, [userId]);
 
-  const handleReorder = (order: Order) => {
-    const items = (order.items ?? []).filter((i) => (i.productId || i.slug) && i.name);
+  const handleReorder = async (order: Order) => {
+    let items = (order.items ?? []).filter((i) => (i.productId || i.slug) && i.name);
+
+    // Older orders were saved without line items — pull them from the tracking endpoint.
+    if (items.length === 0) {
+      try {
+        const r = await fetch(`/api/orders/${order.id}/track`, { cache: 'no-store' });
+        if (r.ok) {
+          const d = await r.json() as { order?: { items?: Array<{ name?: string; slug?: string; productId?: string; qty?: number; quantity?: number; price?: number; unit?: string }> } };
+          items = (d.order?.items ?? [])
+            .filter((i) => i.name)
+            .map((i) => ({
+              id: '', productId: i.productId ?? i.slug ?? '', slug: i.slug ?? '',
+              name: i.name as string, unit: i.unit ?? 'kg', imageUrls: [] as string[],
+              quantity: i.quantity ?? i.qty ?? 1, unitPrice: Number(i.price ?? 0),
+            })) as typeof items;
+        }
+      } catch { /* ignore */ }
+    }
+
     if (items.length === 0) {
       addToast({ title: 'This order has no saved items to reorder.', variant: 'error' });
       return;
@@ -232,7 +250,7 @@ export function OrderList() {
                 <div className="flex items-center gap-2">
                   {/* One-tap reorder button */}
                   <button
-                    onClick={() => handleReorder(order)}
+                    onClick={() => void handleReorder(order)}
                     aria-label={`Reorder order #${order.orderNumber}`}
                     className={cn(
                       'flex items-center gap-1 rounded-lg border border-primary-200 px-3 py-1.5',
