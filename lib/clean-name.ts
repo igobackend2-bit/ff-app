@@ -44,16 +44,26 @@ const LOCAL_IMAGE_NAMES = new Set([
 
 const LEGACY_STORAGE_PREFIX = /^https:\/\/qwiumswrbddwmlraktvy\.supabase\.co\/storage\/v1\/object\/public\/app-images\//;
 
+import { LOCAL_IMAGE_MAP } from './local-image-map';
+
 export function localizeImageUrl(url: string): string {
   if (!url) return url;
   // .jfif files were renamed to .jpg — fix refs in already-local paths
   if (url.startsWith('/images/')) return url.replace(/\.jfif(\?.*)?$/, '.jpg');
-  // For CDN URLs: only localize if we know the file exists locally; otherwise keep original CDN URL
+  // Supabase app-images URLs: many are .jfif which next/image can't optimise and
+  // render broken. Rewrite to the local /public/images copy when one exists
+  // (matched on <folder>/<basename>, case-insensitive), else keep the CDN URL.
   if (LEGACY_STORAGE_PREFIX.test(url)) {
+    const rel = url.replace(LEGACY_STORAGE_PREFIX, '').replace(/\?.*$/, '');
+    const parts = rel.split('/');
+    const folder = parts.length > 1 ? parts[parts.length - 2] : '';
+    const base   = (parts[parts.length - 1] ?? '').replace(/\.[^.]+$/, '').toLowerCase();
+    const key    = `${folder}/${base}`;
+    if (LOCAL_IMAGE_MAP[key]) return LOCAL_IMAGE_MAP[key];
+    // fall back to old whitelist behaviour
     const local = url.replace(LEGACY_STORAGE_PREFIX, '/images/').replace(/\.jfif(\?.*)?$/, '.jpg');
-    const filename = local.split('/').pop()?.replace(/\.[^.]+$/, '') ?? '';
-    if (LOCAL_IMAGE_NAMES.has(filename)) return local;
-    return url; // keep original CDN URL for images not copied locally
+    if (LOCAL_IMAGE_NAMES.has(base)) return local;
+    return url;
   }
   return url;
 }
