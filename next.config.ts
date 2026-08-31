@@ -129,6 +129,14 @@ const nextConfig: NextConfig = {
         headers: securityHeaders,
       },
       {
+        // App pages + API must never be cached by the Android WebView — otherwise
+        // deploys don't show until the user clears app data.
+        source: '/((?!_next/static|_next/image|images/|icons/|favicon).*)',
+        headers: [
+          { key: 'Cache-Control', value: 'no-store, no-cache, must-revalidate, max-age=0' },
+        ],
+      },
+      {
         // Service worker must not be cached
         source: '/sw.js',
         headers: [

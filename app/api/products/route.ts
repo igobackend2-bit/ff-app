@@ -298,7 +298,10 @@ export async function GET(req: NextRequest) {
       let list = mapped;
       let listTotal = total;
       if (catRequested) {
-        list = mapped.filter((m) => m.categorySlug === category);
+        // "valluvam" is the traditional-products umbrella — include all its sub-cats.
+        const VALLUVAM = ['valluvam', 'ghee', 'dairy-ghee', 'honey', 'palm-jaggery', 'oils', 'cold-pressed-oils', 'millets', 'spices', 'nuts', 'dry-fruits', 'seeds-health-mix'];
+        const wanted = category === 'valluvam' ? new Set(VALLUVAM) : new Set([category]);
+        list = mapped.filter((m) => wanted.has(m.categorySlug));
         listTotal = list.length;
         list = list.slice(offset, offset + limit);
       }
