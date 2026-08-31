@@ -259,14 +259,15 @@ export async function GET(req: NextRequest) {
         const imgs: string[] = (() => { try { return JSON.parse(p.image_urls ?? '[]'); } catch { return p.image_url ? [p.image_url] : []; } })();
         const cleanName = cleanProductName(p.name, p.slug);
         const localized = localizeImageUrls(imgs.length ? imgs : (p.image_url ? [p.image_url] : []));
-        // Prefer an image matched by product name from the local /images set —
-        // the DB image_url is frequently wrong (coconut showing an apple, etc.).
-        const byName = resolveImageByName(cleanName) ?? resolveImageByName(p.name);
+        // Correct a mis-bucketed category first (everything was dumped in "valluvam").
+        const rc = resolveCategory(cleanName, p.category_slug);
+        const catSlug = rc?.slug ?? p.category_slug;
+        // Then pick the image by name *within that category's folder* — the DB
+        // image_url is frequently wrong (Fresh Coconut showing coconut oil, etc.).
+        const byName = resolveImageByName(cleanName, catSlug) ?? resolveImageByName(p.name, catSlug);
         const finalImgs = byName
           ? [byName, ...localized.filter((u) => u !== byName)]
           : (localized.length ? localized : []);
-        // Correct a mis-bucketed category (e.g. everything dumped in "valluvam").
-        const rc = resolveCategory(cleanName, p.category_slug);
         return {
           id:            p.id,
           name:          cleanName,
