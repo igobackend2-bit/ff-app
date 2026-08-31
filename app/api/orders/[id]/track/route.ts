@@ -1,5 +1,19 @@
 // Customer: Live order tracking status
 import { NextRequest, NextResponse } from 'next/server';
+import { localizeImageUrls } from '@/lib/clean-name';
+
+/** products.image_urls is stored as a JSON string — parse + localise it. */
+function itemImages(p?: { image_urls?: unknown; image_url?: unknown }): string[] {
+  if (!p) return [];
+  let arr: string[] = [];
+  const raw = p.image_urls;
+  if (Array.isArray(raw)) arr = raw as string[];
+  else if (typeof raw === 'string' && raw.trim()) {
+    try { arr = JSON.parse(raw) as string[]; } catch { arr = [raw]; }
+  }
+  if (arr.length === 0 && typeof p.image_url === 'string' && p.image_url) arr = [p.image_url];
+  return localizeImageUrls(arr);
+}
 
 const SB_URL  = 'https://qwiumswrbddwmlraktvy.supabase.co';
 // The literal is only the ANON key; RLS blocks it, so /track always 404'd.
@@ -53,8 +67,7 @@ function buildTrackingResponse(order: {
       items:     items.map((i) => ({
         name:      i.products?.name ?? i.product_name ?? 'Item',
         unit:      i.products?.unit ?? '',
-        imageUrls: i.products?.image_urls?.length ? i.products.image_urls
-                   : i.products?.image_url ? [i.products.image_url] : [],
+        imageUrls: itemImages(i.products),
         qty:       i.quantity,
         price:     Number(i.unit_price ?? 0),
       })),
@@ -133,7 +146,7 @@ export async function GET(
     let items: any[] = [];
     try {
       const itemsRes = await fetch(
-        `${SB_URL}/rest/v1/order_items?order_id=eq.${order.id}&select=product_name,quantity,unit_price,products(name,unit,image_url,image_urls)`,
+        `${SB_URL}/rest/v1/order_items?order_id=eq.${order.id}&select=quantity,unit_price,products(name,unit,image_url,image_urls)`,
         { headers: { apikey: key, Authorization: `Bearer ${key}`, Accept: 'application/json' }, cache: 'no-store' },
       );
       if (itemsRes.ok) items = await itemsRes.json() as any[];

@@ -3,6 +3,19 @@ import { z } from 'zod';
 import { auth } from '@/lib/auth';
 import { syncOrderToERP } from '@/lib/erp-sync';
 import { saveProfileName } from '@/lib/user-profile';
+import { localizeImageUrls } from '@/lib/clean-name';
+
+/** products.image_urls is a JSON string in the DB — parse + localise it. */
+function itemImages(p: any): string[] {
+  if (!p) return [];
+  let arr: string[] = [];
+  if (Array.isArray(p.image_urls)) arr = p.image_urls;
+  else if (typeof p.image_urls === 'string' && p.image_urls.trim()) {
+    try { arr = JSON.parse(p.image_urls); } catch { arr = [p.image_urls]; }
+  }
+  if (arr.length === 0 && typeof p.image_url === 'string' && p.image_url) arr = [p.image_url];
+  return localizeImageUrls(arr);
+}
 
 // Always use ERP Supabase (the active project) — customer Supabase is paused
 const SB_URL  = 'https://qwiumswrbddwmlraktvy.supabase.co';
@@ -119,8 +132,7 @@ export async function GET(req: NextRequest) {
         name:      i.products?.name ?? i.product_name ?? 'Item',
         unit:      i.products?.unit ?? 'kg',
         slug:      i.product_id ?? '',
-        imageUrls: i.products?.image_urls?.length ? i.products.image_urls
-                   : i.products?.image_url ? [i.products.image_url] : [],
+        imageUrls: itemImages(i.products),
         quantity:  i.quantity,
         unitPrice: Number(i.unit_price ?? 0),
       })),
