@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import type { ApiResponse, PaginatedResponse, Product } from '@/types';
 import { prisma } from '@/lib/db';
 import { cleanProductName, localizeImageUrls, localizeImageUrl } from '@/lib/clean-name';
+import { resolveImageByName } from '@/lib/product-image-resolver';
+import { resolveCategory } from '@/lib/category-resolver';
 import { filterExtraProducts } from '@/lib/extra-products';
 import { db } from '@/lib/supabase';
 
@@ -238,29 +240,43 @@ export async function GET(req: NextRequest) {
     const sort     = sp.get('sort') ?? 'relevance';
     const offset   = (page - 1) * limit;
 
-    // ── Try ERP Supabase first — it supports proper category_slug filtering ──
+    // ── Try ERP Supabase first ──────────────────────────────────────────────
+    // When a category is requested we can't rely on the DB's category_slug
+    // (products are mis-bucketed into "valluvam"). Fetch a wide set and filter
+    // by the name-resolved category in JS.
+    const catRequested = Boolean(category);
     try {
       const { rows, total } = await db.getProducts({
-        category: category || undefined,
+        category: undefined,                         // resolve category ourselves
         search:   search   || undefined,
         featured: featured || undefined,
-        limit,
-        offset,
+        limit:    catRequested ? 1000 : limit,
+        offset:   catRequested ? 0 : offset,
         sort: sort === 'price-asc' ? 'price_asc' : sort === 'price-desc' ? 'price_desc' : sort === 'newest' ? 'new' : undefined,
       });
 
       const mapped: Product[] = (rows as any[]).map((p) => {
         const imgs: string[] = (() => { try { return JSON.parse(p.image_urls ?? '[]'); } catch { return p.image_url ? [p.image_url] : []; } })();
+        const cleanName = cleanProductName(p.name, p.slug);
+        const localized = localizeImageUrls(imgs.length ? imgs : (p.image_url ? [p.image_url] : []));
+        // Prefer an image matched by product name from the local /images set —
+        // the DB image_url is frequently wrong (coconut showing an apple, etc.).
+        const byName = resolveImageByName(cleanName) ?? resolveImageByName(p.name);
+        const finalImgs = byName
+          ? [byName, ...localized.filter((u) => u !== byName)]
+          : (localized.length ? localized : []);
+        // Correct a mis-bucketed category (e.g. everything dumped in "valluvam").
+        const rc = resolveCategory(cleanName, p.category_slug);
         return {
           id:            p.id,
-          name:          cleanProductName(p.name, p.slug),
+          name:          cleanName,
           slug:          p.slug,
           description:   p.description ?? null,
-          imageUrls:     localizeImageUrls(imgs.length ? imgs : (p.image_url ? [p.image_url] : [])),
+          imageUrls:     finalImgs,
           blurDataUrls:  [],
           categoryId:    p.category_id ?? '',
-          categoryName:  p.category ?? p.category_name ?? '',
-          categorySlug:  p.category_slug ?? '',
+          categoryName:  rc?.name ?? p.category ?? p.category_name ?? '',
+          categorySlug:  rc?.slug ?? p.category_slug ?? '',
           brandId:       p.brand_id ?? null,
           brandName:     null,
           sku:           p.sku ?? '',
@@ -277,13 +293,22 @@ export async function GET(req: NextRequest) {
         };
       });
 
+      // Category filter is applied here (on the resolved categorySlug), then paginate.
+      let list = mapped;
+      let listTotal = total;
+      if (catRequested) {
+        list = mapped.filter((m) => m.categorySlug === category);
+        listTotal = list.length;
+        list = list.slice(offset, offset + limit);
+      }
+
       const extras = filterExtraProducts({ category, search, featured });
       const combined = page === 1
-        ? [...mapped, ...extras.filter((x) => !mapped.some((m) => m.slug === x.slug))]
-        : mapped;
+        ? [...list, ...extras.filter((x) => !list.some((m) => m.slug === x.slug))]
+        : list;
 
       return NextResponse.json<ApiResponse<PaginatedResponse<Product>>>({
-        data: { data: combined, total: total + (page === 1 ? extras.length : 0), page, limit, hasMore: offset + limit < total },
+        data: { data: combined, total: listTotal + (page === 1 ? extras.length : 0), page, limit, hasMore: offset + limit < listTotal },
         error: null,
       });
     } catch (erpErr) {
