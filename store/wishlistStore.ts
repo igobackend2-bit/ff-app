@@ -65,7 +65,12 @@ export const useWishlistStore = create<WishlistState>()(
                 price:       Number(p['price'] ?? 0),
                 mrp:         Number(p['mrp'] ?? p['price'] ?? 0),
                 unit:        String(p['unit'] ?? 'kg'),
-                imageUrls:   Array.isArray(p['image_urls']) ? (p['image_urls'] as string[]) : [],
+                imageUrls:   (() => {
+                  const iu = p['image_urls'];
+                  if (Array.isArray(iu)) return iu as string[];
+                  if (typeof iu === 'string' && iu.trim()) { try { return JSON.parse(iu) as string[]; } catch { return [iu]; } }
+                  return typeof p['image_url'] === 'string' && p['image_url'] ? [p['image_url'] as string] : [];
+                })(),
                 inStock:     p['in_stock'] !== false,
               } as unknown as Product;
             })
