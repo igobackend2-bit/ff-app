@@ -19,7 +19,7 @@ const STATUS_STEPS = [
 function buildTrackingResponse(order: {
   id: string; status: string; total: number; created_at: string;
   delivery_address?: string;
-}, items: Array<{ product_name?: string; products?: { name?: string; unit?: string }; quantity: number; unit_price: number }>) {
+}, items: Array<{ product_name?: string; products?: { name?: string; unit?: string; image_url?: string; image_urls?: string[] }; quantity: number; unit_price: number }>) {
   const status = order.status ?? 'PLACED';
   let stepStatus = status;
   if (stepStatus === 'CANCELLED' || stepStatus === 'REFUNDED') stepStatus = 'PLACED';
@@ -52,8 +52,9 @@ function buildTrackingResponse(order: {
       address:   parsedAddress,
       items:     items.map((i) => ({
         name:      i.products?.name ?? i.product_name ?? 'Item',
-        unit:      '',
-        imageUrls: [] as string[],
+        unit:      i.products?.unit ?? '',
+        imageUrls: i.products?.image_urls?.length ? i.products.image_urls
+                   : i.products?.image_url ? [i.products.image_url] : [],
         qty:       i.quantity,
         price:     Number(i.unit_price ?? 0),
       })),
@@ -132,7 +133,7 @@ export async function GET(
     let items: any[] = [];
     try {
       const itemsRes = await fetch(
-        `${SB_URL}/rest/v1/order_items?order_id=eq.${order.id}&select=quantity,unit_price,products(name,unit)`,
+        `${SB_URL}/rest/v1/order_items?order_id=eq.${order.id}&select=product_name,quantity,unit_price,products(name,unit,image_url,image_urls)`,
         { headers: { apikey: key, Authorization: `Bearer ${key}`, Accept: 'application/json' }, cache: 'no-store' },
       );
       if (itemsRes.ok) items = await itemsRes.json() as any[];

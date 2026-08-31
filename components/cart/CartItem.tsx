@@ -1,7 +1,7 @@
 'use client';
 
-import Image from 'next/image';
-import { Plus, Minus, Trash2 } from 'lucide-react';
+import { useState } from 'react';
+import { Plus, Minus, Trash2, Package } from 'lucide-react';
 import { useCartStore } from '@/store/cartStore';
 import { cn, formatPrice, calculateEffectivePrice } from '@/lib/utils';
 import type { CartItem as CartItemType } from '@/types';
@@ -13,6 +13,7 @@ interface CartItemProps {
 export function CartItem({ item }: CartItemProps) {
   const updateQuantity = useCartStore((s) => s.updateQuantity);
   const removeItem = useCartStore((s) => s.removeItem);
+  const [imgErr, setImgErr] = useState(false);
 
   const { product, quantity, weight = 1 } = item;
 
@@ -21,16 +22,17 @@ export function CartItem({ item }: CartItemProps) {
   return (
     <div className="flex items-center gap-3 py-3">
       {/* Product image */}
-      <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl border border-neutral-100 bg-neutral-50">
-        {product.imageUrls[0] && (
-          <Image
+      <div className="relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-neutral-100 bg-neutral-50">
+        {product.imageUrls?.[0] && !imgErr ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
             src={product.imageUrls[0]}
-            // Skill #8: alt = product name + unit
             alt={`${product.name} ${product.unit}`}
-            fill
-            sizes="56px"
-            className="object-contain p-1"
+            className="h-full w-full object-contain p-1"
+            onError={() => setImgErr(true)}
           />
+        ) : (
+          <Package className="h-6 w-6 text-neutral-300" aria-hidden="true" />
         )}
       </div>
 

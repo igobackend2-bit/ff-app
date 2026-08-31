@@ -109,6 +109,8 @@ export function ProductDetailSheet() {
   const [selectedQty, setSelectedQty] = useState(1);
   // Available inventory for this product (null = unknown / unlimited)
   const [stockQty, setStockQty] = useState<number | null>(null);
+  // Fresh in-stock flag from the server (falls back to the prop until it loads)
+  const [liveInStock, setLiveInStock] = useState<boolean | null>(null);
 
   const cartItem = product ? cartItems.find((item) => item.productId === product.id) : null;
   const quantity = cartItem?.quantity ?? 0;
@@ -117,12 +119,19 @@ export function ProductDetailSheet() {
   useEffect(() => {
     setSelectedQty(1);
     setStockQty(null);
+    setLiveInStock(null);
     if (!product?.id) return;
     fetch(`/api/products/stock?productId=${product.id}`, { cache: 'no-store' })
       .then((r) => r.json())
-      .then((d: { qty: number | null }) => setStockQty(d.qty ?? null))
-      .catch(() => setStockQty(null));
+      .then((d: { qty: number | null; inStock?: boolean }) => {
+        setStockQty(d.qty ?? null);
+        if (typeof d.inStock === 'boolean') setLiveInStock(d.inStock);
+      })
+      .catch(() => { setStockQty(null); setLiveInStock(null); });
   }, [product?.id]);
+
+  // Effective stock state: trust the live flag once loaded, else the prop.
+  const inStock = liveInStock ?? (product?.inStock ?? true);
 
   // ── Similar products ─────────────────────────────────────────────
   const [similarProducts, setSimilarProducts] = useState<any[]>([]);
@@ -252,7 +261,7 @@ export function ProductDetailSheet() {
                 <span className="rounded-full bg-primary-50 px-3 py-1 text-xs font-bold text-primary-700">
                   {product.categoryName || product.categorySlug}
                 </span>
-                {product.inStock ? (
+                {inStock ? (
                   <span className="rounded-md border border-green-100 bg-green-50 px-2 py-0.5 text-[10px] font-bold text-green-600">
                     IN STOCK
                   </span>
@@ -497,10 +506,10 @@ export function ProductDetailSheet() {
                   {/* Add selected qty to cart */}
                   <button
                     onClick={handleAddToCart}
-                    disabled={stockExceeded || !product.inStock}
+                    disabled={stockExceeded || !inStock}
                     className={cn(
                       'flex flex-1 items-center justify-center gap-2 rounded-2xl py-3.5 text-sm font-black text-white shadow-md transition-all active:scale-[0.98]',
-                      stockExceeded || !product.inStock
+                      stockExceeded || !inStock
                         ? 'bg-neutral-300 cursor-not-allowed'
                         : 'bg-primary-600 hover:bg-primary-700',
                     )}
@@ -508,7 +517,7 @@ export function ProductDetailSheet() {
                     <ShoppingCart className="h-4 w-4" />
                     {stockExceeded
                       ? `Only ${stockQty} available`
-                      : !product.inStock
+                      : !inStock
                       ? 'Out of Stock'
                       : `Add ${selectedQty} more`}
                   </button>
@@ -517,10 +526,10 @@ export function ProductDetailSheet() {
                 /* First-time add */
                 <button
                   onClick={handleAddToCart}
-                  disabled={stockExceeded || !product.inStock}
+                  disabled={stockExceeded || !inStock}
                   className={cn(
                     'flex w-full items-center justify-center gap-2 rounded-2xl py-4 text-base font-black text-white shadow-lg transition-all active:scale-[0.98]',
-                    stockExceeded || !product.inStock
+                    stockExceeded || !inStock
                       ? 'bg-neutral-300 cursor-not-allowed'
                       : 'bg-primary-600 hover:bg-primary-700',
                   )}
@@ -528,7 +537,7 @@ export function ProductDetailSheet() {
                   <ShoppingCart className="h-5 w-5" />
                   {stockExceeded
                     ? `Only ${stockQty} ${isWeightUnit ? unitLabel : 'units'} available`
-                    : !product.inStock
+                    : !inStock
                     ? 'Out of Stock'
                     : `Add to Cart — ${formatPrice(totalPrice)}`}
                 </button>

@@ -1,24 +1,37 @@
-// Public: lightweight stock-quantity check for a single product
-// GET /api/products/stock?productId=xxx  →  { qty: number }
+// Public: fresh stock check for a single product — reads Supabase directly so
+// admin's "Out of Stock" toggle is reflected immediately (Prisma is offline in prod).
+// GET /api/products/stock?productId=xxx  →  { qty: number | null, inStock: boolean }
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
 
-const STORE_ID = 'main-store';
+const SB  = 'https://qwiumswrbddwmlraktvy.supabase.co';
+const KEY =
+  process.env['SUPABASE_SERVICE_ROLE_KEY'] ||
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF3aXVtc3dyYmRkd21scmFrdHZ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAxMjU3NTIsImV4cCI6MjA5NTcwMTc1Mn0.AsY045N7wHqMF_2P0-D2Ouzrkphjfkb4CP6ImhSm-tc';
+
+export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
   try {
     const productId = req.nextUrl.searchParams.get('productId');
-    if (!productId) return NextResponse.json({ qty: null }, { status: 400 });
+    if (!productId) return NextResponse.json({ qty: null, inStock: true }, { status: 400 });
 
-    const inv = await prisma.inventory.findUnique({
-      where: { productId_darkStoreId: { productId, darkStoreId: STORE_ID } },
-      select: { quantity: true },
-    });
+    const r = await fetch(
+      `${SB}/rest/v1/products?id=eq.${encodeURIComponent(productId)}&select=in_stock,stock_quantity,quantity&limit=1`,
+      { headers: { apikey: KEY, Authorization: `Bearer ${KEY}`, Accept: 'application/json' }, cache: 'no-store' },
+    );
+    if (!r.ok) return NextResponse.json({ qty: null, inStock: true });
 
-    // If no inventory record exists we don't know — return null (unlimited)
-    return NextResponse.json({ qty: inv ? inv.quantity : null });
+    const rows = (await r.json()) as Array<Record<string, unknown>>;
+    const row = rows[0];
+    if (!row) return NextResponse.json({ qty: null, inStock: true });
+
+    const inStock = row['in_stock'] !== false;
+    const rawQty  = row['stock_quantity'] ?? row['quantity'];
+    const qty     = rawQty == null ? null : Number(rawQty);
+
+    return NextResponse.json({ qty: inStock ? qty : 0, inStock });
   } catch (err) {
     console.error('[GET /api/products/stock]', err);
-    return NextResponse.json({ qty: null }, { status: 500 });
+    return NextResponse.json({ qty: null, inStock: true }, { status: 500 });
   }
 }
