@@ -250,12 +250,14 @@ export const db = {
     };
   },
 
-  // Wishlist
+  // Wishlist — service role: the wishlists table has RLS that blocks anon writes,
+  // so previously nothing persisted and the list was empty after re-login.
   async getWishlist(userId: string) {
     return supabaseREST<Record<string, unknown>>('wishlists', {
-      select: '*, products(id, name, slug, price, mrp, unit, image_urls, in_stock, average_rating, is_featured)',
+      select: '*, products(id, name, slug, price, mrp, unit, image_url, image_urls, in_stock, average_rating, is_featured)',
       filters: `user_id=eq.${userId}`,
       order: 'created_at.desc',
+      useServiceRole: true,
     });
   },
 
@@ -264,6 +266,7 @@ export const db = {
       method: 'POST',
       body: { user_id: userId, product_id: productId },
       returning: 'minimal',
+      useServiceRole: true,
     });
   },
 
@@ -271,6 +274,7 @@ export const db = {
     return supabaseREST('wishlists', {
       method: 'DELETE',
       filters: `user_id=eq.${userId}&product_id=eq.${productId}`,
+      useServiceRole: true,
     });
   },
 
