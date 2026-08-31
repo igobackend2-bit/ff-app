@@ -5,7 +5,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sbAdmin } from '@/lib/sb-admin';
 
-const QTY_RE = /^(stock_quantity|quantity|stock|available_quantity|available_stock|inventory|qty|stock_count)$/i;
+// `stock_left` is the real column a DB trigger derives `in_stock` from.
+const QTY_RE = /^(stock_left|stock_quantity|quantity|stock|available_quantity|available_stock|inventory|qty|stock_count)$/i;
 
 export async function PATCH(
   req: NextRequest,
