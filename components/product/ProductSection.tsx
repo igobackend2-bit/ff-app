@@ -27,7 +27,7 @@ async function fetchProducts(props: ProductSectionProps): Promise<Product[]> {
     params.set('limit', String(props.limit ?? 8));
 
     const res = await fetch(`${baseUrl}/api/products?${params}`, {
-      next: { revalidate: 60 },
+      cache: 'no-store',
     });
     if (!res.ok) throw new Error('API error');
     const json = (await res.json()) as { data: { data: Product[] } | null };

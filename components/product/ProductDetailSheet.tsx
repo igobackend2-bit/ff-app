@@ -118,7 +118,7 @@ export function ProductDetailSheet() {
     setSelectedQty(1);
     setStockQty(null);
     if (!product?.id) return;
-    fetch(`/api/products/stock?productId=${product.id}`)
+    fetch(`/api/products/stock?productId=${product.id}`, { cache: 'no-store' })
       .then((r) => r.json())
       .then((d: { qty: number | null }) => setStockQty(d.qty ?? null))
       .catch(() => setStockQty(null));

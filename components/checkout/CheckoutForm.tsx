@@ -56,7 +56,7 @@ export function CheckoutForm() {
 
   // Load configurable minimum order amount
   useEffect(() => {
-    fetch('/api/delivery-config')
+    fetch('/api/delivery-config', { cache: 'no-store' })
       .then((r) => r.json())
       .then((d: { min_order_amount?: number }) => { if (d.min_order_amount) setMinOrder(d.min_order_amount); })
       .catch(() => {});

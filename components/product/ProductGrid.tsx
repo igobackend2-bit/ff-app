@@ -34,7 +34,7 @@ export function ProductGrid({ categoryId, categorySlug, sort, brand, tags, page 
         if (brand) params.set('brand', brand);
         if (tags)  params.set('tags', tags);
 
-        const res = await fetch(`/api/products?${params}`);
+        const res = await fetch(`/api/products?${params}`, { cache: 'no-store' });
         if (!res.ok) throw new Error('Failed');
         const data = (await res.json()) as { data: { data: Product[] } };
         let loaded = data.data?.data ?? [];
@@ -50,7 +50,7 @@ export function ProductGrid({ categoryId, categorySlug, sort, brand, tags, page 
           if (fallbackSlug) {
             const fb = new URLSearchParams({ limit: '100', page: String(page), category: fallbackSlug });
             if (sort && sort !== 'relevance') fb.set('sort', sort);
-            const fbRes = await fetch(`/api/products?${fb}`);
+            const fbRes = await fetch(`/api/products?${fb}`, { cache: 'no-store' });
             if (fbRes.ok) {
               const fbData = (await fbRes.json()) as { data: { data: Product[] } };
               // For dairy-ghee fallback, only show ghee products (filter from honey-jaggery)
