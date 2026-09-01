@@ -15,8 +15,10 @@ export async function GET(req: NextRequest) {
     const productId = req.nextUrl.searchParams.get('productId');
     if (!productId) return NextResponse.json({ qty: null, inStock: true }, { status: 400 });
 
+    // select=* — earlier this listed columns (stock_quantity/quantity) that don't
+    // exist, so PostgREST 400'd and the route fell back to inStock:true.
     const r = await fetch(
-      `${SB}/rest/v1/products?id=eq.${encodeURIComponent(productId)}&select=in_stock,stock_quantity,quantity&limit=1`,
+      `${SB}/rest/v1/products?id=eq.${encodeURIComponent(productId)}&select=*&limit=1`,
       { headers: { apikey: KEY, Authorization: `Bearer ${KEY}`, Accept: 'application/json' }, cache: 'no-store' },
     );
     if (!r.ok) return NextResponse.json({ qty: null, inStock: true });
@@ -26,7 +28,7 @@ export async function GET(req: NextRequest) {
     if (!row) return NextResponse.json({ qty: null, inStock: true });
 
     const inStock = row['in_stock'] !== false;
-    const rawQty  = row['stock_quantity'] ?? row['quantity'];
+    const rawQty  = row['stock_left'] ?? row['stock_quantity'] ?? row['quantity'] ?? row['stock'];
     const qty     = rawQty == null ? null : Number(rawQty);
 
     return NextResponse.json({ qty: inStock ? qty : 0, inStock });
