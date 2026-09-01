@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
     let personal: Array<Record<string, unknown>> = [];
     if (uid) {
       const pRes = await fetch(
-        `${SB}/rest/v1/customer_notifications?select=*&user_key=eq.${encodeURIComponent(uid)}&order=created_at.desc&limit=20`,
+        `${SB}/rest/v1/ff_user_notifications?select=*&user_key=eq.${encodeURIComponent(uid)}&order=created_at.desc&limit=20`,
         { headers: H, cache: 'no-store' },
       );
       if (pRes.ok) personal = await pRes.json() as Array<Record<string, unknown>>;

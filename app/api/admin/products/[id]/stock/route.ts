@@ -52,10 +52,10 @@ export async function PATCH(
           query: `product_id=eq.${encodeURIComponent(id)}&notified=eq.false&select=user_key`,
         });
         const rows = Array.isArray(alerts.data) ? alerts.data : [];
-        // customer_notifications is a text-keyed table (notifications.user_id/ref_id
+        // ff_user_notifications is a text-keyed table (notifications.user_id/ref_id
         // are uuid and reject "phone:+91…").
         for (const a of rows) {
-          const nr = await sbAdmin('customer_notifications', {
+          const nr = await sbAdmin('ff_user_notifications', {
             method: 'POST',
             body: {
               user_key: String(a['user_key']),
