@@ -25,11 +25,14 @@ export async function GET(req: NextRequest) {
     // 2. This customer's own notifications (back-in-stock, etc.) — text-keyed table.
     let personal: Array<Record<string, unknown>> = [];
     if (uid) {
-      const pRes = await fetch(
-        `${SB}/rest/v1/ff_user_notifications?select=*&user_key=eq.${encodeURIComponent(uid)}&order=created_at.desc&limit=20`,
-        { headers: SH, cache: 'no-store' },
-      );
-      if (pRes.ok) personal = await pRes.json() as Array<Record<string, unknown>>;
+      const pUrl = `${SB}/rest/v1/ff_user_notifications?select=*&user_key=eq.${encodeURIComponent(uid)}&order=created_at.desc&limit=20`;
+      const pRes = await fetch(pUrl, { headers: SH, cache: 'no-store' });
+      const pText = await pRes.text();
+      try { personal = JSON.parse(pText) as Array<Record<string, unknown>>; } catch { personal = []; }
+      if (!pRes.ok || !Array.isArray(personal)) {
+        console.warn('[notifications/user] personal fetch', pRes.status, pText.slice(0, 200));
+        personal = [];
+      }
     }
 
     const rows = [...personal, ...broadcast].sort(
@@ -59,7 +62,7 @@ export async function GET(req: NextRequest) {
     }
 
     const unreadCount = notifications.filter((n) => !n.isRead).length;
-    return NextResponse.json({ notifications, unreadCount });
+    return NextResponse.json({ notifications, unreadCount, _personal: personal.length, _broadcast: broadcast.length });
   } catch (err) {
     console.error('[notifications/user]', err);
     return NextResponse.json({ notifications: [], unreadCount: 0 });
