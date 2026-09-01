@@ -52,18 +52,17 @@ export async function PATCH(
           query: `product_id=eq.${encodeURIComponent(id)}&notified=eq.false&select=user_key`,
         });
         const rows = Array.isArray(alerts.data) ? alerts.data : [];
+        // customer_notifications is a text-keyed table (notifications.user_id/ref_id
+        // are uuid and reject "phone:+91…").
         for (const a of rows) {
-          // Store the customer key in ref_id (text) — notifications.user_id may be
-          // a uuid column that rejects "phone:+91…". /api/notifications/user matches ref_id.
-          const nr = await sbAdmin('notifications', {
+          const nr = await sbAdmin('customer_notifications', {
             method: 'POST',
             body: {
+              user_key: String(a['user_key']),
               type: 'BACK_IN_STOCK',
               title: `${name} is back in stock`,
               message: `${name} is available again — order now before it runs out.`,
-              ref_id: String(a['user_key']),
               is_read: false,
-              source: 'system',
             },
             prefer: 'return=minimal',
           }).catch((e) => ({ ok: false, status: 0, text: String(e), data: null }));

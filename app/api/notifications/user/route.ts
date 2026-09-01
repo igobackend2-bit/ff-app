@@ -10,24 +10,28 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
   try {
-    // Broadcasts (user_id null) plus this signed-in user's own notifications.
     const uid = req.headers.get('x-user-id');
-    // Broadcasts (user_id null) + this user's targeted ones. Targeted rows carry
-    // the user key in ref_id (see admin stock route) because user_id may be uuid.
-    const scope = uid
-      ? `&or=(user_id.is.null,user_id.eq.${encodeURIComponent(uid)},ref_id.eq.${encodeURIComponent(uid)})`
-      : `&user_id=is.null`;
-    const res = await fetch(
-      `${SB}/rest/v1/notifications?select=*&type=neq.SYSTEM_CONFIG&type=neq.USER_PROFILE${scope}&order=created_at.desc&limit=20`,
+
+    // 1. Broadcast notifications (admin "Send Notification").
+    const bRes = await fetch(
+      `${SB}/rest/v1/notifications?select=*&type=neq.SYSTEM_CONFIG&type=neq.USER_PROFILE&user_id=is.null&order=created_at.desc&limit=20`,
       { headers: H, cache: 'no-store' },
     );
-    if (!res.ok) {
-      const errText = await res.text().catch(() => 'unknown');
-      console.error('[notifications/user] Supabase error', res.status, errText);
-      return NextResponse.json({ notifications: [], unreadCount: 0, _error: errText });
+    const broadcast = bRes.ok ? await bRes.json() as Array<Record<string, unknown>> : [];
+
+    // 2. This customer's own notifications (back-in-stock, etc.) — text-keyed table.
+    let personal: Array<Record<string, unknown>> = [];
+    if (uid) {
+      const pRes = await fetch(
+        `${SB}/rest/v1/customer_notifications?select=*&user_key=eq.${encodeURIComponent(uid)}&order=created_at.desc&limit=20`,
+        { headers: H, cache: 'no-store' },
+      );
+      if (pRes.ok) personal = await pRes.json() as Array<Record<string, unknown>>;
     }
 
-    const rows = await res.json() as Array<Record<string, unknown>>;
+    const rows = [...personal, ...broadcast].sort(
+      (a, b) => String(b['created_at'] ?? '').localeCompare(String(a['created_at'] ?? '')),
+    );
 
     // Deduplicate: keep only the newest row per (type+title+message) combination
     const seen = new Set<string>();
