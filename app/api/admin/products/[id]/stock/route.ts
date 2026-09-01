@@ -44,6 +44,7 @@ export async function PATCH(
 
     // Restocked → notify everyone who asked to be alerted, then clear those alerts.
     let notified = 0;
+    let notifDebug: string | undefined;
     if (inStock) {
       try {
         const name = String(after?.['name'] ?? row0['name'] ?? 'A product');
@@ -66,7 +67,8 @@ export async function PATCH(
             },
             prefer: 'return=minimal',
           }).catch((e) => ({ ok: false, status: 0, text: String(e), data: null }));
-          if (!nr.ok) console.warn('[stock PATCH] notif insert failed:', nr.status, String(nr.text).slice(0, 150));
+          if (!nr.ok) { notifDebug = `${nr.status}: ${String(nr.text).slice(0, 200)}`; console.warn('[stock PATCH] notif insert failed:', notifDebug); }
+          else notifDebug = 'ok';
         }
         if (rows.length) {
           await sbAdmin('stock_alerts', {
@@ -87,6 +89,7 @@ export async function PATCH(
       patched: Object.keys(patch),
       matched: Array.isArray(r.data) ? r.data.length : 0,
       customersNotified: notified,
+      notifDebug,
     });
   } catch (err) {
     console.error('[admin/products/:id/stock PATCH]', err);
