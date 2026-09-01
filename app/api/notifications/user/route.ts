@@ -2,9 +2,12 @@
 // (Prisma is disabled in production via DB_DISABLED=1, so we go direct to Supabase)
 import { NextRequest, NextResponse } from 'next/server';
 
-const SB  = 'https://qwiumswrbddwmlraktvy.supabase.co';
-const KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF3aXVtc3dyYmRkd21scmFrdHZ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAxMjU3NTIsImV4cCI6MjA5NTcwMTc1Mn0.AsY045N7wHqMF_2P0-D2Ouzrkphjfkb4CP6ImhSm-tc';
-const H   = { apikey: KEY, Authorization: `Bearer ${KEY}` };
+const SB   = 'https://qwiumswrbddwmlraktvy.supabase.co';
+const ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF3aXVtc3dyYmRkd21scmFrdHZ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAxMjU3NTIsImV4cCI6MjA5NTcwMTc1Mn0.AsY045N7wHqMF_2P0-D2Ouzrkphjfkb4CP6ImhSm-tc';
+// ff_user_notifications has RLS with no policies — anon reads return nothing.
+const SKEY = process.env['SUPABASE_SERVICE_ROLE_KEY'] || ANON;
+const H    = { apikey: ANON, Authorization: `Bearer ${ANON}` };
+const SH   = { apikey: SKEY, Authorization: `Bearer ${SKEY}` };
 
 export const dynamic = 'force-dynamic';
 
@@ -24,7 +27,7 @@ export async function GET(req: NextRequest) {
     if (uid) {
       const pRes = await fetch(
         `${SB}/rest/v1/ff_user_notifications?select=*&user_key=eq.${encodeURIComponent(uid)}&order=created_at.desc&limit=20`,
-        { headers: H, cache: 'no-store' },
+        { headers: SH, cache: 'no-store' },
       );
       if (pRes.ok) personal = await pRes.json() as Array<Record<string, unknown>>;
     }
