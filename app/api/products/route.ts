@@ -106,15 +106,23 @@ function formatProduct(p: {
   };
 }
 
-/** Deduplicate by name+unit — keep the first occurrence (highest order count / newest) */
+/** Deduplicate by name+unit. Keeps the first occurrence (already sorted newest-
+ *  updated first), but if that one is out of stock and a later duplicate is in
+ *  stock, swap to the in-stock row so the card and the detail page agree. */
 function deduplicateByNameUnit(products: Product[]): Product[] {
-  const seen = new Set<string>();
-  return products.filter((p) => {
+  const byKey = new Map<string, number>(); // key -> index in `out`
+  const out: Product[] = [];
+  for (const p of products) {
     const key = `${p.name.trim().toLowerCase()}||${p.unit.trim().toLowerCase()}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
+    const existingIdx = byKey.get(key);
+    if (existingIdx === undefined) {
+      byKey.set(key, out.length);
+      out.push(p);
+    } else if (out[existingIdx] && !out[existingIdx].inStock && p.inStock) {
+      out[existingIdx] = p; // prefer the in-stock duplicate
+    }
+  }
+  return out;
 }
 
 export async function GET(req: NextRequest) {
@@ -294,14 +302,17 @@ export async function GET(req: NextRequest) {
         };
       });
 
+      // Collapse duplicate product rows (same name+unit) — prefers the in-stock one.
+      const deduped = deduplicateByNameUnit(mapped);
+
       // Category filter is applied here (on the resolved categorySlug), then paginate.
-      let list = mapped;
+      let list = deduped;
       let listTotal = total;
       if (catRequested) {
         // "valluvam" is the traditional-products umbrella — include all its sub-cats.
         const VALLUVAM = ['valluvam', 'ghee', 'dairy-ghee', 'honey', 'palm-jaggery', 'oils', 'cold-pressed-oils', 'millets', 'spices', 'nuts', 'dry-fruits', 'seeds-health-mix'];
         const wanted = category === 'valluvam' ? new Set(VALLUVAM) : new Set([category]);
-        list = mapped.filter((m) => wanted.has(m.categorySlug));
+        list = deduped.filter((m) => wanted.has(m.categorySlug));
         listTotal = list.length;
         list = list.slice(offset, offset + limit);
       }
