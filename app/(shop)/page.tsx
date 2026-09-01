@@ -8,7 +8,9 @@ import { PromoBanners } from '@/components/home/PromoBanners';
 import { DeliveryStrip } from '@/components/home/DeliveryStrip';
 import { SkeletonGrid } from '@/components/product/SkeletonCard';
 
-export const revalidate = 60;
+// Always render fresh so admin price/stock/image/category edits show immediately.
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export const metadata: Metadata = {
   title: 'Farmers Factory — Fresh Farm Products in 24 Hours',

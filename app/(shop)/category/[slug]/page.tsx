@@ -6,7 +6,8 @@ import { ProductGrid } from '@/components/product/ProductGrid';
 import { CategoryFilters } from '@/components/category/CategoryFilters';
 import { SkeletonGrid } from '@/components/product/SkeletonCard';
 
-export const revalidate = 300;
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 interface Params      { slug: string }
 interface SearchParams { sort?: string; brand?: string; tags?: string; page?: string }

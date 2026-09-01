@@ -202,19 +202,28 @@ export async function POST(req: NextRequest) {
         savedOrderId = newOrder.id;
         savedOrderNumber = newOrder.order_number ?? orderNumber;
 
-        // order_items columns: id, order_id, product_id, quantity, unit_price, total
-        // (there is NO product_name column — name is resolved via the products join on read)
-        await sbFetch('order_items', {
-          method:      'POST',
-          serviceRole: true,
-          body: items.map((i) => ({
-            order_id:   newOrder.id,
-            product_id: i.productId,
-            quantity:   i.quantity,
-            unit_price: i.unitPrice,
-            total:      i.unitPrice * i.quantity,
-          })),
-        }).catch((e) => { console.warn('[POST /api/orders] order_items insert failed:', String(e).slice(0, 300)); });
+        // order_items.order_id + product_id are UUID columns. A single non-UUID
+        // product_id (legacy slug / hardcoded "extra") used to fail the whole
+        // batch insert -> the order saved with ZERO items. Insert per-item so one
+        // bad row can't lose the rest, and skip rows with a non-UUID product id.
+        const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        for (const i of items) {
+          if (!UUID.test(i.productId)) {
+            console.warn('[POST /api/orders] skipping non-UUID order item:', i.productId, i.name);
+            continue;
+          }
+          await sbFetch('order_items', {
+            method:      'POST',
+            serviceRole: true,
+            body: {
+              order_id:   newOrder.id,
+              product_id: i.productId,
+              quantity:   i.quantity,
+              unit_price: i.unitPrice,
+              total:      i.unitPrice * i.quantity,
+            },
+          }).catch((e) => { console.warn('[POST /api/orders] order_item insert failed:', i.productId, String(e).slice(0, 200)); });
+        }
       }
     } catch (sbErr) {
       // Supabase unavailable — log order details for merchant, continue with local ID

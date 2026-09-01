@@ -16,7 +16,8 @@ import { ProductSection } from '@/components/product/ProductSection';
 import { SkeletonGrid } from '@/components/product/SkeletonCard';
 import { formatPrice, discountPercent } from '@/lib/utils';
 
-export const revalidate = 300;
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 interface Params {
   slug: string;
@@ -28,7 +29,7 @@ async function getProduct(slug: string) {
       process.env['NEXT_PUBLIC_APP_URL'] ??
       (process.env['VERCEL_URL'] ? `https://${process.env['VERCEL_URL']}` : 'http://localhost:3000');
     const res = await fetch(`${baseUrl}/api/products/${slug}`, {
-      next: { revalidate: 300 },
+      cache: 'no-store',
     });
     if (!res.ok) return null;
     // API returns { data: product, error: null } — unwrap .data so product.slug is defined
