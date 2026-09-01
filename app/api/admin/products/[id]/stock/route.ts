@@ -52,19 +52,21 @@ export async function PATCH(
         });
         const rows = Array.isArray(alerts.data) ? alerts.data : [];
         for (const a of rows) {
-          await sbAdmin('notifications', {
+          // Store the customer key in ref_id (text) — notifications.user_id may be
+          // a uuid column that rejects "phone:+91…". /api/notifications/user matches ref_id.
+          const nr = await sbAdmin('notifications', {
             method: 'POST',
             body: {
               type: 'BACK_IN_STOCK',
               title: `${name} is back in stock`,
               message: `${name} is available again — order now before it runs out.`,
-              user_id: a['user_key'],
-              ref_id: id,
+              ref_id: String(a['user_key']),
               is_read: false,
               source: 'system',
             },
             prefer: 'return=minimal',
-          }).catch(() => {});
+          }).catch((e) => ({ ok: false, status: 0, text: String(e), data: null }));
+          if (!nr.ok) console.warn('[stock PATCH] notif insert failed:', nr.status, String(nr.text).slice(0, 150));
         }
         if (rows.length) {
           await sbAdmin('stock_alerts', {

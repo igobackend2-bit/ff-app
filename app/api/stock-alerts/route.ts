@@ -18,10 +18,12 @@ export async function POST(req: NextRequest) {
     const phone = userKey.startsWith('phone:') ? userKey.slice(6) : null;
     const r = await sbAdmin(TABLE, {
       method: 'POST',
+      query: 'on_conflict=product_id,user_key',
       body: { product_id: productId, user_key: userKey, phone, notified: false },
       prefer: 'resolution=merge-duplicates,return=minimal',
     });
-    if (!r.ok) {
+    // 23505 = already subscribed — that's fine.
+    if (!r.ok && !r.text.includes('23505')) {
       console.warn('[stock-alerts POST]', r.status, r.text.slice(0, 200));
       return NextResponse.json({ error: r.text.slice(0, 200) }, { status: 502 });
     }

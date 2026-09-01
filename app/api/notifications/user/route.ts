@@ -12,8 +12,10 @@ export async function GET(req: NextRequest) {
   try {
     // Broadcasts (user_id null) plus this signed-in user's own notifications.
     const uid = req.headers.get('x-user-id');
+    // Broadcasts (user_id null) + this user's targeted ones. Targeted rows carry
+    // the user key in ref_id (see admin stock route) because user_id may be uuid.
     const scope = uid
-      ? `&or=(user_id.is.null,user_id.eq.${encodeURIComponent(uid)})`
+      ? `&or=(user_id.is.null,user_id.eq.${encodeURIComponent(uid)},ref_id.eq.${encodeURIComponent(uid)})`
       : `&user_id=is.null`;
     const res = await fetch(
       `${SB}/rest/v1/notifications?select=*&type=neq.SYSTEM_CONFIG&type=neq.USER_PROFILE${scope}&order=created_at.desc&limit=20`,
