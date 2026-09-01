@@ -254,12 +254,15 @@ export async function GET(req: NextRequest) {
     // by the name-resolved category in JS.
     const catRequested = Boolean(category);
     try {
+      // Fetch a wide set always, so dedupe (below) sees every duplicate row and
+      // can pick the in-stock one; we paginate after deduping.
+      const wide = catRequested || !search;
       const { rows, total } = await db.getProducts({
         category: undefined,                         // resolve category ourselves
         search:   search   || undefined,
         featured: featured || undefined,
-        limit:    catRequested ? 1000 : limit,
-        offset:   catRequested ? 0 : offset,
+        limit:    wide ? 1000 : Math.max(limit * 3, 60),
+        offset:   0,
         sort: sort === 'price-asc' ? 'price_asc' : sort === 'price-desc' ? 'price_desc' : sort === 'newest' ? 'new' : undefined,
       });
 
@@ -305,17 +308,16 @@ export async function GET(req: NextRequest) {
       // Collapse duplicate product rows (same name+unit) — prefers the in-stock one.
       const deduped = deduplicateByNameUnit(mapped);
 
-      // Category filter is applied here (on the resolved categorySlug), then paginate.
-      let list = deduped;
-      let listTotal = total;
+      // Category filter, then paginate — always slice locally since we fetched wide.
+      let pool = deduped;
       if (catRequested) {
         // "valluvam" is the traditional-products umbrella — include all its sub-cats.
         const VALLUVAM = ['valluvam', 'ghee', 'dairy-ghee', 'honey', 'palm-jaggery', 'oils', 'cold-pressed-oils', 'millets', 'spices', 'nuts', 'dry-fruits', 'seeds-health-mix'];
         const wanted = category === 'valluvam' ? new Set(VALLUVAM) : new Set([category]);
-        list = deduped.filter((m) => wanted.has(m.categorySlug));
-        listTotal = list.length;
-        list = list.slice(offset, offset + limit);
+        pool = deduped.filter((m) => wanted.has(m.categorySlug ?? ''));
       }
+      const listTotal = pool.length;
+      const list = pool.slice(offset, offset + limit);
 
       const extras = filterExtraProducts({ category, search, featured });
       const combined = page === 1
