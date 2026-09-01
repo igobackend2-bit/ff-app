@@ -136,10 +136,12 @@ export const db = {
       filters.push(`name=ilike.*${opts.search}*`);
     }
 
+    // Secondary sort by updated_at so that when two rows share a name (duplicate
+    // products), name-dedup keeps the one an admin edited most recently.
     const order =
-      opts.sort === 'price_asc' ? 'price.asc' :
-      opts.sort === 'price_desc' ? 'price.desc' :
-      opts.sort === 'new' ? 'created_at.desc' : 'is_featured.desc';
+      opts.sort === 'price_asc' ? 'price.asc,updated_at.desc' :
+      opts.sort === 'price_desc' ? 'price.desc,updated_at.desc' :
+      opts.sort === 'new' ? 'created_at.desc' : 'updated_at.desc,is_featured.desc';
 
     // NOTE: products table has flat `category` / `category_slug` columns —
     // there is no FK to a `categories` table, so embedding it throws PGRST200.
