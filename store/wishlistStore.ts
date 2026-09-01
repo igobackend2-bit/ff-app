@@ -31,6 +31,15 @@ export const useWishlistStore = create<WishlistState>()(
       // then replace the local list with this account's server wishlist so it
       // follows the user across devices / reinstalls / a cleared localStorage.
       initForUser: async (uid) => {
+        // Wait for persist rehydration first — otherwise a late rehydrate would
+        // clobber the server list we set below with the (stale/empty) local one.
+        if (!useWishlistStore.persist.hasHydrated()) {
+          await new Promise<void>((resolve) => {
+            const unsub = useWishlistStore.persist.onFinishHydration(() => { unsub?.(); resolve(); });
+            setTimeout(resolve, 1500); // safety timeout
+          });
+        }
+
         const switching = get().userId != null && get().userId !== uid;
         const pending   = switching ? [] : get().items;
         set({ userId: uid, items: switching ? [] : get().items });
