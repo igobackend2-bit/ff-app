@@ -61,3 +61,4 @@ sk.txt
 apitxt.txt
 .env.vc*
 .env.vercel-check
+lib/_img-maps.json
