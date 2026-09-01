@@ -13,25 +13,57 @@ const STATUS_LABELS: Record<string, string> = {
   CANCELLED: 'Cancelled', REFUNDED: 'Refunded',
 };
 
+function parseImgs(p?: Record<string, unknown>): string[] {
+  if (!p) return [];
+  const iu = p['image_urls'];
+  if (Array.isArray(iu)) return iu as string[];
+  if (typeof iu === 'string' && iu.trim()) { try { return JSON.parse(iu) as string[]; } catch { return [iu]; } }
+  return typeof p['image_url'] === 'string' && p['image_url'] ? [p['image_url'] as string] : [];
+}
+
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
   try {
-    // Try orders table first, then sales_orders
-    const res = await fetch(`${SB}/rest/v1/orders?id=eq.${id}&select=*&limit=1`, { headers: H, cache: 'no-store' });
-    if (res.ok) {
-      const rows = await res.json() as unknown[];
-      if (rows.length > 0) return NextResponse.json({ order: rows[0] });
+    const isUuid = /^[0-9a-f-]{36}$/i.test(id);
+    const filter = isUuid ? `id=eq.${id}` : `order_number=eq.${encodeURIComponent(id)}`;
+
+    // Order row — orders table first, then sales_orders.
+    let order: Record<string, unknown> | null = null;
+    const res = await fetch(`${SB}/rest/v1/orders?${filter}&select=*&limit=1`, { headers: H, cache: 'no-store' });
+    if (res.ok) { const rows = await res.json() as Record<string, unknown>[]; if (rows[0]) order = rows[0]; }
+    if (!order) {
+      const res2 = await fetch(`${SB}/rest/v1/sales_orders?${filter}&select=*&limit=1`, { headers: H, cache: 'no-store' });
+      if (res2.ok) { const rows2 = await res2.json() as Record<string, unknown>[]; if (rows2[0]) order = rows2[0]; }
     }
-    // Fallback to sales_orders
-    const res2 = await fetch(`${SB}/rest/v1/sales_orders?id=eq.${id}&select=*&limit=1`, { headers: H, cache: 'no-store' });
-    if (res2.ok) {
-      const rows2 = await res2.json() as unknown[];
-      if (rows2.length > 0) return NextResponse.json({ order: rows2[0] });
+    if (!order) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+
+    // Line items — keyed off the resolved order id.
+    let items: unknown[] = [];
+    const oid = order['id'];
+    if (oid) {
+      const ir = await fetch(
+        `${SB}/rest/v1/order_items?order_id=eq.${oid}&select=id,product_id,quantity,unit_price,total,products(name,unit,image_url,image_urls)`,
+        { headers: H, cache: 'no-store' },
+      );
+      if (ir.ok) {
+        const raw = await ir.json() as Array<Record<string, unknown>>;
+        items = raw.map((i) => ({
+          id:        i['id'],
+          productId: i['product_id'] ?? '',
+          name:      (i['products'] as any)?.name ?? 'Item',
+          unit:      (i['products'] as any)?.unit ?? '',
+          quantity:  Number(i['quantity'] ?? 0),
+          unitPrice: Number(i['unit_price'] ?? 0),
+          total:     Number(i['total'] ?? Number(i['unit_price'] ?? 0) * Number(i['quantity'] ?? 0)),
+          imageUrls: parseImgs(i['products'] as Record<string, unknown>),
+        }));
+      }
     }
-    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+
+    return NextResponse.json({ order, items });
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 });
   }
