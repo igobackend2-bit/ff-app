@@ -32,21 +32,30 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET() {
+  // No FK embed — stock_alerts.product_id is text, not a foreign key.
   const r = await sbAdmin<Array<Record<string, unknown>>>(TABLE, {
-    query: 'notified=eq.false&select=product_id,user_key,phone,created_at,products(name)&order=created_at.desc&limit=500',
+    query: 'notified=eq.false&select=product_id,user_key,phone,created_at&order=created_at.desc&limit=500',
   });
   const rows = Array.isArray(r.data) ? r.data : [];
+
   const byProduct: Record<string, { productId: string; name: string; count: number; users: string[] }> = {};
   for (const a of rows) {
     const pid = String(a['product_id']);
-    (byProduct[pid] ??= {
-      productId: pid,
-      name: String((a['products'] as any)?.name ?? pid),
-      count: 0,
-      users: [],
-    });
+    (byProduct[pid] ??= { productId: pid, name: pid, count: 0, users: [] });
     byProduct[pid].count++;
     byProduct[pid].users.push(String(a['phone'] ?? a['user_key']));
   }
+
+  const ids = Object.keys(byProduct);
+  if (ids.length) {
+    const pr = await sbAdmin<Array<Record<string, unknown>>>('products', {
+      query: `id=in.(${ids.map(encodeURIComponent).join(',')})&select=id,name`,
+    });
+    for (const p of (Array.isArray(pr.data) ? pr.data : [])) {
+      const b = byProduct[String(p['id'])];
+      if (b) b.name = String(p['name'] ?? b.name);
+    }
+  }
+
   return NextResponse.json({ total: rows.length, products: Object.values(byProduct) });
 }
