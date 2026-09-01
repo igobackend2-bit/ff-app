@@ -113,7 +113,8 @@ function deduplicateByNameUnit(products: Product[]): Product[] {
   const byKey = new Map<string, number>(); // key -> index in `out`
   const out: Product[] = [];
   for (const p of products) {
-    const key = `${p.name.trim().toLowerCase()}||${p.unit.trim().toLowerCase()}`;
+    // Whitespace-insensitive so "Red Banana" and "Redbanana" collide.
+    const key = `${p.name.toLowerCase().replace(/\s+/g, '')}||${p.unit.toLowerCase().replace(/\s+/g, '')}`;
     const existingIdx = byKey.get(key);
     if (existingIdx === undefined) {
       byKey.set(key, out.length);
