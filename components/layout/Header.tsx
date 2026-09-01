@@ -118,7 +118,11 @@ export function Header() {
     if (!isLoggedIn()) return;
 
     const fetchNotifs = () => {
-      fetch('/api/notifications/user', { cache: 'no-store' })
+      const uid = useUserStore.getState().user?.id;
+      fetch('/api/notifications/user', {
+        cache: 'no-store',
+        headers: uid ? { 'x-user-id': uid } : undefined,
+      })
         .then((r) => r.json())
         .then((d: { notifications: UserNotif[]; unreadCount: number }) => {
           const dismissed = getDismissed();

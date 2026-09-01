@@ -42,10 +42,49 @@ export async function PATCH(
 
     if (!r.ok) return NextResponse.json({ error: r.text.slice(0, 200) }, { status: 502 });
 
+    // Restocked → notify everyone who asked to be alerted, then clear those alerts.
+    let notified = 0;
+    if (inStock) {
+      try {
+        const name = String(after?.['name'] ?? row0['name'] ?? 'A product');
+        const alerts = await sbAdmin<Array<Record<string, unknown>>>('stock_alerts', {
+          query: `product_id=eq.${encodeURIComponent(id)}&notified=eq.false&select=user_key`,
+        });
+        const rows = Array.isArray(alerts.data) ? alerts.data : [];
+        for (const a of rows) {
+          await sbAdmin('notifications', {
+            method: 'POST',
+            body: {
+              type: 'BACK_IN_STOCK',
+              title: `${name} is back in stock`,
+              message: `${name} is available again — order now before it runs out.`,
+              user_id: a['user_key'],
+              ref_id: id,
+              is_read: false,
+              source: 'system',
+            },
+            prefer: 'return=minimal',
+          }).catch(() => {});
+        }
+        if (rows.length) {
+          await sbAdmin('stock_alerts', {
+            method: 'PATCH',
+            query: `product_id=eq.${encodeURIComponent(id)}&notified=eq.false`,
+            body: { notified: true },
+            prefer: 'return=minimal',
+          }).catch(() => {});
+        }
+        notified = rows.length;
+      } catch (e) {
+        console.warn('[stock PATCH] back-in-stock notify failed:', String(e).slice(0, 150));
+      }
+    }
+
     return NextResponse.json({
       product: { id, name: after?.['name'] ?? row0['name'] ?? '', inStock: after?.['in_stock'] !== false },
       patched: Object.keys(patch),
       matched: Array.isArray(r.data) ? r.data.length : 0,
+      customersNotified: notified,
     });
   } catch (err) {
     console.error('[admin/products/:id/stock PATCH]', err);

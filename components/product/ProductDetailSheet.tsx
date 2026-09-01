@@ -3,10 +3,11 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Heart, ShoppingCart, Plus, Minus, Truck, AlertTriangle } from 'lucide-react';
+import { X, Heart, ShoppingCart, Plus, Minus, Truck, AlertTriangle, Bell } from 'lucide-react';
 import { useProductDetailStore } from '@/store/productDetailStore';
 import { useCartStore } from '@/store/cartStore';
 import { useWishlistStore } from '@/store/wishlistStore';
+import { useUserStore } from '@/store/userStore';
 import { cn, formatPrice, discountPercent } from '@/lib/utils';
 import { ProductGallery } from '@/components/product/ProductGallery';
 import { useUIStore } from '@/store/uiStore';
@@ -170,6 +171,32 @@ export function ProductDetailSheet() {
     addItem(product, selectedQty);
     addToast({ title: `🛒 ${product.name} ×${selectedQty} added to cart!`, variant: 'success' });
   }, [product, addItem, addToast, selectedQty]);
+
+  // Back-in-stock alert
+  const [alertSet, setAlertSet] = useState(false);
+  const userId = useUserStore((s) => s.user?.id);
+  const handleNotifyMe = useCallback(async () => {
+    if (!product) return;
+    if (!userId) {
+      addToast({ title: 'Please sign in to get notified', variant: 'error' });
+      return;
+    }
+    try {
+      const res = await fetch('/api/stock-alerts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-user-id': userId },
+        body: JSON.stringify({ productId: product.id }),
+      });
+      if (res.ok) {
+        setAlertSet(true);
+        addToast({ title: `🔔 We'll notify you when ${product.name} is back`, variant: 'success' });
+      } else {
+        addToast({ title: 'Could not set the alert. Try again.', variant: 'error' });
+      }
+    } catch {
+      addToast({ title: 'Could not set the alert. Try again.', variant: 'error' });
+    }
+  }, [product, userId, addToast]);
 
   const discount = product ? discountPercent(product.mrp, product.price) : 0;
   const images   = product?.imageUrls ?? [];
@@ -522,14 +549,29 @@ export function ProductDetailSheet() {
                       : `Add ${selectedQty} more`}
                   </button>
                 </div>
+              ) : !inStock ? (
+                /* Out of stock — offer a back-in-stock alert instead of Add to Cart */
+                <button
+                  onClick={() => void handleNotifyMe()}
+                  disabled={alertSet}
+                  className={cn(
+                    'flex w-full items-center justify-center gap-2 rounded-2xl py-4 text-base font-black shadow-lg transition-all active:scale-[0.98]',
+                    alertSet
+                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 cursor-default'
+                      : 'bg-neutral-900 text-white hover:bg-neutral-800',
+                  )}
+                >
+                  <Bell className="h-5 w-5" />
+                  {alertSet ? "You'll be notified when it's back" : 'Notify me when available'}
+                </button>
               ) : (
                 /* First-time add */
                 <button
                   onClick={handleAddToCart}
-                  disabled={stockExceeded || !inStock}
+                  disabled={stockExceeded}
                   className={cn(
                     'flex w-full items-center justify-center gap-2 rounded-2xl py-4 text-base font-black text-white shadow-lg transition-all active:scale-[0.98]',
-                    stockExceeded || !inStock
+                    stockExceeded
                       ? 'bg-neutral-300 cursor-not-allowed'
                       : 'bg-primary-600 hover:bg-primary-700',
                   )}
@@ -537,8 +579,6 @@ export function ProductDetailSheet() {
                   <ShoppingCart className="h-5 w-5" />
                   {stockExceeded
                     ? `Only ${stockQty} ${isWeightUnit ? unitLabel : 'units'} available`
-                    : !inStock
-                    ? 'Out of Stock'
                     : `Add to Cart — ${formatPrice(totalPrice)}`}
                 </button>
               )}
