@@ -32,30 +32,53 @@ export async function GET(req: NextRequest) {
     const search = searchParams.get('q') ?? '';
 
     const offset = (page - 1) * limit;
-    let qs = `sales_orders?select=*&order=created_at.desc&limit=${limit}&offset=${offset}`;
+    // Read the real `orders` table — it has order_number, payment fields AND line items.
+    let qs = `orders?select=*&order=created_at.desc&limit=${limit}&offset=${offset}`;
     if (status) qs += `&status=eq.${status}`;
-    if (search) qs += `&or=(id.ilike.*${search}*,customer_name.ilike.*${search}*)`;
+    if (search) qs += `&or=(order_number.ilike.*${search}*,customer_name.ilike.*${search}*,customer_phone.ilike.*${search}*)`;
 
     const { data: orders, total } = await sbGet(qs);
+    const rows = Array.isArray(orders) ? orders : [];
 
-    // Normalise to what the admin UI expects
-    const formatted = (Array.isArray(orders) ? orders : []).map((o: Record<string, unknown>) => ({
+    // Batch-fetch line items for this page of orders.
+    const ids = rows.map((o: Record<string, unknown>) => o['id']).filter(Boolean);
+    const itemsByOrder: Record<string, any[]> = {};
+    if (ids.length) {
+      try {
+        const { data: allItems } = await sbGet(
+          `order_items?order_id=in.(${ids.join(',')})&select=id,order_id,product_id,quantity,unit_price,total,products(name,unit,image_url,image_urls)`,
+        );
+        for (const it of (Array.isArray(allItems) ? allItems : [])) {
+          const oid = String(it['order_id']);
+          const p = (it['products'] ?? {}) as Record<string, unknown>;
+          let imgs: string[] = [];
+          const iu = p['image_urls'];
+          if (Array.isArray(iu)) imgs = iu as string[];
+          else if (typeof iu === 'string' && iu.trim()) { try { imgs = JSON.parse(iu); } catch { imgs = [iu]; } }
+          if (!imgs.length && typeof p['image_url'] === 'string' && p['image_url']) imgs = [p['image_url'] as string];
+          (itemsByOrder[oid] ??= []).push({
+            id: it['id'],
+            quantity: Number(it['quantity'] ?? 0),
+            unitPrice: Number(it['unit_price'] ?? 0),
+            product: { name: p['name'] ?? 'Item', unit: p['unit'] ?? '', imageUrls: imgs },
+          });
+        }
+      } catch { /* items unavailable */ }
+    }
+
+    const formatted = rows.map((o: Record<string, unknown>) => ({
       id: o['id'],
-      orderNumber: o['notes'] ? String(o['notes']).split('·')[0]?.replace('Order','').trim() : String(o['id']).slice(0,8),
+      orderNumber: o['order_number'] ?? String(o['id']).slice(0, 8),
       status: o['status'] ?? 'PLACED',
-      total: Number(o['total_amount'] ?? 0),
+      total: Number(o['total_amount'] ?? o['total'] ?? 0),
+      subtotal: Number(o['subtotal'] ?? 0),
+      deliveryFee: Number(o['delivery_fee'] ?? 0),
       createdAt: o['created_at'],
-      paymentMethod: String(
-        o['payment_mode'] ?? o['payment_method'] ??
-        (o['notes'] ? String(o['notes']).split('Payment:')[1]?.trim() : '') ?? 'COD',
-      ).toUpperCase() || 'COD',
-      paymentStatus: o['payment_status'] ?? o['payment_state'] ?? 'unpaid',
-      user: {
-        name: o['customer_name'] ?? 'Customer',
-        phone: '',
-      },
+      paymentMethod: String(o['payment_method'] ?? 'cod').toUpperCase(),
+      paymentStatus: o['payment_status'] ?? 'unpaid',
+      user: { name: o['customer_name'] ?? 'Customer', phone: o['customer_phone'] ?? '' },
       address: o['delivery_address'] ? { line1: String(o['delivery_address']) } : null,
-      items: [],
+      items: itemsByOrder[String(o['id'])] ?? [],
     }));
 
     return NextResponse.json({ orders: formatted, total, page, pages: Math.ceil(total / limit) });
