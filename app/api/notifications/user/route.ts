@@ -62,7 +62,7 @@ export async function GET(req: NextRequest) {
     }
 
     const unreadCount = notifications.filter((n) => !n.isRead).length;
-    return NextResponse.json({ notifications, unreadCount, _personal: personal.length, _broadcast: broadcast.length });
+    return NextResponse.json({ notifications, unreadCount });
   } catch (err) {
     console.error('[notifications/user]', err);
     return NextResponse.json({ notifications: [], unreadCount: 0 });

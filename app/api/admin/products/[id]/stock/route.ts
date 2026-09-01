@@ -88,7 +88,6 @@ export async function PATCH(
       patched: Object.keys(patch),
       matched: Array.isArray(r.data) ? r.data.length : 0,
       customersNotified: notified,
-      notifDebug,
     });
   } catch (err) {
     console.error('[admin/products/:id/stock PATCH]', err);
