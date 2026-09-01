@@ -1,8 +1,8 @@
 import Link from 'next/link';
+import { headers } from 'next/headers';
 import { ChevronRight } from 'lucide-react';
 import { ProductCard } from './ProductCard';
 import type { Product } from '@/types';
-import { DEMO_PRODUCTS } from '@/lib/demo-data';
 
 export interface ProductSectionProps {
   title?: string;
@@ -18,7 +18,18 @@ export interface ProductSectionProps {
 
 async function fetchProducts(props: ProductSectionProps): Promise<Product[]> {
   try {
-    const baseUrl = process.env['NEXT_PUBLIC_APP_URL'] ?? (process.env['VERCEL_URL'] ? `https://${process.env['VERCEL_URL']}` : 'http://localhost:3000');
+    // Always hit THIS deployment's own API — derive the origin from the incoming
+    // request headers. (A stale NEXT_PUBLIC_APP_URL like localhost:3001 used to
+    // make this fetch fail, which silently showed hard-coded demo products.)
+    const h = await headers();
+    const host = h.get('x-forwarded-host') ?? h.get('host');
+    const proto = h.get('x-forwarded-proto') ?? 'https';
+    const baseUrl = host
+      ? `${proto}://${host}`
+      : (process.env['NEXT_PUBLIC_APP_URL']?.startsWith('https')
+          ? process.env['NEXT_PUBLIC_APP_URL']
+          : 'https://ff-app-ten.vercel.app');
+
     const params = new URLSearchParams();
     if (props.categorySlug) params.set('category', props.categorySlug);
     if (props.categoryId) params.set('categoryId', String(props.categoryId));
@@ -26,21 +37,14 @@ async function fetchProducts(props: ProductSectionProps): Promise<Product[]> {
     if (props.sort) params.set('sort', props.sort);
     params.set('limit', String(props.limit ?? 8));
 
-    const res = await fetch(`${baseUrl}/api/products?${params}`, {
-      cache: 'no-store',
-    });
-    if (!res.ok) throw new Error('API error');
+    const res = await fetch(`${baseUrl}/api/products?${params}`, { cache: 'no-store' });
+    if (!res.ok) return [];
     const json = (await res.json()) as { data: { data: Product[] } | null };
     let products = json.data?.data ?? [];
-    if (products.length === 0) throw new Error('empty');
-    if (props.excludeId) products = products.filter((p) => String(p.id) !== String(props.excludeId));
-    return products;
-  } catch {
-    let products = DEMO_PRODUCTS;
-    if (props.categorySlug) products = products.filter((p) => p.categorySlug === props.categorySlug);
-    if (props.filter === 'featured') products = products.filter((p) => p.isFeatured);
     if (props.excludeId) products = products.filter((p) => String(p.id) !== String(props.excludeId));
     return products.slice(0, props.limit ?? 8);
+  } catch {
+    return [];
   }
 }
 
