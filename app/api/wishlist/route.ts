@@ -27,16 +27,36 @@ export async function GET(req: NextRequest) {
     const ids = (await idRes.json() as Array<{ product_id: string }>).map((x) => x.product_id).filter(Boolean);
     if (ids.length === 0) return NextResponse.json({ data: [], error: null });
 
-    // 2. hydrate the products
-    const pRes = await fetch(
-      `${SB}/rest/v1/products?id=in.(${ids.map(encodeURIComponent).join(',')})` +
-      `&select=id,name,slug,price,mrp,unit,image_url,image_urls,in_stock,average_rating,is_featured`,
-      { headers: H, cache: 'no-store' },
-    );
-    const products = pRes.ok ? await pRes.json() as Array<Record<string, unknown>> : [];
-    // preserve the wishlist order
-    const byId = new Map(products.map((p) => [String(p['id']), p]));
-    const data = ids.map((id) => byId.get(id)).filter(Boolean).map((p) => ({ product_id: (p as any).id, products: p }));
+    // 2. hydrate the products.
+    // Saved product_id may be a real uuid OR a slug/synthetic id (the app's
+    // resolver/dedup layer can hand cards a non-uuid id). Mixing a non-uuid into
+    // `id=in.(...)` makes PostgREST 400 the WHOLE query → every item vanishes.
+    // So split by shape and look each group up by the right column.
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const uuidIds = ids.filter((id) => UUID_RE.test(id));
+    const slugIds = ids.filter((id) => !UUID_RE.test(id));
+    const SELECT = 'select=id,name,slug,price,mrp,unit,image_url,image_urls,in_stock,average_rating,is_featured';
+
+    const products: Array<Record<string, unknown>> = [];
+    const pull = async (url: string) => {
+      const r = await fetch(url, { headers: H, cache: 'no-store' });
+      if (r.ok) { const rows = await r.json() as Array<Record<string, unknown>>; products.push(...rows); }
+      else console.warn('[wishlist GET hydrate]', r.status, (await r.text()).slice(0, 160));
+    };
+    if (uuidIds.length) {
+      await pull(`${SB}/rest/v1/products?id=in.(${uuidIds.map(encodeURIComponent).join(',')})&${SELECT}`);
+    }
+    if (slugIds.length) {
+      await pull(`${SB}/rest/v1/products?slug=in.(${slugIds.map(encodeURIComponent).join(',')})&${SELECT}`);
+    }
+
+    // Match back to each saved id by uuid OR slug; preserve the wishlist order.
+    const byUuid = new Map(products.map((p) => [String(p['id']), p]));
+    const bySlug = new Map(products.map((p) => [String(p['slug']), p]));
+    const data = ids
+      .map((id) => byUuid.get(id) ?? bySlug.get(id))
+      .filter(Boolean)
+      .map((p) => ({ product_id: (p as any).id, products: p }));
     return NextResponse.json({ data, error: null });
   } catch (err) {
     console.error('[wishlist GET]', err);
