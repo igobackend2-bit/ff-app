@@ -2,7 +2,7 @@
     "expo":  {
                  "name":  "Farmers Factory",
                  "slug":  "farmers-factory",
-                 "version":  "1.0.2",
+                 "version":  "1.0.3",
                  "orientation":  "portrait",
                  "icon":  "./assets/icon.png",
                  "userInterfaceStyle":  "light",
@@ -25,7 +25,7 @@
                                                       "backgroundColor":  "#16a34a"
                                                   },
                                  "package":  "com.igogroups.farmersfactory",
-                                 "versionCode":  3,
+                                 "versionCode":  4,
                                  "permissions":  [
                                                      "android.permission.INTERNET",
                                                      "android.permission.ACCESS_NETWORK_STATE",
