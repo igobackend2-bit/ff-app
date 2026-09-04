@@ -2,7 +2,7 @@
     "expo":  {
                  "name":  "Farmers Factory",
                  "slug":  "farmers-factory",
-                 "version":  "1.0.4",
+                 "version":  "1.0.5",
                  "orientation":  "portrait",
                  "icon":  "./assets/icon.png",
                  "userInterfaceStyle":  "light",
@@ -25,7 +25,7 @@
                                                       "backgroundColor":  "#16a34a"
                                                   },
                                  "package":  "farmers_factory.com",
-                                 "versionCode":  5,
+                                 "versionCode":  6,
                                  "permissions":  [
                                                      "android.permission.INTERNET",
                                                      "android.permission.ACCESS_NETWORK_STATE",
@@ -39,6 +39,18 @@
                  "web":  {
                              "favicon":  "./assets/favicon.png"
                          },
+                 "plugins":  [
+                                 [
+                                     "expo-build-properties",
+                                     {
+                                         "android":  {
+                                                         "compileSdkVersion":  36,
+                                                         "targetSdkVersion":  36,
+                                                         "buildToolsVersion":  "36.0.0"
+                                                     }
+                                     }
+                                 ]
+                             ],
                  "owner":  "igobackend2-bit",
                  "extra":  {
                                "eas":  {
