@@ -76,3 +76,19 @@ patch(
   '@react-native-voice/voice manifest package attr',
   (src) => src.replace(/\s*package="com\.wenkesj\.voice"/, ''),
 );
+
+// ── 3. expo-modules-core: fix nullable-receiver Kotlin error under compileSdk 36 ──
+// PackageInfo.requestedPermissions is Array<String>? — API 36's stricter platform
+// stubs make Kotlin reject the old unsafe `.contains(...)` call outright
+// (SDK 51's expo-modules-core predates compileSdk 36). Null-safe it.
+patch(
+  path.join(
+    nm, 'expo-modules-core', 'android', 'src', 'main', 'java', 'expo', 'modules',
+    'adapters', 'react', 'permissions', 'PermissionsService.kt',
+  ),
+  'expo-modules-core nullable requestedPermissions (compileSdk 36 fix)',
+  (src) => src.replace(
+    'return requestedPermissions.contains(permission)',
+    'return requestedPermissions?.contains(permission) == true',
+  ),
+);
